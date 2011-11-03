@@ -1,0 +1,13 @@
+
+OCAMLPACKS    = lwt
+
+UseCamlp4(lwt.syntax, xst xsraw xb)
+
+StaticCLibrary(xb_stubs, xb_stubs)
+OCAML_CLIBS += xb_stubs
+OCamlProgram(test, xs_packet)
+
+.PHONY: clean
+clean:
+	rm -f *.cmo *.cmi *.cmx *.o *.cmx *.cma *.cmxa test
+
