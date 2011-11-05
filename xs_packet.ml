@@ -96,11 +96,11 @@ type pkt =
 	buf: Buffer.t;
 }
 
-external header_size: unit -> int = "stub_header_size"
+let header_size = 16
 
 type buf = HaveHdr of pkt | NoHdr of int * string
 
-let empty () = NoHdr (header_size (), String.make (header_size()) '\000')
+let empty () = NoHdr (header_size, String.make header_size '\000')
 
 external header_of_string_internal: string -> int * int * int * int
          = "stub_header_of_string"

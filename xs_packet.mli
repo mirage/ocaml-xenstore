@@ -37,7 +37,7 @@ module Partial : sig
 
   val empty: unit -> buf
 
-  val header_size: unit -> int
+  val header_size: int
   val of_string: string -> pkt
   val append: pkt -> string -> int -> unit
   val to_complete: pkt -> int

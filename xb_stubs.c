@@ -45,12 +45,6 @@ CAMLprim value stub_get_internal_offset(void)
 	CAMLreturn(Val_int(XS_RESTRICT));
 }
 
-CAMLprim value stub_header_size(void)
-{
-	CAMLparam0();
-	CAMLreturn(Val_int(sizeof(struct xsd_sockmsg)));
-}
-
 CAMLprim value stub_header_of_string(value s)
 {
 	CAMLparam1(s);
