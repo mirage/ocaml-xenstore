@@ -74,18 +74,6 @@ type t = {
   data: Buffer.t;
 }
 
-let create tid rid ty data =
-  let len = String.length data in
-  let b = Buffer.create len in
-  Buffer.add_string b data;
-  {
-    tid = tid;
-    rid = rid;
-    ty = ty;
-    len = len;
-    data = b;
-  }
-
 let to_string pkt =
   let len = Int32.of_int (Buffer.length pkt.data) in
   let ty = Op.to_int32 pkt.ty in
@@ -174,6 +162,24 @@ let unique_id () =
 	last := Int32.succ !last;
         result
 
+(** Check paths are suitable for read/write/mkdir/rm/directory etc (NOT watches)  *)
+let is_valid_path path =
+  (* Paths shouldn't have a "//" in the middle *)
+  let result = ref true in
+  let bad = "//" in
+  for offset = 0 to String.length path - (String.length bad) do
+    if String.sub path offset (String.length bad) = bad then result := false
+  done;
+  (* Paths shouldn't have a "/" at the end, except for the root *)
+  if path <> "/" && path <> "" && path.[String.length path - 1] = '/'
+  then result := false;
+  !result
+
+(** Check to see if a path is suitable for watches *)
+let is_valid_watch_path path =
+  (* Check for stuff like @releaseDomain etc first *)
+  (path <> "" && path.[0] = '@') || (is_valid_path path)
+
 (** [next_rid ()] returns a fresh request id, used to associate replies
     with responses. *)
 let next_rid = unique_id ()
@@ -195,59 +201,84 @@ let token_to_string x = x
 let parse_token x = x
 
 let data_concat ls = (String.concat "\000" ls) ^ "\000"
+
+let create tid rid ty data =
+  let len = String.length data in
+  let b = Buffer.create len in
+  Buffer.add_string b data;
+  {
+    tid = tid;
+    rid = rid;
+    ty = ty;
+    len = len;
+    data = b;
+  }
+
 let with_path ty (tid: int32) (path: string) =
 	let data = data_concat [ path; ] in
 	create tid (next_rid ()) ty data
 
 (* operations *)
-let directory tid path = with_path Op.Directory tid path
-let read tid path = with_path Op.Read tid path
+let directory tid path =
+  if is_valid_path path then Some (with_path Op.Directory tid path) else None
 
-let getperms tid path = with_path Op.Getperms tid path
+let read tid path =
+  if is_valid_path path then Some (with_path Op.Read tid path) else None
+
+let getperms tid path =
+  if is_valid_path path then Some (with_path Op.Getperms tid path) else None
 
 let debug commands =
-	create 0l (next_rid ()) Op.Debug (data_concat commands)
+  Some(create 0l (next_rid ()) Op.Debug (data_concat commands))
 
 let watch path data =
-	let data = data_concat [ path; data; ] in
-	create 0l (next_rid ()) Op.Watch data
+  if is_valid_watch_path path
+  then Some (
+    let data = data_concat [ path; data; ] in
+    create 0l (next_rid ()) Op.Watch data
+  ) else None
 
 let unwatch path data =
-	let data = data_concat [ path; data; ] in
-	create 0l (next_rid ()) Op.Unwatch data
+  if is_valid_watch_path path
+  then Some (
+    let data = data_concat [ path; data; ] in
+    create 0l (next_rid ()) Op.Unwatch data
+  ) else None
 
 let transaction_start () =
-	create 0l (next_rid ()) Op.Transaction_start (data_concat [])
+  Some(create 0l (next_rid ()) Op.Transaction_start (data_concat []))
 
 let transaction_end tid commit =
-	let data = data_concat [ (if commit then "T" else "F"); ] in
-	create tid (next_rid ()) Op.Transaction_end data
+  let data = data_concat [ (if commit then "T" else "F"); ] in
+  Some(create tid (next_rid ()) Op.Transaction_end data)
 
 let introduce domid mfn port =
-	let data = data_concat [ Printf.sprintf "%u" domid;
-	                         Printf.sprintf "%nu" mfn;
-	                         string_of_int port; ] in
-	create 0l (next_rid ()) Op.Introduce data
+  let data = data_concat [ Printf.sprintf "%u" domid;
+	                   Printf.sprintf "%nu" mfn;
+	                   string_of_int port; ] in
+  Some(create 0l (next_rid ()) Op.Introduce data)
 
 let release domid =
-	let data = data_concat [ Printf.sprintf "%u" domid; ] in
-	create 0l (next_rid ()) Op.Release data
+  let data = data_concat [ Printf.sprintf "%u" domid; ] in
+  Some(create 0l (next_rid ()) Op.Release data)
 
 let resume domid =
-	let data = data_concat [ Printf.sprintf "%u" domid; ] in
-	create 0l (next_rid ()) Op.Resume data
+  let data = data_concat [ Printf.sprintf "%u" domid; ] in
+  Some(create 0l (next_rid ()) Op.Resume data)
 
 let getdomainpath domid =
-	let data = data_concat [ Printf.sprintf "%u" domid; ] in
-	create 0l (next_rid ()) Op.Getdomainpath data
+  let data = data_concat [ Printf.sprintf "%u" domid; ] in
+  Some(create 0l (next_rid ()) Op.Getdomainpath data)
 
 let write tid path value =
-	let data = path ^ "\000" ^ value (* no NULL at the end *) in
-	create tid (next_rid ()) Op.Write data
+  let data = path ^ "\000" ^ value (* no NULL at the end *) in
+  if is_valid_path path then Some(create tid (next_rid ()) Op.Write data) else None
 
-let mkdir tid path = with_path Op.Mkdir tid path
-let rm tid path = with_path Op.Rm tid path
+let mkdir tid path =
+  if is_valid_path path then Some(with_path Op.Mkdir tid path) else None
+let rm tid path =
+  if is_valid_path path then Some(with_path Op.Rm tid path) else None
 
 let setperms tid path perms =
-	let data = data_concat [ path; perms ] in
-	create tid (next_rid ()) Op.Setperms data
+  let data = data_concat [ path; perms ] in
+  if is_valid_path path then Some(create tid (next_rid ()) Op.Setperms data) else None

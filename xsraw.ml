@@ -188,55 +188,30 @@ let ack s =
 let data s =
      Lwt.bind s (fun (_, s) -> return s)
 
-(** Check paths are suitable for read/write/mkdir/rm/directory etc (NOT watches) *)
-let validate_path path =
-	(* Paths shouldn't have a "//" in the middle *)
-	let bad = "//" in
-	for offset = 0 to String.length path - (String.length bad) do
-		if String.sub path offset (String.length bad) = bad then
-                        print_endline "XXX: Invalid_path"
-(* XXX			raise (Invalid_path path) *)
-	done;
-	(* Paths shouldn't have a "/" at the end, except for the root *)
-	if path <> "/" && path <> "" && path.[String.length path - 1] = '/' then
-                print_endline "XXX: Invalid_path"
-(* XXX		raise (Invalid_path path) *)
-
-(** Check to see if a path is suitable for watches *)
-let validate_watch_path path =
-	(* Check for stuff like @releaseDomain etc first *)
-	if path <> "" && path.[0] = '@' then ()
-	else validate_path path
-
 let debug command con =
 	data (rpc (Xs_packet.debug command) con)
 
 let directory tid path con =
-	validate_path path;
 	lwt _, data = rpc (Xs_packet.directory tid path) con in
 	return (split_string '\000' data)
 
 let read tid path con =
-	validate_path path;
 	data (rpc (Xs_packet.read tid path) con)
 
 let readv tid dir vec con =
-	Lwt_list.map_s (fun path -> validate_path path; read tid path con)
+	Lwt_list.map_s (fun path -> read tid path con)
 		(if dir <> "" then
 			(List.map (fun v -> dir ^ "/" ^ v) vec) else vec)
 
 let getperms tid path con =
-	validate_path path;
 	lwt _, perms = rpc (Xs_packet.getperms tid path) con in
         return (perms_of_string perms)
 
 let watch path token con =
-	validate_watch_path path;
 	lwt rid, _ = rpc (Xs_packet.watch path token) con in
     return ()
 
 let unwatch path token con =
-	validate_watch_path path;
     lwt () = ack (rpc (Xs_packet.unwatch path token) con) in
     (* No more events should be arriving in the queue, so it should be
        ok to delete it without worrying about it coming back *)
@@ -270,32 +245,26 @@ let getdomainpath domid con =
 	data (rpc (Xs_packet.getdomainpath domid) con)
 
 let write tid path value con =
-	validate_path path;
 	ack (rpc (Xs_packet.write tid path value) con)
 
 let writev tid dir vec con =
 	Lwt_list.iter_s (fun (entry, value) ->
 		let path = (if dir <> "" then dir ^ "/" ^ entry else entry) in
-                validate_path path;
 		write tid path value con) vec
 
 let mkdir tid path con =
-	validate_path path;
 	ack (rpc (Xs_packet.mkdir tid path) con)
 
 let rm tid path con =
-        validate_path path;
 	try_lwt
 		ack (rpc (Xs_packet.rm tid path) con)
 	with
 		Xb.Noent -> return ()
 
 let setperms tid path perms con =
-	validate_path path;
 	ack (rpc (Xs_packet.setperms tid path (string_of_perms perms)) con)
 
 let setpermsv tid dir vec perms con =
 	Lwt_list.iter_s (fun entry ->
 		let path = (if dir <> "" then dir ^ "/" ^ entry else entry) in
-		validate_path path;
 		setperms tid path perms con) vec

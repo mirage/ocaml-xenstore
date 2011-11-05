@@ -70,21 +70,19 @@ val user_string_of_token: token -> string
 val parse_token: string -> token
 (** [parse_token x] parses the marshalled token [x] *)
 
-val data_concat : string list -> string
-val with_path : Op.t -> int32 -> string -> t
-val directory : int32 -> string -> t
-val read : int32 -> string -> t
-val getperms : int32 -> string -> t
-val debug : string list -> t
-val watch : string -> token -> t
-val unwatch : string -> token -> t
-val transaction_start : unit -> t
-val transaction_end : int32 -> bool -> t
-val introduce : int -> nativeint -> int -> t
-val release : int -> t
-val resume : int -> t
-val getdomainpath : int -> t
-val write : int32 -> string -> string -> t
-val mkdir : int32 -> string -> t
-val rm : int32 -> string -> t
-val setperms : int32 -> string -> string -> t
+val directory : int32 -> string -> t option
+val read : int32 -> string -> t option
+val getperms : int32 -> string -> t option
+val debug : string list -> t option
+val watch : string -> token -> t option
+val unwatch : string -> token -> t option
+val transaction_start : unit -> t option
+val transaction_end : int32 -> bool -> t option
+val introduce : int -> nativeint -> int -> t option
+val release : int -> t option
+val resume : int -> t option
+val getdomainpath : int -> t option
+val write : int32 -> string -> string -> t option
+val mkdir : int32 -> string -> t option
+val rm : int32 -> string -> t option
+val setperms : int32 -> string -> string -> t option
