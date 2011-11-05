@@ -74,94 +74,83 @@ let to_string ty =
 	| Set_target		-> "SET_TARGET"
 end
 
-module Partial = struct
-type pkt =
-{
-	tid: int32;
-	rid: int32;
-	ty: Op.t;
-	len: int;
-	buf: Buffer.t;
+type t = {
+  tid: int32;
+  rid: int32;
+  ty: Op.t;
+  len: int;
+  data: Buffer.t;
 }
 
-let header_size = 16
-
-type buf = HaveHdr of pkt | NoHdr of int * string
-
-let empty () = NoHdr (header_size, String.make header_size '\000')
-
-let header_of_string x =
-  let bits = Bitstring.bitstring_of_string x in
-  bitmatch bits with
-    | { ty: 32: littleendian;
-	req_id: 32: littleendian;
-	tx_id: 32: littleendian;
-	len: 32: littleendian } ->
-      tx_id, req_id, ty, Int32.to_int len
-    | { _ } -> failwith "Failed to parse header"
-
-let of_string s =
-	let tid, rid, opint, dlen = header_of_string s in
-	{
-		tid = tid;
-		rid = rid;
-		ty = (Op.of_cval opint);
-		len = dlen;
-		buf = Buffer.create dlen;
-	}
-
-let append pkt s sz =
-	Buffer.add_string pkt.buf (String.sub s 0 sz)
-
-let to_complete pkt =
-	pkt.len - (Buffer.length pkt.buf)
-
-end
-
-
-
-type t =
-{
-	tid: int32;
-	rid: int32;
-	ty: Op.t;
-	data: string;
-}
-
-exception Error of string
-exception DataError of string
-
-let string_of_header tid rid ty len =
-  let len = Int32.of_int len in
-  let bs = BITSTRING {
-    ty: 32: littleendian;
-    rid: 32: littleendian;
-    tid: 32: littleendian;
-    len: 32: littleendian
-  } in
-  Bitstring.string_of_bitstring bs
-
-let create tid rid ty data = { tid = tid; rid = rid; ty = ty; data = data; }
-
-let of_partialpkt ppkt =
-	create ppkt.Partial.tid ppkt.Partial.rid ppkt.Partial.ty (Buffer.contents ppkt.Partial.buf)
+let create tid rid ty data =
+  let len = String.length data in
+  let b = Buffer.create len in
+  Buffer.add_string b data;
+  {
+    tid = tid;
+    rid = rid;
+    ty = ty;
+    len = len;
+    data = b;
+  }
 
 let to_string pkt =
-	let header = string_of_header pkt.tid pkt.rid (Op.to_cval pkt.ty) (String.length pkt.data) in
-	header ^ pkt.data
-
-let unpack pkt =
-	pkt.tid, pkt.rid, pkt.ty, pkt.data
+  let len = Int32.of_int (Buffer.length pkt.data) in
+  let ty = Op.to_cval pkt.ty in
+  let header = BITSTRING {
+    ty: 32: littleendian;
+    pkt.rid: 32: littleendian;
+    pkt.tid: 32: littleendian;
+    len: 32: littleendian
+  } in
+  Bitstring.string_of_bitstring header ^ (Buffer.contents pkt.data)
 
 let get_tid pkt = pkt.tid
 let get_ty pkt = pkt.ty
 let get_data pkt =
-	let l = String.length pkt.data in
-	if l > 0 && pkt.data.[l - 1] = '\000' then
-		String.sub pkt.data 0 (l - 1)
-	else
-		pkt.data
+  if pkt.len > 0 && Buffer.nth pkt.data (pkt.len - 1) = '\000' then
+    Buffer.sub pkt.data 0 (pkt.len - 1)
+  else
+    Buffer.contents pkt.data
 let get_rid pkt = pkt.rid
+
+module Partial = struct
+
+let header_size = 16
+
+type buf = HaveHdr of t | NoHdr of string
+
+let empty () = NoHdr (String.make header_size '\000')
+
+let of_string s =
+  let bits = Bitstring.bitstring_of_string s in
+  bitmatch bits with
+    | { ty: 32: littleendian;
+	rid: 32: littleendian;
+	tid: 32: littleendian;
+	len: 32: littleendian } ->
+      let len = Int32.to_int len in
+      {
+	tid = tid;
+	rid = rid;
+	ty = (Op.of_cval ty);
+	len = len;
+	data = Buffer.create len;
+      }
+    | { _ } -> failwith "Failed to parse header"
+
+let append pkt s sz =
+	Buffer.add_string pkt.data (String.sub s 0 sz)
+
+let to_complete pkt =
+	pkt.len - (Buffer.length pkt.data)
+
+end
+
+
+exception Error of string
+exception DataError of string
+
 
 let unique_id () =
     let last = ref 0l in

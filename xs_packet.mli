@@ -26,37 +26,35 @@ module Op : sig
   val to_string: t -> string
 end
 
-module Partial : sig
-  (** Help unmarshal whole packets by buffering fragments *)
-
-  type pkt
-
-  type buf =
-    | HaveHdr of pkt 
-    | NoHdr of int * string
-
-  val empty: unit -> buf
-
-  val header_size: int
-  val of_string: string -> pkt
-  val append: pkt -> string -> int -> unit
-  val to_complete: pkt -> int
-end
-
-
 type t = {
   tid : int32;
   rid : int32;
   ty : Op.t;
-  data : string;
+  len: int;
+  data : Buffer.t;
 }
+
+module Partial : sig
+  (** Help unmarshal whole packets by buffering fragments *)
+
+  type buf =
+    | HaveHdr of t
+    | NoHdr of string
+
+  val empty: unit -> buf
+
+  val header_size: int
+  val of_string: string -> t
+  val append: t -> string -> int -> unit
+  val to_complete: t -> int
+end
+
+
 exception Error of string
 exception DataError of string
 
 val create : int32 -> int32 -> Op.t -> string -> t
-val of_partialpkt : Partial.pkt -> t
 val to_string : t -> string
-val unpack : t -> int32 * int32 * Op.t * string
 val get_tid : t -> int32
 val get_ty : t -> Op.t
 val get_data : t -> string
