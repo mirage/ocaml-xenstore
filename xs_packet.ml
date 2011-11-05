@@ -22,30 +22,26 @@ module Op = struct
     | Setperms | Watchevent | Error | Isintroduced
     | Resume | Set_target
 
-let operation_c_mapping =
-	[| Debug; Directory; Read; Getperms;
-           Watch; Unwatch; Transaction_start;
-           Transaction_end; Introduce; Release;
-           Getdomainpath; Write; Mkdir; Rm;
-           Setperms; Watchevent; Error; Isintroduced;
-           Resume; Set_target |]
-let size = Array.length operation_c_mapping
+(* The index of the value in the array is the integer representation used
+   by the wire protocol. Every element of t exists exactly once in the array. *)
+let on_the_wire =
+  [| Debug; Directory; Read; Getperms;
+     Watch; Unwatch; Transaction_start;
+     Transaction_end; Introduce; Release;
+     Getdomainpath; Write; Mkdir; Rm;
+     Setperms; Watchevent; Error; Isintroduced;
+     Resume; Set_target |]
 
-let array_search el a =
-	let len = Array.length a in
-	let rec search i =
-		if i > len then raise Not_found;
-		if a.(i) = el then i else search (i + 1) in
-	search 0
-
-let of_cval i =
+let of_int32 i =
   let i = Int32.to_int i in
-	if i >= 0 && i < size
-	then operation_c_mapping.(i)
-	else raise Not_found
+  if i >= 0 && i < Array.length on_the_wire then Some (on_the_wire.(i)) else None
 
-let to_cval op =
-  Int32.of_int (array_search op operation_c_mapping)
+let to_int32 x =
+  match snd (Array.fold_left
+    (fun (idx, result) v -> if x = v then (idx + 1, Some idx) else (idx + 1, result))
+    (0, None) on_the_wire) with
+    | None -> assert false (* impossible since on_the_wire contains each element *)
+    | Some i -> Int32.of_int i
 
 let to_string ty =
 	match ty with
@@ -93,7 +89,7 @@ let create tid rid ty data =
 
 let to_string pkt =
   let len = Int32.of_int (Buffer.length pkt.data) in
-  let ty = Op.to_cval pkt.ty in
+  let ty = Op.to_int32 pkt.ty in
   let header = BITSTRING {
     ty: 32: littleendian;
     pkt.rid: 32: littleendian;
@@ -127,10 +123,13 @@ let of_string s =
 	tid: 32: littleendian;
 	len: 32: littleendian } ->
       let len = Int32.to_int len in
+      let ty = match Op.of_int32 ty with
+	| Some x -> x
+	| None -> failwith "Unknown packet type" in
       {
 	tid = tid;
 	rid = rid;
-	ty = (Op.of_cval ty);
+	ty = ty;
 	len = len;
 	data = Buffer.create len;
       }
