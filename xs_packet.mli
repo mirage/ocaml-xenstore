@@ -12,6 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
+type t (** a valid packet *)
 
 module Op : sig
   type t =
@@ -25,14 +26,6 @@ module Op : sig
 
   val to_string: t -> string
 end
-
-type t = {
-  tid : int32;
-  rid : int32;
-  ty : Op.t;
-  len: int;
-  data : Buffer.t;
-}
 
 module Parser : sig
   (** Incrementally parse packets *)
