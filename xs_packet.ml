@@ -167,11 +167,6 @@ module Parser = struct
       | Finished f -> Finished f
 end
 
-
-exception Error of string
-exception DataError of string
-
-
 let unique_id () =
     let last = ref 0l in
     fun () ->

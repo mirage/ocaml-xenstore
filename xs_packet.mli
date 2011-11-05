@@ -56,10 +56,6 @@ module Parser : sig
       (see Need_more_data above) *)
 end
 
-
-exception Error of string
-exception DataError of string
-
 val create : int32 -> int32 -> Op.t -> string -> t
 val to_string : t -> string
 val get_tid : t -> int32
