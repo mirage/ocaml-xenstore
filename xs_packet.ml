@@ -20,7 +20,7 @@ module Op = struct
     | Transaction_end | Introduce | Release
     | Getdomainpath | Write | Mkdir | Rm
     | Setperms | Watchevent | Error | Isintroduced
-    | Resume | Set_target | Restrict
+    | Resume | Set_target
 
 (* There are two sets of XB operations: the one coming from open-source and *)
 (* the one coming from our private patch queue. These operations            *)
@@ -34,14 +34,6 @@ let operation_c_mapping =
            Resume; Set_target |]
 let size = Array.length operation_c_mapping
 
-(* [offset_pq] has to be the same as in <xen/io/xs_wire.h> *)
-external get_internal_offset: unit -> int = "stub_get_internal_offset"
-let offset_pq = get_internal_offset ()
-
-let operation_c_mapping_pq =
-	[| Restrict |]
-let size_pq = Array.length operation_c_mapping_pq
-
 let array_search el a =
 	let len = Array.length a in
 	let rec search i =
@@ -53,16 +45,10 @@ let of_cval i =
   let i = Int32.to_int i in
 	if i >= 0 && i < size
 	then operation_c_mapping.(i)
-	else if i >= offset_pq && i < offset_pq + size_pq
-	then operation_c_mapping_pq.(i-offset_pq)
 	else raise Not_found
 
 let to_cval op =
-  let i =
-	try
-	array_search op operation_c_mapping
-	with _ -> offset_pq + array_search op operation_c_mapping_pq in
-  Int32.of_int i
+  Int32.of_int (array_search op operation_c_mapping)
 
 let to_string ty =
 	match ty with
@@ -86,7 +72,6 @@ let to_string ty =
 	| Isintroduced		-> "IS_INTRODUCED"
 	| Resume		-> "RESUME"
 	| Set_target		-> "SET_TARGET"
-	| Restrict		-> "RESTRICT"
 end
 
 module Partial = struct

@@ -20,7 +20,7 @@ module Op : sig
     | Transaction_end | Introduce | Release
     | Getdomainpath | Write | Mkdir | Rm
     | Setperms | Watchevent | Error | Isintroduced
-    | Resume | Set_target | Restrict
+    | Resume | Set_target
   (** The type of xenstore operation *)
 
   val to_string: t -> string
