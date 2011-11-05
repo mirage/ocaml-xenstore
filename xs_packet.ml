@@ -22,9 +22,6 @@ module Op = struct
     | Setperms | Watchevent | Error | Isintroduced
     | Resume | Set_target
 
-(* There are two sets of XB operations: the one coming from open-source and *)
-(* the one coming from our private patch queue. These operations            *)
-(* in two differents arrays for make easier the forward compatibility       *)
 let operation_c_mapping =
 	[| Debug; Directory; Read; Getperms;
            Watch; Unwatch; Transaction_start;
