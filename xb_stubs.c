@@ -45,34 +45,3 @@ CAMLprim value stub_get_internal_offset(void)
 	CAMLreturn(Val_int(XS_RESTRICT));
 }
 
-CAMLprim value stub_header_of_string(value s)
-{
-	CAMLparam1(s);
-	CAMLlocal1(ret);
-	struct xsd_sockmsg *hdr;
-
-	ret = caml_alloc_tuple(4);
-	hdr = (struct xsd_sockmsg *) String_val(s);
-	Store_field(ret, 0, Val_int(hdr->tx_id));
-	Store_field(ret, 1, Val_int(hdr->req_id));
-	Store_field(ret, 2, Val_int(hdr->type));
-	Store_field(ret, 3, Val_int(hdr->len));
-	CAMLreturn(ret);
-}
-
-CAMLprim value stub_string_of_header(value tid, value rid, value ty, value len)
-{
-	CAMLparam4(tid, rid, ty, len);
-	CAMLlocal1(ret);
-	struct xsd_sockmsg xsd = {
-		.type = Int_val(ty),
-		.tx_id = Int_val(tid),
-		.req_id = Int_val(rid),
-		.len = Int_val(len),
-	};
-
-	ret = caml_alloc_string(sizeof(struct xsd_sockmsg));
-	memcpy(String_val(ret), &xsd, sizeof(struct xsd_sockmsg));
-
-	CAMLreturn(ret);
-}

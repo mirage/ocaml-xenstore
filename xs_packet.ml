@@ -50,6 +50,7 @@ let array_search el a =
 	search 0
 
 let of_cval i =
+  let i = Int32.to_int i in
 	if i >= 0 && i < size
 	then operation_c_mapping.(i)
 	else if i >= offset_pq && i < offset_pq + size_pq
@@ -57,9 +58,11 @@ let of_cval i =
 	else raise Not_found
 
 let to_cval op =
+  let i =
 	try
 	array_search op operation_c_mapping
-	with _ -> offset_pq + array_search op operation_c_mapping_pq
+	with _ -> offset_pq + array_search op operation_c_mapping_pq in
+  Int32.of_int i
 
 let to_string ty =
 	match ty with
@@ -89,8 +92,8 @@ end
 module Partial = struct
 type pkt =
 {
-	tid: int;
-	rid: int;
+	tid: int32;
+	rid: int32;
 	ty: Op.t;
 	len: int;
 	buf: Buffer.t;
@@ -102,11 +105,18 @@ type buf = HaveHdr of pkt | NoHdr of int * string
 
 let empty () = NoHdr (header_size, String.make header_size '\000')
 
-external header_of_string_internal: string -> int * int * int * int
-         = "stub_header_of_string"
+let header_of_string x =
+  let bits = Bitstring.bitstring_of_string x in
+  bitmatch bits with
+    | { ty: 32: littleendian;
+	req_id: 32: littleendian;
+	tx_id: 32: littleendian;
+	len: 32: littleendian } ->
+      tx_id, req_id, ty, Int32.to_int len
+    | { _ } -> failwith "Failed to parse header"
 
 let of_string s =
-	let tid, rid, opint, dlen = header_of_string_internal s in
+	let tid, rid, opint, dlen = header_of_string s in
 	{
 		tid = tid;
 		rid = rid;
@@ -127,8 +137,8 @@ end
 
 type t =
 {
-	tid: int;
-	rid: int;
+	tid: int32;
+	rid: int32;
 	ty: Op.t;
 	data: string;
 }
@@ -136,7 +146,15 @@ type t =
 exception Error of string
 exception DataError of string
 
-external string_of_header: int -> int -> int -> int -> string = "stub_string_of_header"
+let string_of_header tid rid ty len =
+  let len = Int32.of_int len in
+  let bs = BITSTRING {
+    ty: 32: littleendian;
+    rid: 32: littleendian;
+    tid: 32: littleendian;
+    len: 32: littleendian
+  } in
+  Bitstring.string_of_bitstring bs
 
 let create tid rid ty data = { tid = tid; rid = rid; ty = ty; data = data; }
 
@@ -161,10 +179,10 @@ let get_data pkt =
 let get_rid pkt = pkt.rid
 
 let unique_id () =
-    let last = ref 0 in
+    let last = ref 0l in
     fun () ->
         let result = !last in
-        incr last;
+	last := Int32.succ !last;
         result
 
 (** [next_rid ()] returns a fresh request id, used to associate replies
@@ -178,7 +196,7 @@ type token = string
     watcher. Note watch events are always transmitted with rid = 0 *)
 let create_token =
     let next = unique_id () in
-    fun x -> Printf.sprintf "%d:%s" (next ()) x
+    fun x -> Printf.sprintf "%ld:%s" (next ()) x
 
 (** [user_string_of_token x] returns the user-supplied part of the watch token *)
 let user_string_of_token x = Scanf.sscanf x "%d:%s" (fun _ x -> x)
@@ -188,7 +206,7 @@ let token_to_string x = x
 let parse_token x = x
 
 let data_concat ls = (String.concat "\000" ls) ^ "\000"
-let with_path ty (tid: int) (path: string) =
+let with_path ty (tid: int32) (path: string) =
 	let data = data_concat [ path; ] in
 	create tid (next_rid ()) ty data
 
@@ -199,18 +217,18 @@ let read tid path = with_path Op.Read tid path
 let getperms tid path = with_path Op.Getperms tid path
 
 let debug commands =
-	create 0 (next_rid ()) Op.Debug (data_concat commands)
+	create 0l (next_rid ()) Op.Debug (data_concat commands)
 
 let watch path data =
 	let data = data_concat [ path; data; ] in
-	create 0 (next_rid ()) Op.Watch data
+	create 0l (next_rid ()) Op.Watch data
 
 let unwatch path data =
 	let data = data_concat [ path; data; ] in
-	create 0 (next_rid ()) Op.Unwatch data
+	create 0l (next_rid ()) Op.Unwatch data
 
 let transaction_start () =
-	create 0 (next_rid ()) Op.Transaction_start (data_concat [])
+	create 0l (next_rid ()) Op.Transaction_start (data_concat [])
 
 let transaction_end tid commit =
 	let data = data_concat [ (if commit then "T" else "F"); ] in
@@ -220,19 +238,19 @@ let introduce domid mfn port =
 	let data = data_concat [ Printf.sprintf "%u" domid;
 	                         Printf.sprintf "%nu" mfn;
 	                         string_of_int port; ] in
-	create 0 (next_rid ()) Op.Introduce data
+	create 0l (next_rid ()) Op.Introduce data
 
 let release domid =
 	let data = data_concat [ Printf.sprintf "%u" domid; ] in
-	create 0 (next_rid ()) Op.Release data
+	create 0l (next_rid ()) Op.Release data
 
 let resume domid =
 	let data = data_concat [ Printf.sprintf "%u" domid; ] in
-	create 0 (next_rid ()) Op.Resume data
+	create 0l (next_rid ()) Op.Resume data
 
 let getdomainpath domid =
 	let data = data_concat [ Printf.sprintf "%u" domid; ] in
-	create 0 (next_rid ()) Op.Getdomainpath data
+	create 0l (next_rid ()) Op.Getdomainpath data
 
 let write tid path value =
 	let data = path ^ "\000" ^ value (* no NULL at the end *) in

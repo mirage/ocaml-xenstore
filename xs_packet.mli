@@ -44,18 +44,23 @@ module Partial : sig
 end
 
 
-type t = { tid : int; rid : int; ty : Op.t; data : string; }
+type t = {
+  tid : int32;
+  rid : int32;
+  ty : Op.t;
+  data : string;
+}
 exception Error of string
 exception DataError of string
-external string_of_header : int -> int -> int -> int -> string = "stub_string_of_header"
-val create : int -> int -> Op.t -> string -> t
+
+val create : int32 -> int32 -> Op.t -> string -> t
 val of_partialpkt : Partial.pkt -> t
 val to_string : t -> string
-val unpack : t -> int * int * Op.t * string
-val get_tid : t -> int
+val unpack : t -> int32 * int32 * Op.t * string
+val get_tid : t -> int32
 val get_ty : t -> Op.t
 val get_data : t -> string
-val get_rid : t -> int
+val get_rid : t -> int32
 
 type token
 (** A token is associated with every watch and returned in the callback *)
@@ -73,20 +78,20 @@ val parse_token: string -> token
 (** [parse_token x] parses the marshalled token [x] *)
 
 val data_concat : string list -> string
-val with_path : Op.t -> int -> string -> t
-val directory : int -> string -> t
-val read : int -> string -> t
-val getperms : int -> string -> t
+val with_path : Op.t -> int32 -> string -> t
+val directory : int32 -> string -> t
+val read : int32 -> string -> t
+val getperms : int32 -> string -> t
 val debug : string list -> t
 val watch : string -> token -> t
 val unwatch : string -> token -> t
 val transaction_start : unit -> t
-val transaction_end : int -> bool -> t
+val transaction_end : int32 -> bool -> t
 val introduce : int -> nativeint -> int -> t
 val release : int -> t
 val resume : int -> t
 val getdomainpath : int -> t
-val write : int -> string -> string -> t
-val mkdir : int -> string -> t
-val rm : int -> string -> t
-val setperms : int -> string -> string -> t
+val write : int32 -> string -> string -> t
+val mkdir : int32 -> string -> t
+val rm : int32 -> string -> t
+val setperms : int32 -> string -> string -> t
