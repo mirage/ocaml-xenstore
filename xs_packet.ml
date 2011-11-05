@@ -43,28 +43,27 @@ let to_int32 x =
     | None -> assert false (* impossible since on_the_wire contains each element *)
     | Some i -> Int32.of_int i
 
-let to_string ty =
-	match ty with
-	| Debug			-> "DEBUG"
-	| Directory		-> "DIRECTORY"
-	| Read			-> "READ"
-	| Getperms		-> "GET_PERMS"
-	| Watch			-> "WATCH"
-	| Unwatch		-> "UNWATCH"
-	| Transaction_start	-> "TRANSACTION_START"
-	| Transaction_end	-> "TRANSACTION_END"
-	| Introduce		-> "INTRODUCE"
-	| Release		-> "RELEASE"
-	| Getdomainpath		-> "GET_DOMAIN_PATH"
-	| Write			-> "WRITE"
-	| Mkdir			-> "MKDIR"
-	| Rm			-> "RM"
-	| Setperms		-> "SET_PERMS"
-	| Watchevent		-> "WATCH_EVENT"
-	| Error			-> "ERROR"
-	| Isintroduced		-> "IS_INTRODUCED"
-	| Resume		-> "RESUME"
-	| Set_target		-> "SET_TARGET"
+let to_string = function
+  | Debug             -> "DEBUG"
+  | Directory         -> "DIRECTORY"
+  | Read              -> "READ"
+  | Getperms          -> "GET_PERMS"
+  | Watch             -> "WATCH"
+  | Unwatch           -> "UNWATCH"
+  | Transaction_start -> "TRANSACTION_START"
+  | Transaction_end   -> "TRANSACTION_END"
+  | Introduce         -> "INTRODUCE"
+  | Release           -> "RELEASE"
+  | Getdomainpath     -> "GET_DOMAIN_PATH"
+  | Write             -> "WRITE"
+  | Mkdir             -> "MKDIR"
+  | Rm                -> "RM"
+  | Setperms          -> "SET_PERMS"
+  | Watchevent        -> "WATCH_EVENT"
+  | Error             -> "ERROR"
+  | Isintroduced      -> "IS_INTRODUCED"
+  | Resume            -> "RESUME"
+  | Set_target        -> "SET_TARGET"
 end
 
 type t = {
