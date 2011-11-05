@@ -106,40 +106,65 @@ let get_data pkt =
     Buffer.contents pkt.data
 let get_rid pkt = pkt.rid
 
-module Partial = struct
+module Parser = struct
+  (** Incrementally parse packets *)
 
-let header_size = 16
+  let header_size = 16
 
-type buf = HaveHdr of t | NoHdr of string
+  type state =
+    | Unknown_operation of int32
+    | Parser_failed
+    | Need_more_data of int
+    | Packet of t
 
-let empty () = NoHdr (String.make header_size '\000')
+  type parse =
+    | ReadingHeader of int * string
+    | ReadingBody of t
+    | Finished of state
 
-let of_string s =
-  let bits = Bitstring.bitstring_of_string s in
-  bitmatch bits with
-    | { ty: 32: littleendian;
-	rid: 32: littleendian;
-	tid: 32: littleendian;
-	len: 32: littleendian } ->
-      let len = Int32.to_int len in
-      let ty = match Op.of_int32 ty with
-	| Some x -> x
-	| None -> failwith "Unknown packet type" in
-      {
-	tid = tid;
-	rid = rid;
-	ty = ty;
-	len = len;
-	data = Buffer.create len;
-      }
-    | { _ } -> failwith "Failed to parse header"
+  let start () = ReadingHeader (0, String.make header_size '\000')
 
-let append pkt s sz =
-	Buffer.add_string pkt.data (String.sub s 0 sz)
+  let state = function
+    | ReadingHeader(got_already, _) -> Need_more_data (header_size - got_already)
+    | ReadingBody pkt -> Need_more_data (pkt.len - (Buffer.length pkt.data))
+    | Finished r -> r
 
-let to_complete pkt =
-	pkt.len - (Buffer.length pkt.data)
+  let parse_header str =
+    bitmatch (Bitstring.bitstring_of_string str) with
+      | { ty: 32: littleendian;
+	  rid: 32: littleendian;
+	  tid: 32: littleendian;
+	  len: 32: littleendian } ->
+	let len = Int32.to_int len in
+	      (* TODO: detect anamalous 'len' values and abort early *)
+	begin match Op.of_int32 ty with
+	  | Some ty ->
+	    ReadingBody {
+	      tid = tid;
+	      rid = rid;
+	      ty = ty;
+	      len = len;
+	      data = Buffer.create len;
+	    }
+	  | None -> Finished (Unknown_operation ty)
+	end
+      | { _ } -> Finished Parser_failed
 
+  let input state bytes =
+    match state with
+      | ReadingHeader(got_already, str) ->
+	String.blit bytes 0 str got_already (String.length bytes);
+	let got_already = got_already + (String.length bytes) in
+	if got_already < header_size
+	then ReadingHeader(got_already, str)
+	else parse_header str
+      | ReadingBody x ->
+	Buffer.add_string x.data bytes;
+	let needed = x.len - (Buffer.length x.data) in
+	if needed > 0
+	then ReadingBody x
+	else Finished (Packet x)
+      | Finished f -> Finished f
 end
 
 

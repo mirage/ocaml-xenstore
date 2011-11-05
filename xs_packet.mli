@@ -34,19 +34,26 @@ type t = {
   data : Buffer.t;
 }
 
-module Partial : sig
-  (** Help unmarshal whole packets by buffering fragments *)
+module Parser : sig
+  (** Incrementally parse packets *)
 
-  type buf =
-    | HaveHdr of t
-    | NoHdr of string
+  type state =
+    | Unknown_operation of int32 (** received an unexpected message type *)
+    | Parser_failed              (** we failed to parse a header *)
+    | Need_more_data of int      (** we still need 'n' bytes *)
+    | Packet of t                (** successfully decoded a packet *)
 
-  val empty: unit -> buf
+  type parse (** the internal state of the parser *)
 
-  val header_size: int
-  val of_string: string -> t
-  val append: t -> string -> int -> unit
-  val to_complete: t -> int
+  val start: unit -> parse
+  (** create a parser set to the initial state *)
+
+  val state: parse -> state
+  (** query the state of the parser *)
+
+  val input: parse -> string -> parse
+  (** input some bytes into the parser. Must be no more than needed
+      (see Need_more_data above) *)
 end
 
 
