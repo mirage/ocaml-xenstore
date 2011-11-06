@@ -39,7 +39,7 @@ module ACL : sig
   type t = int * perm * (int * perm) list
   (** owner domid * default for others * access control list *)
 
-  val of_string: string -> t
+  val of_string: string -> t option
 
   val to_string: t -> string
 

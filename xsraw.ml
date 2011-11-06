@@ -38,16 +38,6 @@ type con = {
     watchevents: (Xs_packet.token, watch_queue) Hashtbl.t;
 }
 
-let rec split_string ?limit:(limit=(-1)) c s =
-	let i = try String.index s c with Not_found -> -1 in
-	let nlimit = if limit = -1 || limit = 0 then limit else limit - 1 in
-	if i = -1 || nlimit = 0 then
-		[ s ]
-	else
-		let a = String.sub s 0 i
-		and b = String.sub s (i + 1) (String.length s - i - 1) in
-		a :: (split_string ~limit: nlimit c b)
-
 
 let pkt_send con =
     match Xb.has_old_output con.xb with

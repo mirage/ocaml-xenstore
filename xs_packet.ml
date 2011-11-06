@@ -66,6 +66,16 @@ let to_string = function
   | Set_target        -> "SET_TARGET"
 end
 
+let rec split_string ?limit:(limit=(-1)) c s =
+  let i = try String.index s c with Not_found -> -1 in
+  let nlimit = if limit = -1 || limit = 0 then limit else limit - 1 in
+  if i = -1 || nlimit = 0 then
+    [ s ]
+  else
+    let a = String.sub s 0 i
+    and b = String.sub s (i + 1) (String.length s - i - 1) in
+    a :: (split_string ~limit: nlimit c b)
+
 module ACL = struct
   type perm =
     | NONE
@@ -91,22 +101,19 @@ module ACL = struct
       | 'r' -> READ
       | 'w' -> WRITE
       | 'b' -> RDWR
-      | c -> invalid_arg (Printf.sprintf "unknown permission type: %c" c) in
+      | c -> invalid_arg (Printf.sprintf "Unknown permission: '%c'" c) in
+    (* A perm is stored as '<c>domid' *)
     let perm_of_string s =
-      if String.length s < 2 
-      then invalid_arg (Printf.sprintf "perm of string: length = %d; contents=\"%s\"" (String.length s) s) 
-      else
-	begin
-	  int_of_string (String.sub s 1 (String.length s - 1)),
-	  perm_of_char s.[0]
-	end in
-    let rec split s =
-      try let i = String.index s '\000' in
-	  String.sub s 0 i :: split (String.sub s (i + 1) (String.length s - 1 - i))
-      with Not_found -> if s = "" then [] else [ s ] in
-    let l = List.map perm_of_string (split s) in
-    match l with h :: l -> (fst h, snd h, l) | [] -> (0, NONE, [])
-
+      if String.length s < 2
+      then invalid_arg (Printf.sprintf "Permission string too short: '%s'" s);
+      int_of_string (String.sub s 1 (String.length s - 1)), perm_of_char s.[0] in
+    try
+      let l = List.map perm_of_string (split_string '\000' s) in
+      match l with
+	| h :: l -> Some (fst h, snd h, l)
+	| [] -> Some (0, NONE, [])
+    with e ->
+      None
 end
 
 type t = {
