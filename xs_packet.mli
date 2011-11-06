@@ -27,6 +27,24 @@ module Op : sig
   val to_string: t -> string
 end
 
+module ACL : sig
+    (** Access control lists *)
+
+  type perm =
+    | NONE
+    | READ
+    | WRITE
+    | RDWR
+
+  type t = int * perm * (int * perm) list
+  (** owner domid * default for others * access control list *)
+
+  val of_string: string -> t
+
+  val to_string: t -> string
+
+end
+
 module Parser : sig
   (** Incrementally parse packets *)
 

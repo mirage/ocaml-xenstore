@@ -66,6 +66,49 @@ let to_string = function
   | Set_target        -> "SET_TARGET"
 end
 
+module ACL = struct
+  type perm =
+    | NONE
+    | READ
+    | WRITE
+    | RDWR
+
+  type t = int * perm * (int * perm) list
+
+  let to_string perms =
+    let owner, other, acl = perms in
+    let char_of_perm = function
+      | NONE -> 'n'
+      | READ -> 'r'
+      | WRITE -> 'w'
+      | RDWR -> 'b' in
+    let string_of_perm (id, perm) = Printf.sprintf "%c%u" (char_of_perm perm) id in
+    String.concat "\000" (List.map string_of_perm ((owner,other) :: acl))
+
+  let of_string s =
+    let perm_of_char = function
+      | 'n' -> NONE
+      | 'r' -> READ
+      | 'w' -> WRITE
+      | 'b' -> RDWR
+      | c -> invalid_arg (Printf.sprintf "unknown permission type: %c" c) in
+    let perm_of_string s =
+      if String.length s < 2 
+      then invalid_arg (Printf.sprintf "perm of string: length = %d; contents=\"%s\"" (String.length s) s) 
+      else
+	begin
+	  int_of_string (String.sub s 1 (String.length s - 1)),
+	  perm_of_char s.[0]
+	end in
+    let rec split s =
+      try let i = String.index s '\000' in
+	  String.sub s 0 i :: split (String.sub s (i + 1) (String.length s - 1 - i))
+      with Not_found -> if s = "" then [] else [ s ] in
+    let l = List.map perm_of_string (split s) in
+    match l with h :: l -> (fst h, snd h, l) | [] -> (0, NONE, [])
+
+end
+
 type t = {
   tid: int32;
   rid: int32;
