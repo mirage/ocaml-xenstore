@@ -13,6 +13,9 @@
  *)
 open Pervasives
 
+let ( |> ) f g = g f
+let ( ++ ) f g x = f (g x)
+
 module Op = struct
   type t =
     | Debug | Directory | Read | Getperms
@@ -268,67 +271,80 @@ let with_path ty (tid: int32) (path: string) =
 	let data = data_concat [ path; ] in
 	create tid (next_rid ()) ty data
 
-(* operations *)
-let directory tid path =
-  if is_valid_path path then Some (with_path Op.Directory tid path) else None
+module Request = struct
 
-let read tid path =
-  if is_valid_path path then Some (with_path Op.Read tid path) else None
+  let directory tid path =
+    if is_valid_path path then Some (with_path Op.Directory tid path) else None
 
-let getperms tid path =
-  if is_valid_path path then Some (with_path Op.Getperms tid path) else None
+  let read tid path =
+    if is_valid_path path then Some (with_path Op.Read tid path) else None
 
-let debug commands =
-  Some(create 0l (next_rid ()) Op.Debug (data_concat commands))
+  let getperms tid path =
+    if is_valid_path path then Some (with_path Op.Getperms tid path) else None
 
-let watch path data =
-  if is_valid_watch_path path
-  then Some (
-    let data = data_concat [ path; data; ] in
-    create 0l (next_rid ()) Op.Watch data
-  ) else None
+  let debug commands =
+    Some(create 0l (next_rid ()) Op.Debug (data_concat commands))
 
-let unwatch path data =
-  if is_valid_watch_path path
-  then Some (
-    let data = data_concat [ path; data; ] in
-    create 0l (next_rid ()) Op.Unwatch data
-  ) else None
+  let watch path data =
+    if is_valid_watch_path path
+    then Some (
+      let data = data_concat [ path; data; ] in
+      create 0l (next_rid ()) Op.Watch data
+    ) else None
 
-let transaction_start () =
-  Some(create 0l (next_rid ()) Op.Transaction_start (data_concat []))
+  let unwatch path data =
+    if is_valid_watch_path path
+    then Some (
+      let data = data_concat [ path; data; ] in
+      create 0l (next_rid ()) Op.Unwatch data
+    ) else None
 
-let transaction_end tid commit =
-  let data = data_concat [ (if commit then "T" else "F"); ] in
-  Some(create tid (next_rid ()) Op.Transaction_end data)
+  let transaction_start () =
+    Some(create 0l (next_rid ()) Op.Transaction_start (data_concat []))
 
-let introduce domid mfn port =
-  let data = data_concat [ Printf.sprintf "%u" domid;
-	                   Printf.sprintf "%nu" mfn;
-	                   string_of_int port; ] in
-  Some(create 0l (next_rid ()) Op.Introduce data)
+  let transaction_end tid commit =
+    let data = data_concat [ (if commit then "T" else "F"); ] in
+    Some(create tid (next_rid ()) Op.Transaction_end data)
 
-let release domid =
-  let data = data_concat [ Printf.sprintf "%u" domid; ] in
-  Some(create 0l (next_rid ()) Op.Release data)
+  let introduce domid mfn port =
+    let data = data_concat [ Printf.sprintf "%u" domid;
+	                     Printf.sprintf "%nu" mfn;
+	                     string_of_int port; ] in
+    Some(create 0l (next_rid ()) Op.Introduce data)
 
-let resume domid =
-  let data = data_concat [ Printf.sprintf "%u" domid; ] in
-  Some(create 0l (next_rid ()) Op.Resume data)
+  let release domid =
+    let data = data_concat [ Printf.sprintf "%u" domid; ] in
+    Some(create 0l (next_rid ()) Op.Release data)
 
-let getdomainpath domid =
-  let data = data_concat [ Printf.sprintf "%u" domid; ] in
-  Some(create 0l (next_rid ()) Op.Getdomainpath data)
+  let resume domid =
+    let data = data_concat [ Printf.sprintf "%u" domid; ] in
+    Some(create 0l (next_rid ()) Op.Resume data)
 
-let write tid path value =
-  let data = path ^ "\000" ^ value (* no NULL at the end *) in
-  if is_valid_path path then Some(create tid (next_rid ()) Op.Write data) else None
+  let getdomainpath domid =
+    let data = data_concat [ Printf.sprintf "%u" domid; ] in
+    Some(create 0l (next_rid ()) Op.Getdomainpath data)
 
-let mkdir tid path =
-  if is_valid_path path then Some(with_path Op.Mkdir tid path) else None
-let rm tid path =
-  if is_valid_path path then Some(with_path Op.Rm tid path) else None
+  let write tid path value =
+    let data = path ^ "\000" ^ value (* no NULL at the end *) in
+    if is_valid_path path then Some(create tid (next_rid ()) Op.Write data) else None
 
-let setperms tid path perms =
-  let data = data_concat [ path; perms ] in
-  if is_valid_path path then Some(create tid (next_rid ()) Op.Setperms data) else None
+  let mkdir tid path =
+    if is_valid_path path then Some(with_path Op.Mkdir tid path) else None
+
+  let rm tid path =
+    if is_valid_path path then Some(with_path Op.Rm tid path) else None
+
+  let setperms tid path perms =
+    let data = data_concat [ path; perms ] in
+    if is_valid_path path then Some(create tid (next_rid ()) Op.Setperms data) else None
+end
+
+module Response = struct
+  let some x = Some x
+  let int_of_string_opt x = try Some(int_of_string x) with _ -> None
+
+  let string = some ++ get_data
+  let list = some ++ split_string '\000' ++ get_data
+  let acl = ACL.of_string ++ get_data
+  let int = int_of_string_opt ++ get_data
+end

@@ -88,19 +88,28 @@ val user_string_of_token: token -> string
 val parse_token: string -> token
 (** [parse_token x] parses the marshalled token [x] *)
 
-val directory : int32 -> string -> t option
-val read : int32 -> string -> t option
-val getperms : int32 -> string -> t option
-val debug : string list -> t option
-val watch : string -> token -> t option
-val unwatch : string -> token -> t option
-val transaction_start : unit -> t option
-val transaction_end : int32 -> bool -> t option
-val introduce : int -> nativeint -> int -> t option
-val release : int -> t option
-val resume : int -> t option
-val getdomainpath : int -> t option
-val write : int32 -> string -> string -> t option
-val mkdir : int32 -> string -> t option
-val rm : int32 -> string -> t option
-val setperms : int32 -> string -> string -> t option
+module Request : sig
+  val directory : int32 -> string -> t option
+  val read : int32 -> string -> t option
+  val getperms : int32 -> string -> t option
+  val debug : string list -> t option
+  val watch : string -> token -> t option
+  val unwatch : string -> token -> t option
+  val transaction_start : unit -> t option
+  val transaction_end : int32 -> bool -> t option
+  val introduce : int -> nativeint -> int -> t option
+  val release : int -> t option
+  val resume : int -> t option
+  val getdomainpath : int -> t option
+  val write : int32 -> string -> string -> t option
+  val mkdir : int32 -> string -> t option
+  val rm : int32 -> string -> t option
+  val setperms : int32 -> string -> string -> t option
+end
+
+module Response : sig
+  val string : t -> string option
+  val list : t -> string list option
+  val acl : t -> ACL.t option
+  val int : t -> int option
+end
