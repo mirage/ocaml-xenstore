@@ -98,5 +98,21 @@ let make () =
   let (_: unit Lwt.t) = dispatcher t in
   return t
 
+let test () =
+  lwt client = make () in
+  let req = to_string (match Request.directory 0l "/" with Some x -> x | None -> failwith "bad request") in
+  let t, u = wait () in
+  Hashtbl.add client.rid_to_wakeup 0l u;
+  lwt n = Lwt_unix.write client.fd req 0 (String.length req) in
+  lwt res = t in
+  match (Response.list res) with
+    | None ->
+      Printf.printf "Failed to parse result\n%!";
+      return ()
+    | Some xs ->
+      List.iter print_endline xs;
+      return ()
+
+let _ = Lwt_main.run (test ())
 
 
