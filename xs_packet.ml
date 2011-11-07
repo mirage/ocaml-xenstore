@@ -237,21 +237,23 @@ let is_valid_watch_path path =
     with responses. *)
 let next_rid = unique_id ()
 
-type token = string
+module Token = struct
+  type t = string
 
-(** [create_token x] takes a user-supplied watch token [x] and wraps it
-    with a unique integer so we can demux watch events to the appropriate
-    watcher. Note watch events are always transmitted with rid = 0 *)
-let create_token =
+  (** [of_user_string x] takes a user-supplied watch token [x] and wraps it
+      with a unique integer so we can demux watch events to the appropriate
+      watcher. Note watch events are always transmitted with rid = 0 *)
+  let of_user_string =
     let next = unique_id () in
     fun x -> Printf.sprintf "%ld:%s" (next ()) x
 
-(** [user_string_of_token x] returns the user-supplied part of the watch token *)
-let user_string_of_token x = Scanf.sscanf x "%d:%s" (fun _ x -> x)
+  (** [to_user_string x] returns the user-supplied part of the watch token *)
+  let to_user_string x = Scanf.sscanf x "%d:%s" (fun _ x -> x)
 
-let token_to_string x = x
+  let to_debug_string x = x
 
-let parse_token x = x
+  let of_string x = x
+end
 
 let data_concat ls = (String.concat "\000" ls) ^ "\000"
 

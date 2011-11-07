@@ -73,28 +73,30 @@ val get_ty : t -> Op.t
 val get_data : t -> string
 val get_rid : t -> int32
 
-type token
-(** A token is associated with every watch and returned in the callback *)
+module Token : sig
+  type t
+  (** A token is associated with every watch and returned in the callback *)
 
-val token_to_string: token -> string
-(** [token_to_string token] returns a debug-printable version of [token] *)
+  val to_debug_string: t -> string
+  (** [to_string token] returns a debug-printable version of [token] *)
 
-val create_token: string -> token
-(** [create_token x] transforms [x] into a fresh watch token *)
+  val of_user_string: string -> t
+  (** [of_user_string x] transforms [x] into a fresh watch token *)
 
-val user_string_of_token: token -> string
-(** [user_string_of_token token] returns the user-supplied part of [token] *)
+  val to_user_string: t -> string
+  (** [to_user_string token] returns the user-supplied part of [token] *)
 
-val parse_token: string -> token
-(** [parse_token x] parses the marshalled token [x] *)
+  val of_string: string -> t
+  (** [of_string x] parses the marshalled token [x] *)
+end
 
 module Request : sig
   val directory : int32 -> string -> t option
   val read : int32 -> string -> t option
   val getperms : int32 -> string -> t option
   val debug : string list -> t option
-  val watch : string -> token -> t option
-  val unwatch : string -> token -> t option
+  val watch : string -> Token.t -> t option
+  val unwatch : string -> Token.t -> t option
   val transaction_start : unit -> t option
   val transaction_end : int32 -> bool -> t option
   val introduce : int -> nativeint -> int -> t option
