@@ -275,13 +275,13 @@ let with_path ty (tid: int32) (path: string) =
 
 module Request = struct
 
-  let directory tid path =
+  let directory path tid =
     if is_valid_path path then Some (with_path Op.Directory tid path) else None
 
-  let read tid path =
+  let read path tid =
     if is_valid_path path then Some (with_path Op.Read tid path) else None
 
-  let getperms tid path =
+  let getperms path tid =
     if is_valid_path path then Some (with_path Op.Getperms tid path) else None
 
   let debug commands =
@@ -304,7 +304,7 @@ module Request = struct
   let transaction_start () =
     Some(create 0l (next_rid ()) Op.Transaction_start (data_concat []))
 
-  let transaction_end tid commit =
+  let transaction_end commit tid =
     let data = data_concat [ (if commit then "T" else "F"); ] in
     Some(create tid (next_rid ()) Op.Transaction_end data)
 
@@ -326,17 +326,17 @@ module Request = struct
     let data = data_concat [ Printf.sprintf "%u" domid; ] in
     Some(create 0l (next_rid ()) Op.Getdomainpath data)
 
-  let write tid path value =
+  let write path value tid =
     let data = path ^ "\000" ^ value (* no NULL at the end *) in
     if is_valid_path path then Some(create tid (next_rid ()) Op.Write data) else None
 
-  let mkdir tid path =
+  let mkdir path tid =
     if is_valid_path path then Some(with_path Op.Mkdir tid path) else None
 
-  let rm tid path =
+  let rm path tid =
     if is_valid_path path then Some(with_path Op.Rm tid path) else None
 
-  let setperms tid path perms =
+  let setperms path perms tid =
     let data = data_concat [ path; perms ] in
     if is_valid_path path then Some(create tid (next_rid ()) Op.Setperms data) else None
 end

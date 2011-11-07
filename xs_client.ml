@@ -99,8 +99,8 @@ let make () =
   return t
 
 
-let rpc client request unmarshal =
-  let request = match request with Some x -> x | None -> failwith "bad request" in
+let rpc tid client request unmarshal =
+  let request = match request tid with Some x -> x | None -> failwith "bad request" in
   let req = to_string request in
   let rid = get_rid request in
   let t, u = wait () in
@@ -110,20 +110,21 @@ let rpc client request unmarshal =
   Hashtbl.remove client.rid_to_wakeup rid;
   return (response "" request res unmarshal)
 
-let directory client path tid = rpc client (Request.directory tid path) Unmarshal.list
-let read client path tid = rpc client (Request.read tid path) Unmarshal.string
-let transaction_start client = rpc client (Request.transaction_start ()) Unmarshal.int
+let directory path tid client = rpc tid client (Request.directory path) Unmarshal.list
+let read path tid client = rpc tid client (Request.read path) Unmarshal.string
+
+let with_xs client f = f 0l client
 
 let test () =
   lwt client = make () in
-  lwt res = directory client "/" 0l in
+  lwt res = with_xs client (directory "/") in
   begin match res with
     | OK xs ->
       List.iter print_endline xs
     | _ ->
       print_endline "request failed"
   end;
-  lwt res = read client "/squeezed/pid" 0l in
+  lwt res = with_xs client (read "/squeezed/pid") in
   begin match res with
     | OK x ->
       print_endline x;

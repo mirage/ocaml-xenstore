@@ -91,22 +91,23 @@ module Token : sig
 end
 
 module Request : sig
-  val directory : int32 -> string -> t option
-  val read : int32 -> string -> t option
-  val getperms : int32 -> string -> t option
-  val debug : string list -> t option
-  val watch : string -> Token.t -> t option
-  val unwatch : string -> Token.t -> t option
+  val directory : string -> int32 -> t option
+  val read : string -> int32 -> t option
+  val getperms : string -> int32 -> t option
+  val rm : string -> int32 -> t option
+  val setperms : string -> string -> int32 -> t option
+  val write : string -> string -> int32 -> t option
+  val mkdir : string -> int32 -> t option
+
   val transaction_start : unit -> t option
-  val transaction_end : int32 -> bool -> t option
+  val transaction_end : bool -> int32 -> t option
   val introduce : int -> nativeint -> int -> t option
   val release : int -> t option
   val resume : int -> t option
   val getdomainpath : int -> t option
-  val write : int32 -> string -> string -> t option
-  val mkdir : int32 -> string -> t option
-  val rm : int32 -> string -> t option
-  val setperms : int32 -> string -> string -> t option
+  val watch : string -> Token.t -> t option
+  val unwatch : string -> Token.t -> t option
+  val debug : string list -> t option
 end
 
 module Unmarshal : sig
