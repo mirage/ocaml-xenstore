@@ -53,7 +53,7 @@ let rec dispatcher t =
     | Some pkt ->
       begin match get_ty pkt with
 	| Op.Watchevent  ->
-	  lwt () = begin match Response.list pkt with
+	  lwt () = begin match Unmarshal.list pkt with
 	    | Some [path; token] ->
 	      let token = Token.of_string token in
 	      (* We may get old watches: silently drop these *)
@@ -98,20 +98,39 @@ let make () =
   let (_: unit Lwt.t) = dispatcher t in
   return t
 
-let test () =
-  lwt client = make () in
-  let req = to_string (match Request.directory 0l "/" with Some x -> x | None -> failwith "bad request") in
+
+let rpc client request unmarshal =
+  let request = match request with Some x -> x | None -> failwith "bad request" in
+  let req = to_string request in
+  let rid = get_rid request in
   let t, u = wait () in
-  Hashtbl.add client.rid_to_wakeup 0l u;
+  Hashtbl.add client.rid_to_wakeup rid u;
   lwt n = Lwt_unix.write client.fd req 0 (String.length req) in
   lwt res = t in
-  match (Response.list res) with
-    | None ->
-      Printf.printf "Failed to parse result\n%!";
-      return ()
-    | Some xs ->
-      List.iter print_endline xs;
-      return ()
+  Hashtbl.remove client.rid_to_wakeup rid;
+  return (response "" request res unmarshal)
+
+let directory client path tid = rpc client (Request.directory tid path) Unmarshal.list
+let read client path tid = rpc client (Request.read tid path) Unmarshal.string
+let transaction_start client = rpc client (Request.transaction_start ()) Unmarshal.int
+
+let test () =
+  lwt client = make () in
+  lwt res = directory client "/" 0l in
+  begin match res with
+    | OK xs ->
+      List.iter print_endline xs
+    | _ ->
+      print_endline "request failed"
+  end;
+  lwt res = read client "/squeezed/pid" 0l in
+  begin match res with
+    | OK x ->
+      print_endline x;
+    | _ ->
+       print_endline "request failed"
+  end;
+  return ()
 
 let _ = Lwt_main.run (test ())
 

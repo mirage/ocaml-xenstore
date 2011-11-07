@@ -29,6 +29,11 @@ let acl_parser _ =
     (fun (x, y) -> assert_equal ~msg:"acl" ~printer x y)
     (List.combine (List.map (fun x -> Some x) ts) ts')
 
+(*
+let error_unmarshal _ =
+  let open Xs_packet.Response in
+  let enoent = 
+*)
 let _ =
   let verbose = ref false in
   Arg.parse [

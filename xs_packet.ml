@@ -341,7 +341,7 @@ module Request = struct
     if is_valid_path path then Some(create tid (next_rid ()) Op.Setperms data) else None
 end
 
-module Response = struct
+module Unmarshal = struct
   let some x = Some x
   let int_of_string_opt x = try Some(int_of_string x) with _ -> None
 
@@ -350,3 +350,27 @@ module Response = struct
   let acl = ACL.of_string ++ get_data
   let int = int_of_string_opt ++ get_data
 end
+
+type 'a response =
+  | OK of 'a
+  | Enoent of string
+  | Eagain
+  | Invalid
+  | Error of string
+
+let response enoent_hint sent received f = match get_ty sent, get_ty received with
+  | _, Op.Error ->
+    begin match get_data received with
+      | "ENOENT" -> Enoent enoent_hint
+      | "EAGAIN" -> Eagain
+      | "EINVAL" -> Invalid
+      | s -> Error s
+    end
+  | x, y when x = y ->
+    begin match f received with
+      | None -> Error "failed to parse response"
+      | Some z -> OK z
+    end
+  | x, y ->
+    Error (Printf.sprintf "unexpected packet: expected %s; got %s" (Op.to_string x) (Op.to_string y))
+

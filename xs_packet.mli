@@ -109,9 +109,21 @@ module Request : sig
   val setperms : int32 -> string -> string -> t option
 end
 
-module Response : sig
+module Unmarshal : sig
   val string : t -> string option
   val list : t -> string list option
   val acl : t -> ACL.t option
   val int : t -> int option
 end
+
+type 'a response =
+  | OK of 'a         (** 'a successfully returned *)
+  | Enoent of string (** named key does not exist *)
+  | Eagain           (** transaction must be repeated *)
+  | Invalid
+  | Error of string  (** generic catch-all error *)
+
+val response: string -> t -> t -> (t -> 'a option) -> 'a response
+(** [response debug_hint sent received unmarshal] returns the unmarshalled
+    response corresponding to the [received] packet relative to the [sent]
+    packet *)
