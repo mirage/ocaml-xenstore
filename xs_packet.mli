@@ -115,6 +115,7 @@ module Unmarshal : sig
   val list : t -> string list option
   val acl : t -> ACL.t option
   val int : t -> int option
+  val int32 : t -> int32 option
 end
 
 type 'a response =

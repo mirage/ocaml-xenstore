@@ -99,7 +99,7 @@ let make () =
   return t
 
 
-let rpc tid client request unmarshal =
+let rpc (tid, client) request unmarshal =
   let request = match request tid with Some x -> x | None -> failwith "bad request" in
   let req = to_string request in
   let rid = get_rid request in
@@ -110,28 +110,49 @@ let rpc tid client request unmarshal =
   Hashtbl.remove client.rid_to_wakeup rid;
   return (response "" request res unmarshal)
 
-let directory path tid client = rpc tid client (Request.directory path) Unmarshal.list
-let read path tid client = rpc tid client (Request.read path) Unmarshal.string
+let directory (tid, client) path = rpc (tid, client) (Request.directory path) Unmarshal.list
+let read (tid, client) path = rpc (tid, client) (Request.read path) Unmarshal.string
 
-let with_xs client f = f 0l client
+let with_xs client f = f (0l, client)
+
+let rec with_xst client f =
+  lwt t = rpc (0l, client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in
+  begin match t with
+    | OK tid ->
+      lwt result = f (tid, client) in
+      lwt res' = rpc (tid, client) (Request.transaction_end true) Unmarshal.string in
+      begin match res' with
+	| OK "OK" -> return result
+        | Eagain -> with_xst client f
+        | _ ->
+          print_endline "transaction end failed";
+	  return ()
+      end
+    | _ ->
+      print_endline "transaction failed";
+      return ()
+ end
 
 let test () =
   lwt client = make () in
-  lwt res = with_xs client (directory "/") in
-  begin match res with
-    | OK xs ->
-      List.iter print_endline xs
-    | _ ->
-      print_endline "request failed"
-  end;
-  lwt res = with_xs client (read "/squeezed/pid") in
-  begin match res with
-    | OK x ->
-      print_endline x;
-    | _ ->
-       print_endline "request failed"
-  end;
-  return ()
+  with_xst client
+    (fun xs ->
+      lwt res = directory xs "/" in
+      begin match res with
+      | OK xs ->
+        List.iter print_endline xs
+      | _ ->
+        print_endline "request failed"
+      end;
+      lwt res = read xs "/squeezed/pid" in
+      begin match res with
+      | OK x ->
+        print_endline x;
+      | _ ->
+        print_endline "request failed"
+      end;
+      return ()
+    )
 
 let _ = Lwt_main.run (test ())
 
