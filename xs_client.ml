@@ -146,7 +146,8 @@ module Client = functor(T: TRANSPORT) -> struct
       lwt () = send_one client request in
       lwt res = t in
       Hashtbl.remove client.rid_to_wakeup rid;
-      return (response "" request res unmarshal)
+      try_lwt
+        return (response "" request res unmarshal)
  end
 
   let directory (tid, client) path = rpc (tid, client) (Request.directory path) Unmarshal.list
@@ -155,22 +156,13 @@ module Client = functor(T: TRANSPORT) -> struct
   let with_xs client f = f (0l, client)
 
   let rec with_xst client f =
-    lwt t = rpc (0l, client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in
-    begin match t with
-      | OK tid ->
-        lwt result = f (tid, client) in
-        lwt res' = rpc (tid, client) (Request.transaction_end true) Unmarshal.string in
-        begin match res' with
-	  | OK "OK" -> return result
-          | Eagain -> with_xst client f
-          | _ ->
-            print_endline "transaction end failed";
-	    return ()
-        end
-      | _ ->
-        print_endline "transaction failed";
-        return ()
-   end
+    lwt tid = rpc (0l, client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in
+    lwt result = f (tid, client) in
+    try_lwt
+      lwt res' = rpc (tid, client) (Request.transaction_end true) Unmarshal.string in
+      if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
+    with Eagain ->
+      with_xst client f
 end
 
 module Test = Client(Unix_domain_socket)
@@ -180,20 +172,10 @@ let test () =
   lwt client = make () in
   with_xst client
     (fun xs ->
-      lwt res = directory xs "/" in
-      begin match res with
-      | OK xs ->
-        List.iter print_endline xs
-      | _ ->
-        print_endline "request failed"
-      end;
-      lwt res = read xs "/squeezed/pid" in
-      begin match res with
-      | OK x ->
-        print_endline x;
-      | _ ->
-        print_endline "request failed"
-      end;
+      lwt all = directory xs "/" in
+      List.iter print_endline all;
+      lwt x = read xs "/squeezed/pid" in
+      print_endline x;
       return ()
     )
 

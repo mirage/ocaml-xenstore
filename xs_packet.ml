@@ -353,26 +353,24 @@ module Unmarshal = struct
   let int32 = int32_of_string_opt ++ get_data
 end
 
-type 'a response =
-  | OK of 'a
-  | Enoent of string
-  | Eagain
-  | Invalid
-  | Error of string
+exception Enoent of string
+exception Eagain
+exception Invalid
+exception Error of string
 
 let response enoent_hint sent received f = match get_ty sent, get_ty received with
   | _, Op.Error ->
     begin match get_data received with
-      | "ENOENT" -> Enoent enoent_hint
-      | "EAGAIN" -> Eagain
-      | "EINVAL" -> Invalid
-      | s -> Error s
+      | "ENOENT" -> raise (Enoent enoent_hint)
+      | "EAGAIN" -> raise Eagain
+      | "EINVAL" -> raise Invalid
+      | s -> raise (Error s)
     end
   | x, y when x = y ->
     begin match f received with
-      | None -> Error "failed to parse response"
-      | Some z -> OK z
+      | None -> raise (Error "failed to parse response")
+      | Some z -> z
     end
   | x, y ->
-    Error (Printf.sprintf "unexpected packet: expected %s; got %s" (Op.to_string x) (Op.to_string y))
+    raise (Error (Printf.sprintf "unexpected packet: expected %s; got %s" (Op.to_string x) (Op.to_string y)))
 

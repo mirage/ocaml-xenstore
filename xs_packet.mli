@@ -118,14 +118,12 @@ module Unmarshal : sig
   val int32 : t -> int32 option
 end
 
-type 'a response =
-  | OK of 'a         (** 'a successfully returned *)
-  | Enoent of string (** named key does not exist *)
-  | Eagain           (** transaction must be repeated *)
-  | Invalid
-  | Error of string  (** generic catch-all error *)
+exception Enoent of string (** named key does not exist *)
+exception Eagain           (** transaction must be repeated *)
+exception Invalid
+exception Error of string  (** generic catch-all error *)
 
-val response: string -> t -> t -> (t -> 'a option) -> 'a response
+val response: string -> t -> t -> (t -> 'a option) -> 'a
 (** [response debug_hint sent received unmarshal] returns the unmarshalled
     response corresponding to the [received] packet relative to the [sent]
     packet *)
