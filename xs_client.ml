@@ -50,11 +50,16 @@ module Client = functor(T: TRANSPORT) -> struct
     mutable incoming_pkt: Parser.parse; (* incrementally parses the next packet *)
     outgoing_mutex: Lwt_mutex.t;        (* held to serialise outgoing packets *)
     rid_to_wakeup: (int32, t Lwt.u) Hashtbl.t;
+    mutable dispatcher_thread: unit Lwt.t;
+    mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, watch_queue) Hashtbl.t;
   }
 
   exception Unknown_xenstore_operation of int32
   exception Response_parser_failed
+  exception Malformed_watch_event
+  exception Unexpected_rid of int32
+  exception Dispatcher_failed
 
   (* [recv_one client] returns a single Packet, or fails *)
   let rec recv_one t =
@@ -98,26 +103,23 @@ module Client = functor(T: TRANSPORT) -> struct
 	        dispatcher t
               end else dispatcher t
 	    | _ ->
-              (* The server sent a malformed Watchevent packet *)
-              Printf.printf "Failed to parse watch event.\n%!";
-	      Printf.printf "Shutting down dispatcher thread\n%!";
-              return ()
+              raise_lwt Malformed_watch_event
           end in
           dispatcher t
         | _ ->
           let rid = get_rid pkt in
-          if not(Hashtbl.mem t.rid_to_wakeup rid) then begin
-            Printf.printf "Unknown rid:%ld in ty:%s\n%!" rid (Op.to_string (get_ty pkt));
-            Printf.printf "Shutting down dispatcher thread\n%!";
-            return ()
-          end else begin
+          if not(Hashtbl.mem t.rid_to_wakeup rid)
+	  then raise_lwt (Unexpected_rid rid)
+	  else begin
             Lwt.wakeup (Hashtbl.find t.rid_to_wakeup rid) pkt;
             dispatcher t
-          end
+	  end
       end
    with e ->
-     Printf.fprintf stderr "Shutting down dispatcher thread.\n%!";
-     return ()
+     t.dispatcher_shutting_down <- true; (* no more hashtable entries after this *)
+     (* all blocking threads are failed with our exception *)
+     Hashtbl.iter (fun _ u -> Lwt.wakeup_later_exn u e) t.rid_to_wakeup;
+     raise_lwt e
 
   let make () =
     lwt transport = T.create () in
@@ -126,20 +128,26 @@ module Client = functor(T: TRANSPORT) -> struct
       incoming_pkt = Parser.start ();
       outgoing_mutex = Lwt_mutex.create ();
       rid_to_wakeup = Hashtbl.create 10;
+      dispatcher_thread = return ();
+      dispatcher_shutting_down = false;
       watchevents = Hashtbl.create 10;
     } in
-    let (_: unit Lwt.t) = dispatcher t in
+    t.dispatcher_thread <- dispatcher t;
     return t
 
   let rpc (tid, client) request unmarshal =
     let request = match request tid with Some x -> x | None -> failwith "bad request" in
     let rid = get_rid request in
     let t, u = wait () in
-    Hashtbl.add client.rid_to_wakeup rid u;
-    lwt () = send_one client request in
-    lwt res = t in
-    Hashtbl.remove client.rid_to_wakeup rid;
-    return (response "" request res unmarshal)
+    if client.dispatcher_shutting_down
+    then raise_lwt Dispatcher_failed
+    else begin
+      Hashtbl.add client.rid_to_wakeup rid u;
+      lwt () = send_one client request in
+      lwt res = t in
+      Hashtbl.remove client.rid_to_wakeup rid;
+      return (response "" request res unmarshal)
+ end
 
   let directory (tid, client) path = rpc (tid, client) (Request.directory path) Unmarshal.list
   let read (tid, client) path = rpc (tid, client) (Request.read path) Unmarshal.string
