@@ -162,7 +162,7 @@ module Client = functor(T: TRANSPORT) -> struct
     | Some xs -> xs
 
 
-  let rpc h request unmarshal =
+  let rpc hint h request unmarshal =
     let request = match request h.tid with Some x -> x | None -> failwith "bad request" in
     let rid = get_rid request in
     let t, u = wait () in
@@ -174,13 +174,13 @@ module Client = functor(T: TRANSPORT) -> struct
       lwt res = t in
       Hashtbl.remove h.client.rid_to_wakeup rid;
       try_lwt
-        return (response "" request res unmarshal)
+        return (response hint request res unmarshal)
  end
 
-  let directory h path = rpc (add_path h path) (Request.directory path) Unmarshal.list
-  let read h path = rpc (add_path h path) (Request.read path) Unmarshal.string
-  let watch h path token = rpc h (fun _ -> Request.watch path token) Unmarshal.unit
-  let unwatch h path token = rpc h (fun _ -> Request.unwatch path token) Unmarshal.ok
+  let directory h path = rpc "directory" (add_path h path) (Request.directory path) Unmarshal.list
+  let read h path = rpc "read" (add_path h path) (Request.read path) Unmarshal.string
+  let watch h path token = rpc "watch" h (fun _ -> Request.watch path token) Unmarshal.ok
+  let unwatch h path token = rpc "unwatch" h (fun _ -> Request.unwatch path token) Unmarshal.ok
 
   let with_xs client f = f (no_transaction client)
 
@@ -193,7 +193,7 @@ module Client = functor(T: TRANSPORT) -> struct
       let h = watching_paths client in
       try_lwt
 	lwt result = f h in
-        result
+        return result
       with Eagain ->
         (* aa - bb = aa symmetric difference bb *)
 	let ( - ) aa bb = List.filter (fun a -> not(List.mem a bb)) aa in
@@ -205,19 +205,19 @@ module Client = functor(T: TRANSPORT) -> struct
         let new_paths = get_paths h - current_paths in
         lwt () = Lwt_list.iter_s (fun p -> watch h p token) new_paths in
         (* If we're watching the correct set of paths already then just block *)
-        if old_paths = [] && (new_paths = [])
-	then
-	  (* block until some events arrive in our queue *)
-	  Lwt_mutex.with_lock watch_queue.m
-	    (fun () ->
-	      while_lwt Queue.is_empty watch_queue.q do
-		Lwt_condition.wait ~mutex:watch_queue.m watch_queue.c
-	      done >>
-	      (* We don't actually need the values *)
-	      return (Queue.clear watch_queue.q)
-	    )
-	else return ()
-	>>
+        lwt () =
+	    if old_paths = [] && (new_paths = [])
+	    then
+	      (* block until some events arrive in our queue *)
+	      Lwt_mutex.with_lock watch_queue.m
+		(fun () ->
+		  while_lwt Queue.is_empty watch_queue.q do
+		    Lwt_condition.wait ~mutex:watch_queue.m watch_queue.c
+		  done >>
+	          (* We don't actually need the values *)
+		  return (Queue.clear watch_queue.q)
+	      )
+	    else return () in
         loop ((current_paths - old_paths) + new_paths) in
     try_lwt
       loop []
@@ -226,11 +226,11 @@ module Client = functor(T: TRANSPORT) -> struct
 
 
   let rec with_xst client f =
-    lwt tid = rpc (no_transaction client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in
+    lwt tid = rpc "transaction_start" (no_transaction client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in
     let h = transaction client tid in
     lwt result = f h in
     try_lwt
-      lwt res' = rpc h (Request.transaction_end true) Unmarshal.string in
+      lwt res' = rpc "transaction_end" h (Request.transaction_end true) Unmarshal.string in
       if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
     with Eagain ->
       with_xst client f
@@ -249,6 +249,16 @@ let test () =
       print_endline x;
       return ()
     )
+  >>
+  wait client
+    (fun xs ->
+      try_lwt
+         lwt _ = read xs "/foobar" in
+         lwt _ = read xs "/waz" in
+         return ()
+      with (Enoent _) -> fail Eagain
+    )
+
 
 let _ = Lwt_main.run (test ())
 

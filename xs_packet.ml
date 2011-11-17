@@ -362,17 +362,17 @@ exception Eagain
 exception Invalid
 exception Error of string
 
-let response enoent_hint sent received f = match get_ty sent, get_ty received with
+let response hint sent received f = match get_ty sent, get_ty received with
   | _, Op.Error ->
     begin match get_data received with
-      | "ENOENT" -> raise (Enoent enoent_hint)
+      | "ENOENT" -> raise (Enoent hint)
       | "EAGAIN" -> raise Eagain
       | "EINVAL" -> raise Invalid
       | s -> raise (Error s)
     end
   | x, y when x = y ->
     begin match f received with
-      | None -> raise (Error "failed to parse response")
+      | None -> raise (Error (Printf.sprintf "failed to parse response (hint:%s) (payload:%s)" hint (get_data received)))
       | Some z -> z
     end
   | x, y ->
