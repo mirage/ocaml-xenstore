@@ -14,6 +14,15 @@
 
 open OUnit
 
+let op_ids _ =
+  let open Xs_packet.Op in
+  for i = 0 to 100 do (* higher than the highest ID *)
+    let i' = Int32.of_int i in
+    match of_int32 i' with
+      | None -> ()
+      | Some x -> assert (to_int32 x = i')
+  done
+
 let acl_parser _ =
   let open Xs_packet.ACL in
   let ts = [
@@ -43,6 +52,7 @@ let _ =
 
   let suite = "xenstore" >:::
     [
+      "op_ids" >:: op_ids;
       "acl_parser" >:: acl_parser;
     ] in
   run_test_tt ~verbose:!verbose suite

@@ -25,6 +25,9 @@ module Op : sig
   (** The type of xenstore operation *)
 
   val to_string: t -> string
+
+  val of_int32: int32 -> t option
+  val to_int32: t -> int32
 end
 
 module ACL : sig
