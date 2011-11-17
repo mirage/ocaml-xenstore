@@ -345,12 +345,16 @@ module Unmarshal = struct
   let some x = Some x
   let int_of_string_opt x = try Some(int_of_string x) with _ -> None
   let int32_of_string_opt x = try Some(Int32.of_string x) with _ -> None
+  let unit_of_string_opt x = if x = "" then Some () else None
+  let ok x = if x = "OK" then Some () else None
 
   let string = some ++ get_data
   let list = some ++ split_string '\000' ++ get_data
   let acl = ACL.of_string ++ get_data
   let int = int_of_string_opt ++ get_data
   let int32 = int32_of_string_opt ++ get_data
+  let unit = unit_of_string_opt ++ get_data
+  let ok = ok ++ get_data
 end
 
 exception Enoent of string

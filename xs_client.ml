@@ -23,6 +23,9 @@ module type TRANSPORT = sig
   val write: t -> string -> int -> int -> int Lwt.t
 end
 
+let ( |> ) a b = b a
+let ( ++ ) f g x = f (g x)
+
 module Unix_domain_socket = struct
   let xenstored_socket = "/var/run/xenstored/socket"
   type t = Lwt_unix.file_descr
@@ -37,9 +40,15 @@ module Unix_domain_socket = struct
 end
 
 type watch_queue = {
-  events: string Queue.t;
+  q: string Queue.t;
   c: unit Lwt_condition.t;
   m: Lwt_mutex.t;
+}
+
+let empty_watch_queue () = {
+  q = Queue.create ();
+  c = Lwt_condition.create ();
+  m = Lwt_mutex.create ();
 }
 
 module Client = functor(T: TRANSPORT) -> struct
@@ -96,7 +105,7 @@ module Client = functor(T: TRANSPORT) -> struct
                 let wq = Hashtbl.find t.watchevents token in
 	        lwt () = Lwt_mutex.with_lock wq.m
 	          (fun () ->
-	            Queue.push path wq.events;
+	            Queue.push path wq.q;
 	            Lwt_condition.signal wq.c ();
 	            return ()
 	          ) in
@@ -135,31 +144,93 @@ module Client = functor(T: TRANSPORT) -> struct
     t.dispatcher_thread <- dispatcher t;
     return t
 
-  let rpc (tid, client) request unmarshal =
-    let request = match request tid with Some x -> x | None -> failwith "bad request" in
+  type handle = {
+    tid: int32;
+    client: client;
+    mutable paths_to_watch: string list option;
+  }
+
+  let no_transaction client = { tid = 0l; client = client; paths_to_watch = None }
+  let transaction client tid = { tid = tid; client = client; paths_to_watch = None }
+  let watching_paths client = { tid = 0l; client = client; paths_to_watch = Some [] }
+
+  let add_path h path = match h.paths_to_watch with
+    | None -> h
+    | Some ps -> h.paths_to_watch <- Some (path :: ps); h
+  let get_paths h = match h.paths_to_watch with
+    | None -> []
+    | Some xs -> xs
+
+
+  let rpc h request unmarshal =
+    let request = match request h.tid with Some x -> x | None -> failwith "bad request" in
     let rid = get_rid request in
     let t, u = wait () in
-    if client.dispatcher_shutting_down
+    if h.client.dispatcher_shutting_down
     then raise_lwt Dispatcher_failed
     else begin
-      Hashtbl.add client.rid_to_wakeup rid u;
-      lwt () = send_one client request in
+      Hashtbl.add h.client.rid_to_wakeup rid u;
+      lwt () = send_one h.client request in
       lwt res = t in
-      Hashtbl.remove client.rid_to_wakeup rid;
+      Hashtbl.remove h.client.rid_to_wakeup rid;
       try_lwt
         return (response "" request res unmarshal)
  end
 
-  let directory (tid, client) path = rpc (tid, client) (Request.directory path) Unmarshal.list
-  let read (tid, client) path = rpc (tid, client) (Request.read path) Unmarshal.string
+  let directory h path = rpc (add_path h path) (Request.directory path) Unmarshal.list
+  let read h path = rpc (add_path h path) (Request.read path) Unmarshal.string
+  let watch h path token = rpc h (fun _ -> Request.watch path token) Unmarshal.unit
+  let unwatch h path token = rpc h (fun _ -> Request.unwatch path token) Unmarshal.ok
 
-  let with_xs client f = f (0l, client)
+  let with_xs client f = f (no_transaction client)
+
+  let wait client f =
+    let token = Token.of_user_string "xs_client.wait" in
+    let watch_queue = empty_watch_queue () in
+    Hashtbl.add client.watchevents token watch_queue;
+
+    let rec loop current_paths =
+      let h = watching_paths client in
+      try_lwt
+	lwt result = f h in
+        result
+      with Eagain ->
+        (* aa - bb = aa symmetric difference bb *)
+	let ( - ) aa bb = List.filter (fun a -> not(List.mem a bb)) aa in
+	let ( + ) aa bb = aa @ bb in
+        (* Paths which weren't read don't need to be watched: *)
+        let old_paths = current_paths - (get_paths h) in
+        lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) old_paths in
+        (* Paths which were read do need to be watched: *)
+        let new_paths = get_paths h - current_paths in
+        lwt () = Lwt_list.iter_s (fun p -> watch h p token) new_paths in
+        (* If we're watching the correct set of paths already then just block *)
+        if old_paths = [] && (new_paths = [])
+	then
+	  (* block until some events arrive in our queue *)
+	  Lwt_mutex.with_lock watch_queue.m
+	    (fun () ->
+	      while_lwt Queue.is_empty watch_queue.q do
+		Lwt_condition.wait ~mutex:watch_queue.m watch_queue.c
+	      done >>
+	      (* We don't actually need the values *)
+	      return (Queue.clear watch_queue.q)
+	    )
+	else return ()
+	>>
+        loop ((current_paths - old_paths) + new_paths) in
+    try_lwt
+      loop []
+    finally
+      return (Hashtbl.remove client.watchevents token)
+
 
   let rec with_xst client f =
-    lwt tid = rpc (0l, client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in
-    lwt result = f (tid, client) in
+    lwt tid = rpc (no_transaction client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in
+    let h = transaction client tid in
+    lwt result = f h in
     try_lwt
-      lwt res' = rpc (tid, client) (Request.transaction_end true) Unmarshal.string in
+      lwt res' = rpc h (Request.transaction_end true) Unmarshal.string in
       if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
     with Eagain ->
       with_xst client f

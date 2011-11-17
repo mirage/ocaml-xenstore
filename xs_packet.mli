@@ -116,6 +116,8 @@ module Unmarshal : sig
   val acl : t -> ACL.t option
   val int : t -> int option
   val int32 : t -> int32 option
+  val unit : t -> unit option
+  val ok : t -> unit option
 end
 
 exception Enoent of string (** named key does not exist *)
