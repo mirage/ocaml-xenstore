@@ -12,6 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
+(** A multiplexing xenstore protocol client over a byte-level transport *)
+
 open Lwt
 open Xs_packet
 
@@ -25,19 +27,6 @@ end
 
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
-
-module Unix_domain_socket = struct
-  let xenstored_socket = "/var/run/xenstored/socket"
-  type t = Lwt_unix.file_descr
-  let create () =
-    let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
-    let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-    lwt () = Lwt_unix.connect fd sockaddr in
-    return fd
-  let destroy fd = Lwt_unix.close fd
-  let read = Lwt_unix.read
-  let write = Lwt_unix.write
-end
 
 type watch_queue = {
   q: string Queue.t;
@@ -235,31 +224,4 @@ module Client = functor(T: TRANSPORT) -> struct
     with Eagain ->
       with_xst client f
 end
-
-module Test = Client(Unix_domain_socket)
-open Test
-
-let test () =
-  lwt client = make () in
-  with_xst client
-    (fun xs ->
-      lwt all = directory xs "/" in
-      List.iter print_endline all;
-      lwt x = read xs "/squeezed/pid" in
-      print_endline x;
-      return ()
-    )
-  >>
-  wait client
-    (fun xs ->
-      try_lwt
-         lwt _ = read xs "/foobar" in
-         lwt _ = read xs "/waz" in
-         return ()
-      with (Enoent _) -> fail Eagain
-    )
-
-
-let _ = Lwt_main.run (test ())
-
 
