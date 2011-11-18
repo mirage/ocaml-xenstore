@@ -168,6 +168,7 @@ module Client = functor(T: TRANSPORT) -> struct
 
   let directory h path = rpc "directory" (add_path h path) (Request.directory path) Unmarshal.list
   let read h path = rpc "read" (add_path h path) (Request.read path) Unmarshal.string
+  let write h path data = rpc "write" (add_path h path) (Request.write path data) Unmarshal.ok
   let watch h path token = rpc "watch" h (fun _ -> Request.watch path token) Unmarshal.ok
   let unwatch h path token = rpc "unwatch" h (fun _ -> Request.unwatch path token) Unmarshal.ok
 

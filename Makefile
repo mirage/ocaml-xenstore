@@ -11,7 +11,7 @@ unittest: xs_packet.cmi xs_packet.cmo xs_packet_test.cmo
 	$(OCAMLC) -linkpkg -o unittest xs_packet.cmo xs_packet_test.cmo
 
 xs: xs_packet.cmi xs_packet.cmo xs_client.cmo xs_transport_unix.cmo xs_client_cli.cmo
-	$(OCAMLC) -linkpkg -o client xs_packet.cmo xs_client.cmo xs_transport_unix.cmo xs_client_cli.cmo
+	$(OCAMLC) -linkpkg -o xs xs_packet.cmo xs_client.cmo xs_transport_unix.cmo xs_client_cli.cmo
 
 %.cmo: %.ml
 	$(OCAMLC) -c -o $@ $<
