@@ -17,26 +17,6 @@ open Xs_packet
 module Client = Xs_client.Client(Xs_transport_unix)
 open Client
 
-let test () =
-  lwt client = make () in
-  with_xst client
-    (fun xs ->
-      lwt all = directory xs "/" in
-      List.iter print_endline all;
-      lwt x = read xs "/squeezed/pid" in
-      print_endline x;
-      return ()
-    )
-  >>
-  wait client
-    (fun xs ->
-      try_lwt
-         lwt _ = read xs "/foobar" in
-         lwt _ = read xs "/waz" in
-         return ()
-      with (Enoent _) -> fail Eagain
-    )
-
 let ( |> ) a b = b a
 
 type expr =
