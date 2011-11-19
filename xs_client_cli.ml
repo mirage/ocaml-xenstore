@@ -19,6 +19,8 @@ open Client
 
 let ( |> ) a b = b a
 
+(* Used for expressing a xenstore 'wait' condition and also in
+   the special case of a set of writes (And(Eq, And(Eq, ...))) *)
 type expr =
   | Val of string
   | And of expr * expr
@@ -67,6 +69,7 @@ let parse_expr s =
             | [< >] -> e1) stream in
   s |> Stream.of_string |> make_lexer keywords |> flatten |> parse_expr
 
+(* Return true if [expr] holds. Used in the xenstore 'wait' operation *)
 let rec eval_expression expr xs = match expr with
   | Val path ->
     begin try_lwt
@@ -93,10 +96,36 @@ let rec eval_expression expr xs = match expr with
     end
   | _ -> fail Invalid_expression
 
+let usage () =
+  let bin x = Sys.argv.(0) ^ x in
+  let lines = [
+    bin " : a xenstore protocol client";
+    "";
+    "Usage:";
+    bin " read <key>";
+    "   -- read the value stored at <key>, or fail if it doesn't exist";
+    bin " write <key=val> [and keyN=valN]*";
+    "   -- write the key value pair(s)";
+    bin " wait <expr>";
+    "   -- block until the <expr> is true";
+    "";
+    "Example expressions:";
+    "";
+    bin " wait /foo";
+    "   -- block until the key \"/foo\" exists";
+    bin " wait not(/foo)";
+    "   -- block until the key \"/foo\" is deleted";
+    bin " wait /foo or /bar";
+    "   -- block until either key \"/foo\" or \"/bar\" are created";
+    bin " wait /foo and (/bar = hello)";
+    "   -- block until either key \"/foo\" is created or key \"/bar\" has value \"hello\"";
+  ] in
+  List.iter (fun x -> Printf.fprintf stderr "%s\n" x) lines
+
 let main () =
-  lwt client = make () in
   match Sys.argv |> Array.to_list |> List.tl with
     | [ "read"; key ] ->
+      lwt client = make () in
       with_xs client
 	(fun xs ->
 	  lwt v = read xs key in
@@ -107,6 +136,7 @@ let main () =
         String.concat " " expr |> parse_expr |> to_conjunction |> return
       with Invalid_expression as e ->
 	Lwt_io.write Lwt_io.stderr "Invalid expression; expected <key=val> [and key=val]*\n" >> raise_lwt e in
+      lwt client = make () in
       with_xs client
 	(fun xs ->
 	  Lwt_list.iter_s (fun (k, v) -> write xs k v) items
@@ -115,6 +145,7 @@ let main () =
     | "wait" :: expr ->
       begin try_lwt
         let expr = String.concat " " expr |> parse_expr in
+	lwt client = make () in
         wait client
 	  (fun xs ->
 	    lwt result = eval_expression expr xs in
@@ -124,6 +155,7 @@ let main () =
 	Lwt_io.write Lwt_io.stderr "Invalid expression\n" >> raise_lwt e
       end
     | _ ->
+      usage ();
       return ()
 
   (* read key *)
