@@ -146,11 +146,14 @@ let main () =
       begin try_lwt
         let expr = String.concat " " expr |> parse_expr in
 	lwt client = make () in
-        wait client
-	  (fun xs ->
-	    lwt result = eval_expression expr xs in
-            if not result then fail Eagain else return ()
-          )
+        let cancel, result =
+          wait client
+	    (fun xs ->
+	      lwt result = eval_expression expr xs in
+              if not result then fail Eagain else return ()
+            ) in
+        Lwt_timeout.create 5 cancel |> Lwt_timeout.start;
+        result
       with Invalid_expression as e ->
 	Lwt_io.write Lwt_io.stderr "Invalid expression\n" >> raise_lwt e
       end

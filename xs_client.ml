@@ -47,7 +47,7 @@ module Client = functor(T: TRANSPORT) -> struct
     transport: T.t;
     mutable incoming_pkt: Parser.parse; (* incrementally parses the next packet *)
     outgoing_mutex: Lwt_mutex.t;        (* held to serialise outgoing packets *)
-    rid_to_wakeup: (int32, t Lwt.u) Hashtbl.t;
+    rid_to_wakeup: (int32, Xs_packet.t Lwt.u) Hashtbl.t;
     mutable dispatcher_thread: unit Lwt.t;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, watch_queue) Hashtbl.t;
@@ -177,6 +177,11 @@ module Client = functor(T: TRANSPORT) -> struct
   let wait client f =
     let token = Token.of_user_string "xs_client.wait" in
     let watch_queue = empty_watch_queue () in
+    (* Used to signal that we should be cancelled *)
+    let cancelling = ref false in
+    let cancel () =
+      cancelling := true;
+      Lwt_condition.signal watch_queue.c () in
     Hashtbl.add client.watchevents token watch_queue;
 
     let rec loop current_paths =
@@ -201,18 +206,20 @@ module Client = functor(T: TRANSPORT) -> struct
 	      (* block until some events arrive in our queue *)
 	      Lwt_mutex.with_lock watch_queue.m
 		(fun () ->
-		  while_lwt Queue.is_empty watch_queue.q do
+		  while_lwt Queue.is_empty watch_queue.q && not (!cancelling) do
 		    Lwt_condition.wait ~mutex:watch_queue.m watch_queue.c
 		  done >>
+		  if !cancelling then fail Canceled
 	          (* We don't actually need the values *)
-		  return (Queue.clear watch_queue.q)
+		  else return (Queue.clear watch_queue.q)
 	      )
 	    else return () in
         loop ((current_paths - old_paths) + new_paths) in
-    try_lwt
+    cancel,
+    (try_lwt
       loop []
     finally
-      return (Hashtbl.remove client.watchevents token)
+      return (Hashtbl.remove client.watchevents token))
 
 
   let rec with_xst client f =
