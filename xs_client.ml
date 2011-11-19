@@ -178,12 +178,31 @@ module Client = functor(T: TRANSPORT) -> struct
     let token = Token.of_user_string "xs_client.wait" in
     let watch_queue = empty_watch_queue () in
     (* Used to signal that we should be cancelled *)
-    let cancelling = ref false in
+    let cancellable_thread = ref None in
     let cancel () =
-      (* XXX: this is racy, need to either hold the lock or use a cancellable thread instead *)
-      cancelling := true;
-      Lwt_condition.signal watch_queue.c () in
+      match !cancellable_thread with
+	| Some t ->
+	  Lwt.cancel t;
+	  cancellable_thread := None
+	| None -> () in
     Hashtbl.add client.watchevents token watch_queue;
+
+    let block () =
+      let cancellable, wakeup = Lwt.task () in
+      let t = cancellable
+      >>= fun () ->
+      Lwt_mutex.with_lock watch_queue.m
+	(fun () ->
+	  while_lwt Queue.is_empty watch_queue.q do
+	    Lwt_condition.wait ~mutex:watch_queue.m watch_queue.c
+	  done >>
+	          (* We don't actually need the values *)
+	  return (Queue.clear watch_queue.q)
+	)
+       in
+      Lwt.wakeup wakeup ();
+      cancellable_thread := Some t;
+      t in
 
     let rec loop current_paths =
       let h = watching_paths client in
@@ -203,17 +222,7 @@ module Client = functor(T: TRANSPORT) -> struct
         (* If we're watching the correct set of paths already then just block *)
         lwt () =
 	    if old_paths = [] && (new_paths = [])
-	    then
-	      (* block until some events arrive in our queue *)
-	      Lwt_mutex.with_lock watch_queue.m
-		(fun () ->
-		  while_lwt Queue.is_empty watch_queue.q && not (!cancelling) do
-		    Lwt_condition.wait ~mutex:watch_queue.m watch_queue.c
-		  done >>
-		  if !cancelling then fail Canceled
-	          (* We don't actually need the values *)
-		  else return (Queue.clear watch_queue.q)
-	      )
+	    then block ()
 	    else return () in
         loop ((current_paths - old_paths) + new_paths) in
     cancel,
