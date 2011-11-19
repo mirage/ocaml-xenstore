@@ -180,6 +180,7 @@ module Client = functor(T: TRANSPORT) -> struct
     (* Used to signal that we should be cancelled *)
     let cancelling = ref false in
     let cancel () =
+      (* XXX: this is racy, need to either hold the lock or use a cancellable thread instead *)
       cancelling := true;
       Lwt_condition.signal watch_queue.c () in
     Hashtbl.add client.watchevents token watch_queue;
