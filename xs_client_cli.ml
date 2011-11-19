@@ -57,6 +57,20 @@ let rec to_conjunction = function
 let parse_expr s =
   let open Genlex in
   let keywords = ["("; ")"; "not"; "="; "and"; "or"] in
+  (* Collapse streams of Idents together (eg /a/b/c) *)
+  let flatten s =
+    let to_list s =
+      let result = ref [] in
+      Stream.iter (fun x -> result := x :: !result) s;
+      List.rev !result in
+    let ident is = if is = [] then [] else [Ident (String.concat "" (List.rev is))] in
+    let is, tokens = List.fold_left
+      (fun (is, tokens) x -> match is, x with
+	| is, Ident i -> (i :: is), tokens
+	| is, x -> [], (x :: (ident is) @ tokens))
+      ([], []) (to_list s) in
+    ident is @ tokens
+  |> List.rev |> Stream.of_list in
   let rec parse_atom = parser
     | [< 'Int n >] -> Val (string_of_int n)
     | [< 'Ident n >] -> Val n
@@ -71,7 +85,7 @@ let parse_expr s =
         | [< 'Kwd "or"; e2=parse_expr >] -> Or(e1, e2)
         | [< 'Kwd "="; e2=parse_expr >] -> Eq(e1, e2)
             | [< >] -> e1) stream in
-  s |> Stream.of_string |> make_lexer keywords |> parse_expr
+  s |> Stream.of_string |> make_lexer keywords |> flatten |> parse_expr
 
 let rec eval_expression expr xs = match expr with
   | Val path ->
