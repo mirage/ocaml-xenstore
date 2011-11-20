@@ -23,10 +23,18 @@ let ( |> ) a b = b a
    the special case of a set of writes (And(Eq, And(Eq, ...))) *)
 type expr =
   | Val of string
+  | Not of expr
   | And of expr * expr
   | Or of expr * expr
   | Eq of expr * expr
-  | Not of expr
+
+let rec pretty_print () =
+  let open Format in function
+    | Val x -> sprintf "\"%s\"" x
+    | Not x -> sprintf "Not(@[%a@])" pretty_print x
+    | And (x, y) -> sprintf "And(@[%a,@ %a@])" pretty_print x pretty_print y
+    | Or (x, y) -> sprintf "Or(@[%a,@ %a@])" pretty_print x pretty_print y
+    | Eq (x, y) -> sprintf "Eq(@[%a,@ %a@])" pretty_print x pretty_print y
 
 exception Invalid_expression
 
@@ -123,7 +131,16 @@ let usage () =
   List.iter (fun x -> Printf.fprintf stderr "%s\n" x) lines
 
 let main () =
-  match Sys.argv |> Array.to_list |> List.tl with
+  let verbose = ref false in
+  let args = Sys.argv |> Array.to_list |> List.tl in
+  (* Look for "-h" or "-v" arguments *)
+  if List.mem "-h" args then begin
+    usage ();
+    return ();
+  end else begin
+    verbose := List.mem "-v" args;
+    let args = List.filter (fun x -> x <> "-v") args in
+    match args with
     | [ "read"; key ] ->
       lwt client = make () in
       with_xs client
@@ -133,7 +150,9 @@ let main () =
         ) >> return ()
     | "write" :: expr ->
       begin lwt items = try_lwt
-        String.concat " " expr |> parse_expr |> to_conjunction |> return
+        let expr = String.concat " " expr |> parse_expr in
+        if !verbose then Printf.printf "Parsed: %s\n%!" (pretty_print () expr);
+        expr |> to_conjunction |> return
       with Invalid_expression as e ->
 	Lwt_io.write Lwt_io.stderr "Invalid expression; expected <key=val> [and key=val]*\n" >> raise_lwt e in
       lwt client = make () in
@@ -145,6 +164,7 @@ let main () =
     | "wait" :: expr ->
       begin try_lwt
         let expr = String.concat " " expr |> parse_expr in
+        if !verbose then Printf.printf "Parsed: %s\n%!" (pretty_print () expr);
 	lwt client = make () in
         let _, result =
           wait client
@@ -160,10 +180,7 @@ let main () =
     | _ ->
       usage ();
       return ()
+ end
 
-  (* read key *)
-  (* write key=value *)
-  (* write key1=value1 key2=value2 *)
-  (* wait not key or (key1 = value2) or key3 *)
 let _ =
   Lwt_main.run (main ())

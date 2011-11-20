@@ -3,7 +3,7 @@
 xs \- interact with XenStore from the commandline
 .SH SYNOPSIS
 .B xs
-[\-h] subcommand [args]
+[\-h] [\-v] subcommand [args]
 .SH DESCRIPTION
 Description should go here.
 .PP
@@ -12,6 +12,9 @@ More description here.
 .TP
 \-h
 display a short help text
+.TP
+\-v
+display verbose output
 .SH SUBCOMMANDS
 .TP
 read path
@@ -41,7 +44,7 @@ wait /foo
 .TP
 Wait until the key /foo is deleted:
 .B xs
-wait not(/foo)
+wait "not(/foo)"
 .PP
 .TP
 Wait until either the key /foo or the key /bar is created:
@@ -51,7 +54,7 @@ wait /foo or /bar
 .TP
 Wait until either the key /foo is deleted or the key /bar is set to value "hello":
 .B xs
-wait not(/foo) or (/bar = hello)
+wait "not(/foo) or (/bar = hello)"
 .PP
 .SH EXIT STATUS
 xs returns a zero exist status if it succeeds. Non zero is returned in
