@@ -3,7 +3,7 @@
 xs \- interact with XenStore from the commandline
 .SH SYNOPSIS
 .B xs
-[\-h] [\-v] subcommand [args]
+[\-h] [\-v] [-t TIMEOUT] subcommand [args]
 .SH DESCRIPTION
 Description should go here.
 .PP
@@ -15,6 +15,9 @@ display a short help text
 .TP
 \-v
 display verbose output
+.TP
+\-t TIMEOUT
+timeout with failure after TIMEOUT seconds
 .SH SUBCOMMANDS
 .TP
 read path
@@ -55,6 +58,31 @@ wait /foo or /bar
 Wait until either the key /foo is deleted or the key /bar is set to value "hello":
 .B xs
 wait "not(/foo) or (/bar = hello)"
+.PP
+.TP
+Add a disk device to Xen domain id 2, backed by /dev/disk from Xen domain id 0. Note this command will return quickly and the disk will be connected asynchronously.
+BACK=/local/domain/0
+
+FRONT=/local/domain/2
+
+.B xs
+write $BACK/frontend-id=2          and \\
+         $BACK/online=1               and \\
+         $BACK/removable=1            and \\
+         $BACK/state=1                and \\
+         $BACK/dev=XXX                and \\
+         $BACK/mode=XXX               and \\
+         $BACK/params=/dev/disk       and \\
+         $FRONT/backend-id=0          and \\
+         $FRONT/state=1               and \\
+         $FRONT/virtual-device=51712  and \\
+         $FRONT/device-type=disk
+.PP
+.TP
+Wait until a disk device has been successfully unplugged, or an error happens, with a timeout of 30 seconds:
+.B xs
+wait -t 30 not($BACK/hotplug-status) or \\
+                  $FRONT/errorXXX
 .PP
 .SH EXIT STATUS
 xs returns a zero exist status if it succeeds. Non zero is returned in
