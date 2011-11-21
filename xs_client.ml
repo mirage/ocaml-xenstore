@@ -80,6 +80,12 @@ module Watcher = struct
     ()
 end
 
+exception Unknown_xenstore_operation of int32
+exception Response_parser_failed
+exception Malformed_watch_event
+exception Unexpected_rid of int32
+exception Dispatcher_failed
+
 module Client = functor(T: TRANSPORT) -> struct
 
   (* Represents a single acive connection to a server *)
@@ -92,12 +98,6 @@ module Client = functor(T: TRANSPORT) -> struct
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
   }
-
-  exception Unknown_xenstore_operation of int32
-  exception Response_parser_failed
-  exception Malformed_watch_event
-  exception Unexpected_rid of int32
-  exception Dispatcher_failed
 
   (* [recv_one client] returns a single Packet, or fails *)
   let rec recv_one t =
@@ -166,16 +166,16 @@ module Client = functor(T: TRANSPORT) -> struct
     t.dispatcher_thread <- dispatcher t;
     return t
 
-  module Handle = struct
     (** A 'handle' is a sub-connection used for a particular purpose.
         The handle is a convenient place to store sub-connection state *)
-    type t = {
-      client: client;
-      tid: int32; (** transaction id in use (0 means no transaction) *)
-      mutable accessed_paths: StringSet.t option; (** paths read or written to *)
-      mutable watched_paths: StringSet.t; (** paths being watched *)
-    }
+  type handle = {
+    client: client;
+    tid: int32; (** transaction id in use (0 means no transaction) *)
+    mutable accessed_paths: StringSet.t option; (** paths read or written to *)
+    mutable watched_paths: StringSet.t; (** paths being watched *)
+  }
 
+  module Handle = struct
     let make client = {
       client = client;
       tid = 0l;                       (* no transaction *)
