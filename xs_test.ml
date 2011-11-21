@@ -38,6 +38,12 @@ let acl_parser _ =
     (fun (x, y) -> assert_equal ~msg:"acl" ~printer x y)
     (List.combine (List.map (fun x -> Some x) ts) ts')
 
+open Lwt
+
+let test _ =
+  let t = return () in
+  Lwt_main.run t
+
 (*
 let error_unmarshal _ =
   let open Xs_packet.Response in
@@ -54,5 +60,6 @@ let _ =
     [
       "op_ids" >:: op_ids;
       "acl_parser" >:: acl_parser;
+      "test" >:: test;
     ] in
   run_test_tt ~verbose:!verbose suite
