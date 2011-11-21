@@ -35,16 +35,19 @@ module Watcher = struct
   (** Someone who is watching paths is represented by one of these: *)
   type t = {
     mutable paths: StringSet.t; (* we never care about events or ordering, only paths *)
+    mutable cancelling: bool; (* we need to stop watching and clean up *)
     c: unit Lwt_condition.t;
     m: Lwt_mutex.t;
   }
 
   let make () = {
     paths = StringSet.empty;
+    cancelling = false;
     c = Lwt_condition.create ();
     m = Lwt_mutex.create ();
   }
 
+  (** Register that a watched path has been changed *)
   let put (x: t) path =
     Lwt_mutex.with_lock x.m
       (fun () ->
@@ -53,16 +56,28 @@ module Watcher = struct
 	return ();
       )
 
+  (** Return a set of modified paths, or an empty set if we're cancelling *)
   let get (x: t) =
     Lwt_mutex.with_lock x.m
       (fun () ->
-        while_lwt x.paths = StringSet.empty do
+        while_lwt x.paths = StringSet.empty && not x.cancelling do
           Lwt_condition.wait ~mutex:x.m x.c
         done >>
         let results = x.paths in
         x.paths <- StringSet.empty;
 	return results
       )
+
+  (** Called to shutdown the watcher and trigger an orderly cleanup *)
+  let cancel (x: t) =
+    let (_: unit Lwt.t) =
+      Lwt_mutex.with_lock x.m
+	(fun () ->
+	  x.cancelling <- true;
+	  Lwt_condition.signal x.c ();
+	  return ()
+	) in
+    ()
 end
 
 module Client = functor(T: TRANSPORT) -> struct
@@ -229,37 +244,54 @@ module Client = functor(T: TRANSPORT) -> struct
     let watcher = Watcher.make () in
     Hashtbl.add client.watchevents token watcher;
 
+    (* We signal the caller via this cancellable task: *)
+    let result, wakener = Lwt.task () in
+    on_cancel result
+      (fun () ->
+        (* Trigger an orderly cleanup in the background: *)
+	Watcher.cancel watcher
+      );
     let h = Handle.watching client in
-    let rec loop () =
-      try_lwt
-        lwt result = f h in
-        return result
-      with Eagain ->
-	let current_paths = Handle.get_watched_paths h in
-        (* Paths which weren't read don't need to be watched: *)
-        let old_paths = diff current_paths (Handle.get_accessed_paths h) in
-        lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements old_paths) in
-        (* Paths which were read do need to be watched: *)
-        let new_paths = diff (Handle.get_accessed_paths h) current_paths in
-        lwt () = Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths) in
-        (* If we're watching the correct set of paths already then just block *)
-        lwt () =
-	  if old_paths = empty && (new_paths = empty)
-	  then begin
-              lwt _ = Watcher.get watcher in
-              return ()
-          end else return () in
-          loop ()
-    in
-    cancel,
-    (try_lwt
-      loop ()
-    finally
+    (* Adjust the paths we're watching (if necessary) and block (if possible) *)
+    let adjust_paths () =
       let current_paths = Handle.get_watched_paths h in
-      lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths) in
-      Hashtbl.remove client.watchevents token;
-      return ()
-    )
+      (* Paths which weren't read don't need to be watched: *)
+      let old_paths = diff current_paths (Handle.get_accessed_paths h) in
+      lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements old_paths) in
+      (* Paths which were read do need to be watched: *)
+      let new_paths = diff (Handle.get_accessed_paths h) current_paths in
+      lwt () = Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths) in
+      (* If we're watching the correct set of paths already then just block *)
+      if old_paths = empty && (new_paths = empty)
+      then begin
+        lwt results = Watcher.get watcher in
+        (* an empty results set means we've been cancelled: trigger cleanup *)
+        if results = empty
+        then fail (Failure "goodnight")
+        else return ()
+      end else return () in
+    (* Main client loop: *)
+    let rec loop () =
+      lwt finished =
+        try_lwt
+          lwt result = f h in
+          wakeup wakener result;
+          return true
+        with Eagain ->
+          return false in
+      if finished
+      then return ()
+      else adjust_paths () >> loop ()
+    in
+    let (_: unit Lwt.t) =
+      try_lwt
+        loop ()
+      finally
+        let current_paths = Handle.get_watched_paths h in
+        lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths) in
+        Hashtbl.remove client.watchevents token;
+        return () in
+    result
 
   let rec with_xst client f =
     lwt tid = rpc "transaction_start" (Handle.no_transaction client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in

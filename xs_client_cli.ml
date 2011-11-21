@@ -166,14 +166,14 @@ let main () =
         let expr = String.concat " " expr |> parse_expr in
         if !verbose then Printf.printf "Parsed: %s\n%!" (pretty_print () expr);
 	lwt client = make () in
-        let _, result =
+        let result =
           wait client
 	    (fun xs ->
 	      lwt result = eval_expression expr xs in
               if not result then fail Eagain else return ()
             ) in
         Lwt_timeout.create 5 (fun () -> cancel result) |> Lwt_timeout.start;
-        result
+	result
       with Invalid_expression as e ->
 	Lwt_io.write Lwt_io.stderr "Invalid expression\n" >> raise_lwt e
       end
