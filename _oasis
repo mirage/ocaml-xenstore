@@ -1,0 +1,39 @@
+OASISFormat: 0.2
+Name:        xenstore
+Version:     0.9-dev
+Synopsis:    Xenstore protocol library
+Authors:     Citrix Systems R&D, Anil Madhavapeddy
+License:     LGPL-2.0 with OCaml linking exception
+Plugins:     META (0.2)
+BuildTools:  ocamlbuild
+
+Library xenstore
+  Path: lib 
+  Findlibname: xenstore
+  Modules: Xs_client
+  BuildDepends:	lwt.unix, bitstring, bitstring.syntax
+
+Document xenstore
+  Title:                Xenstore docs
+  Type:                 ocamlbuild (0.2)
+  BuildTools+:          ocamldoc
+  XOCamlbuildPath:      lib
+  XOCamlbuildLibraries: xenstore
+
+Executable xs_test
+  Path:               lib_test
+  MainIs:             xs_test.ml
+  Build$:             flag(tests)
+  Custom:             true
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, oUnit
+
+Flag tests
+  Description:        Build and run tests
+  Default:            true
+
+Test xs_test
+  Run$:               flag(tests)
+  Command:            $xs_test
+  WorkingDirectory:   lib_test

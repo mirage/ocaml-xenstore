@@ -1,0 +1,10 @@
+# OASIS_START
+# DO NOT EDIT (digest: 2dd70862159335798c8a7d1a7dab4375)
+version = "0.9-dev"
+description = "Xenstore protocol library"
+requires = "lwt.unix bitstring bitstring.syntax"
+archive(byte) = "xenstore.cma"
+archive(native) = "xenstore.cmxa"
+exists_if = "xenstore.cma"
+# OASIS_STOP
+
