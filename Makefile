@@ -1,24 +1,34 @@
+.PHONY: all clean install build
+all: build doc
 
-OCAMLC=ocamlfind ocamlc -syntax camlp4o -package "oUnit,lwt.unix,lwt.syntax,bitstring.syntax,bitstring"
+NAME=xenstore
+J=4
 
-all: unittest xs
+export OCAMLRUNPARAM=b
 
-.PHONY: test
-test: unittest
-	./unittest
+setup.bin: setup.ml
+	@ocamlopt.opt -o $@ $< || ocamlopt -o $@ $< || ocamlc -o $@ $<
+	@rm -f setup.cmx setup.cmi setup.o setup.cmo
 
-unittest: xs_packet.cmi xs_packet.cmo xs_client.cmi xs_client.cmo xs_transport_unix.cmo xs_test.cmo
-	$(OCAMLC) -linkpkg -o unittest xs_packet.cmo xs_client.cmo xs_transport_unix.cmo xs_test.cmo
+setup.data: setup.bin
+	@./setup.bin -configure
 
-xs: xs_packet.cmi xs_packet.cmo xs_client.cmi xs_client.cmo xs_transport_unix.cmo xs_client_cli.cmo
-	$(OCAMLC) -linkpkg -o xs xs_packet.cmo xs_client.cmo xs_transport_unix.cmo xs_client_cli.cmo
+build: setup.data setup.bin
+	@./setup.bin -build -j $(J)
 
-%.cmo: %.ml
-	$(OCAMLC) -c -o $@ $<
+doc: setup.data setup.bin
+	@./setup.bin -doc -j $(J)
 
-%.cmi: %.mli
-	$(OCAMLC) -c -o $@ $<
+install: setup.bin
+	@./setup.bin -install
 
-.PHONY:clean
+test: setup.bin build
+	@./setup.bin -test
+
+reinstall: setup.bin
+	@ocamlfind remove $(NAME) || true
+	@./setup.bin -reinstall
+
 clean:
-	rm -f *.cmo *.cmi *.cmx unittest xs *.o *.a
+	@ocamlbuild -clean
+	@rm -f setup.data setup.log setup.bin
