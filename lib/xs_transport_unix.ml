@@ -23,7 +23,7 @@ let create () =
   let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
   lwt () = Lwt_unix.connect fd sockaddr in
-return fd
+  return fd
 let destroy fd = Lwt_unix.close fd
 let read = Lwt_unix.read
 let write = Lwt_unix.write
