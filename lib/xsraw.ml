@@ -35,7 +35,7 @@ type watch_queue = {
 
 type con = {
 	xb: Xb.t;
-    watchevents: (Xs_packet.token, watch_queue) Hashtbl.t;
+    watchevents: (Xs_packet.Token.t, watch_queue) Hashtbl.t;
 }
 
 
