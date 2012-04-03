@@ -44,6 +44,14 @@ Executable xs
   Install:            true
   BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.client, xenstore.unix
 
+Executable oxenstored
+  Path:               server
+  MainIs:             xenstored.ml
+  Custom:             true
+  CompiledObject:     best
+  Install:            true
+  BuildDepends:       lwt, lwt.unix, bitstring, xenstore
+
 Flag tests
   Description:        Build and run tests
   Default:            true

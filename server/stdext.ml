@@ -22,7 +22,7 @@ type ('a, 'b) either = Right of 'a | Left of 'b
  *)
 let exnhook = ref None 
 
-let finally fct clean_f =
+let finally' fct clean_f =
 	let result = try
 		fct ();
 	with
@@ -117,7 +117,7 @@ let pidfile_write filename =
 	let fd = Unix.openfile filename
 	                       [ Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC; ]
 			       0o640 in
-	finally
+	finally'
 	(fun () ->
 		let pid = Unix.getpid () in
 		let buf = string_of_int pid ^ "\n" in

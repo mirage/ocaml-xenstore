@@ -59,7 +59,7 @@ let sigusr1_handler store =
 	try
 		let channel = open_out_gen [ Open_wronly; Open_creat; Open_trunc; ]
 		                           0o600 "/var/run/xenstored/db.debug" in
-		finally (fun () -> Store.dump store channel)
+		finally' (fun () -> Store.dump store channel)
 			(fun () -> close_out channel)
 	with _ ->
 		()
@@ -177,12 +177,12 @@ let from_channel store cons doms chan =
 		op.Store.write path value;
 		op.Store.setperms path perms
 		in
-	finally (fun () -> from_channel_f chan domain_f watch_f store_f)
+	finally' (fun () -> from_channel_f chan domain_f watch_f store_f)
 	        (fun () -> Xenctrl.interface_close xc)
 
 let from_file store cons doms file =
 	let channel = open_in file in
-	finally (fun () -> from_channel store doms cons channel)
+	finally' (fun () -> from_channel store doms cons channel)
 	        (fun () -> close_in channel)
 
 let to_channel store cons chan =
@@ -206,7 +206,7 @@ let to_channel store cons chan =
 
 let to_file store cons file =
 	let channel = open_out_gen [ Open_wronly; Open_creat; Open_trunc; ] 0o600 file in
-	finally (fun () -> to_channel store cons channel)
+	finally' (fun () -> to_channel store cons channel)
 	        (fun () -> close_out channel)
 end
 
@@ -299,7 +299,7 @@ let _ =
 			Connections.add_anonymous cons cfd can_write
 		and handle_eventchn fd =
 			let port = Event.pending eventchn in
-			finally (fun () ->
+			finally' (fun () ->
 				if port = eventchn.Event.virq_port then (
 					let (notify, deaddom) = Domains.cleanup xc domains in
 					List.iter (Connections.del_domain cons) deaddom;
