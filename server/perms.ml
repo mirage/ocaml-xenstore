@@ -17,7 +17,7 @@
 
 (*let info fmt = Logging.info "perms" fmt*)
 
-open Stdext
+open Junk
 
 let activate = ref true
 
@@ -121,10 +121,12 @@ let is_owner (connection:t) id =
 let is_dom0 (connection:t) =
 	is_owner connection 0
 
+exception Permission_denied
+
 let restrict (connection:t) domid =
 	match connection.target, connection.main with
 	| None, (0, perms) -> { connection with main = (domid, perms) }
-	| _                -> raise Define.Permission_denied
+	| _                -> raise Permission_denied
 
 let elt_to_string (i,p) =
 	Printf.sprintf "%i%S" i (String.concat "" (List.map String.of_char (List.map char_of_permty p)))
