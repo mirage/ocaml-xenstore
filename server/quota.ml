@@ -20,7 +20,7 @@ exception Transaction_opened
 
 type domid = int
 
-let warn fmt = Logging.warn "quota" fmt
+(* let warn fmt = Logging.warn "quota" fmt *)
 let activate = ref true
 let maxent = ref (10000)
 let maxsize = ref (4096)
@@ -45,13 +45,13 @@ let del quota id = Hashtbl.remove quota.cur id
 
 let _check quota id size =
 	if size > quota.maxsize then (
-		warn "domain %u err create entry: data too big %d" id size;
+(*		warn "domain %u err create entry: data too big %d" id size; *)
 		raise Data_too_big
 	);
 	if id > 0 && Hashtbl.mem quota.cur id then
 		let entry = Hashtbl.find quota.cur id in
 		if entry >= quota.maxent then (
-			warn "domain %u cannot create entry: quota reached" id;
+(*			warn "domain %u cannot create entry: quota reached" id; *)
 			raise Limit_reached
 		)
 
