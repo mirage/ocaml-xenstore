@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: cddffd82081e3275bda756b98d177368) *)
+(* DO NOT EDIT (digest: 9dfc37214ad1971e6e80810e68889847) *)
 module OASISGettext = struct
 # 21 "/tmp/buildd/oasis-0.2.0/src/oasis/OASISGettext.ml"
   
@@ -451,7 +451,12 @@ end
 open Ocamlbuild_plugin;;
 let package_default =
   {
-     MyOCamlbuildBase.lib_ocaml = [("lib/xenstore", ["lib"])];
+     MyOCamlbuildBase.lib_ocaml =
+       [
+          ("core/xenstore", ["core"]);
+          ("unix/xenstore_unix", ["unix"]);
+          ("client/xenstore_client", ["client"])
+       ];
      lib_c = [];
      flags = [];
      }

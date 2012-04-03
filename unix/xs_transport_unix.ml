@@ -15,7 +15,7 @@
 (** A byte-level transport over the xenstore Unix domain socket *)
 
 open Lwt
-open Xs_client
+(* open Xs_client *)
 
 let xenstored_socket = "/var/run/xenstored/socket"
 type t = Lwt_unix.file_descr

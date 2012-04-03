@@ -1,10 +1,35 @@
 # OASIS_START
-# DO NOT EDIT (digest: 51e992d2188639afad7108bd680a7363)
+# DO NOT EDIT (digest: c7fcd2b3a02f0526039e9ed964c33ee7)
 # Library xenstore
-"lib": include
-<lib/*.ml{,i}>: pkg_lwt.unix
-<lib/*.ml{,i}>: pkg_bitstring.syntax
-<lib/*.ml{,i}>: pkg_bitstring
+"core": include
+<core/*.ml{,i}>: pkg_lwt
+<core/*.ml{,i}>: pkg_bitstring.syntax
+<core/*.ml{,i}>: pkg_bitstring
+# Library xenstore_unix
+"unix": include
+<unix/*.ml{,i}>: pkg_lwt
+# Library xenstore_client
+"client": include
+<client/*.ml{,i}>: use_xenstore
+<client/*.ml{,i}>: pkg_lwt
+<client/*.ml{,i}>: pkg_bitstring.syntax
+<client/*.ml{,i}>: pkg_bitstring
+# Executable xs
+<cli/xs_client_cli.{native,byte}>: use_xenstore_client
+<cli/xs_client_cli.{native,byte}>: use_xenstore_unix
+<cli/xs_client_cli.{native,byte}>: use_xenstore
+<cli/xs_client_cli.{native,byte}>: pkg_lwt.unix
+<cli/xs_client_cli.{native,byte}>: pkg_lwt
+<cli/xs_client_cli.{native,byte}>: pkg_bitstring.syntax
+<cli/xs_client_cli.{native,byte}>: pkg_bitstring
+<cli/*.ml{,i}>: use_xenstore_client
+<cli/*.ml{,i}>: use_xenstore_unix
+<cli/*.ml{,i}>: use_xenstore
+<cli/*.ml{,i}>: pkg_lwt.unix
+<cli/*.ml{,i}>: pkg_lwt
+<cli/*.ml{,i}>: pkg_bitstring.syntax
+<cli/*.ml{,i}>: pkg_bitstring
+<cli/xs_client_cli.{native,byte}>: custom
 # Executable xs_test
 <lib_test/xs_test.{native,byte}>: use_xenstore
 <lib_test/xs_test.{native,byte}>: pkg_oUnit
@@ -21,7 +46,5 @@
 <lib_test/xs_test.{native,byte}>: custom
 # OASIS_STOP
 true: annot
-<lib/*>: syntax_camlp4o
-<lib/*>: pkg_lwt.syntax
-<lib_test/*>: syntax_camlp4o
-<lib_test/*>: pkg_lwt.syntax
+<*/*>: syntax_camlp4o
+<*/*>: pkg_lwt.syntax
