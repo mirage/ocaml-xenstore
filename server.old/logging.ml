@@ -143,7 +143,7 @@ type access_type =
 	| Commit
 	| Newconn
 	| Endconn
-	| XbOp of Xenbus.Xb.Op.operation
+	| XbOp of Xs_packet.Op.t
 
 let string_of_tid ~con tid =
 	if tid = 0
@@ -157,37 +157,38 @@ let string_of_access_type = function
 	| Newconn                 -> "newconn  "
 	| Endconn                 -> "endconn  "
 
-	| XbOp op -> match op with
-	| Xenbus.Xb.Op.Debug             -> "debug    "
+	| XbOp op ->
+	  let open Xs_packet.Op in match op with
+	| Debug             -> "debug    "
 
-	| Xenbus.Xb.Op.Directory         -> "directory"
-	| Xenbus.Xb.Op.Read              -> "read     "
-	| Xenbus.Xb.Op.Getperms          -> "getperms "
+	| Directory         -> "directory"
+	| Read              -> "read     "
+	| Getperms          -> "getperms "
 
-	| Xenbus.Xb.Op.Watch             -> "watch    "
-	| Xenbus.Xb.Op.Unwatch           -> "unwatch  "
+	| Watch             -> "watch    "
+	| Unwatch           -> "unwatch  "
 
-	| Xenbus.Xb.Op.Transaction_start -> "t start  "
-	| Xenbus.Xb.Op.Transaction_end   -> "t end    "
+	| Transaction_start -> "t start  "
+	| Transaction_end   -> "t end    "
 
-	| Xenbus.Xb.Op.Introduce         -> "introduce"
-	| Xenbus.Xb.Op.Release           -> "release  "
-	| Xenbus.Xb.Op.Getdomainpath     -> "getdomain"
-	| Xenbus.Xb.Op.Isintroduced      -> "is introduced"
-	| Xenbus.Xb.Op.Resume            -> "resume   "
+	| Introduce         -> "introduce"
+	| Release           -> "release  "
+	| Getdomainpath     -> "getdomain"
+	| Isintroduced      -> "is introduced"
+	| Resume            -> "resume   "
  
-	| Xenbus.Xb.Op.Write             -> "write    "
-	| Xenbus.Xb.Op.Mkdir             -> "mkdir    "
-	| Xenbus.Xb.Op.Rm                -> "rm       "
-	| Xenbus.Xb.Op.Setperms          -> "setperms "
-	| Xenbus.Xb.Op.Restrict          -> "restrict "
-	| Xenbus.Xb.Op.Set_target        -> "settarget"
+	| Write             -> "write    "
+	| Mkdir             -> "mkdir    "
+	| Rm                -> "rm       "
+	| Setperms          -> "setperms "
+(*	| Restrict          -> "restrict "*)
+	| Set_target        -> "settarget"
 
-	| Xenbus.Xb.Op.Error             -> "error    "
-	| Xenbus.Xb.Op.Watchevent        -> "w event  "
-	| Xenbus.Xb.Op.Invalid           -> "invalid  "
+	| Error             -> "error    "
+	| Watchevent        -> "w event  "
+(*	| Invalid           -> "invalid  " *)
 	(*
-	| x                       -> Xenbus.Xb.Op.to_string x
+	| x                       -> to_string x
 	*)
 
 let sanitize_data data =
@@ -239,28 +240,30 @@ let conflict = access_logging Conflict
 let commit = access_logging Commit
 
 let xb_op ~tid ~con ~ty data =
-	let print = match ty with
-		| Xenbus.Xb.Op.Read | Xenbus.Xb.Op.Directory | Xenbus.Xb.Op.Getperms -> !access_log_read_ops
-		| Xenbus.Xb.Op.Transaction_start | Xenbus.Xb.Op.Transaction_end ->
+	let print =
+	  let open Xs_packet.Op in match ty with
+		| Read | Directory | Getperms -> !access_log_read_ops
+		| Transaction_start | Transaction_end ->
 			false (* transactions are managed below *)
-		| Xenbus.Xb.Op.Introduce | Xenbus.Xb.Op.Release | Xenbus.Xb.Op.Getdomainpath | Xenbus.Xb.Op.Isintroduced | Xenbus.Xb.Op.Resume ->
+		| Introduce | Release | Getdomainpath | Isintroduced | Resume ->
 			!access_log_special_ops
 		| _ -> true in
 	if print then access_logging ~tid ~con ~data (XbOp ty)
 
 let start_transaction ~tid ~con = 
 	if !access_log_transaction_ops && tid <> 0
-	then access_logging ~tid ~con (XbOp Xenbus.Xb.Op.Transaction_start)
+	then access_logging ~tid ~con (XbOp Xs_packet.Op.Transaction_start)
 
 let end_transaction ~tid ~con = 
 	if !access_log_transaction_ops && tid <> 0
-	then access_logging ~tid ~con (XbOp Xenbus.Xb.Op.Transaction_end)
+	then access_logging ~tid ~con (XbOp Xs_packet.Op.Transaction_end)
 
 let xb_answer ~tid ~con ~ty data =
-	let print = match ty with
-		| Xenbus.Xb.Op.Error when String.startswith "ENOENT " data -> !access_log_read_ops
-		| Xenbus.Xb.Op.Error -> true
-		| Xenbus.Xb.Op.Watchevent -> true
+	let print =
+	  let open Xs_packet.Op in match ty with
+		| Error when String.startswith "ENOENT " data -> !access_log_read_ops
+		| Error -> true
+		| Watchevent -> true
 		| _ -> false
 	in
 	if print then access_logging ~tid ~con ~data (XbOp ty)

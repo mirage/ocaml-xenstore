@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 9dfc37214ad1971e6e80810e68889847) *)
+(* DO NOT EDIT (digest: ee3b44b8284f705fbdc6c39b3a91f52b) *)
 module OASISGettext = struct
 # 21 "/tmp/buildd/oasis-0.2.0/src/oasis/OASISGettext.ml"
   
@@ -455,7 +455,8 @@ let package_default =
        [
           ("core/xenstore", ["core"]);
           ("unix/xenstore_unix", ["unix"]);
-          ("client/xenstore_client", ["client"])
+          ("client/xenstore_client", ["client"]);
+          ("server/xenstore_server", ["server"])
        ];
      lib_c = [];
      flags = [];

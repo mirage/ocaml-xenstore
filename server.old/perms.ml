@@ -21,6 +21,8 @@ open Stdext
 
 let activate = ref true
 
+type domid = int
+
 type permty = READ | WRITE | RDWR | NONE
 
 let char_of_permty perm =
@@ -45,9 +47,9 @@ struct
 
 type t =
 {
-	owner: Xenctrl.domid;
+	owner: domid;
 	other: permty;
-	acl: (Xenctrl.domid * permty) list;
+	acl: (domid * permty) list;
 }
 
 let create owner other acl =
@@ -90,7 +92,7 @@ end
 module Connection =
 struct
 
-type elt = Xenctrl.domid * (permty list)
+type elt = domid * (permty list)
 type t =
 	{ main: elt;
 	  target: elt option; }

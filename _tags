@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 30e2580791dbccc3719a7bea099dfe24)
+# DO NOT EDIT (digest: cc52fbf3733732f352828373aa0ce9e3)
 # Library xenstore
 "core": include
 <core/*.ml{,i}>: pkg_lwt
@@ -14,18 +14,6 @@
 <client/*.ml{,i}>: pkg_lwt
 <client/*.ml{,i}>: pkg_bitstring.syntax
 <client/*.ml{,i}>: pkg_bitstring
-# Executable oxenstored
-<server/xenstored.{native,byte}>: use_xenstore
-<server/xenstored.{native,byte}>: pkg_lwt.unix
-<server/xenstored.{native,byte}>: pkg_lwt
-<server/xenstored.{native,byte}>: pkg_bitstring.syntax
-<server/xenstored.{native,byte}>: pkg_bitstring
-<server/*.ml{,i}>: use_xenstore
-<server/*.ml{,i}>: pkg_lwt.unix
-<server/*.ml{,i}>: pkg_lwt
-<server/*.ml{,i}>: pkg_bitstring.syntax
-<server/*.ml{,i}>: pkg_bitstring
-<server/xenstored.{native,byte}>: custom
 # Executable xs
 <cli/xs_client_cli.{native,byte}>: use_xenstore_client
 <cli/xs_client_cli.{native,byte}>: use_xenstore_unix
@@ -56,6 +44,12 @@
 <lib_test/*.ml{,i}>: pkg_bitstring.syntax
 <lib_test/*.ml{,i}>: pkg_bitstring
 <lib_test/xs_test.{native,byte}>: custom
+# Library xenstore_server
+"server": include
+<server/*.ml{,i}>: use_xenstore
+<server/*.ml{,i}>: pkg_lwt
+<server/*.ml{,i}>: pkg_bitstring.syntax
+<server/*.ml{,i}>: pkg_bitstring
 # OASIS_STOP
 true: annot
 <*/*>: syntax_camlp4o

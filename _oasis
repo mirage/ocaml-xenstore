@@ -27,6 +27,13 @@ Library xenstore_unix
   Modules: Xs_transport_unix
   BuildDepends: lwt
 
+Library xenstore_server
+  Path: server
+  Findlibname: server
+  FindlibParent: xenstore
+  Modules: Trie
+  BuildDepends: lwt, xenstore
+
 Executable xs_test
   Path:               lib_test
   MainIs:             xs_test.ml
@@ -43,14 +50,6 @@ Executable xs
   CompiledObject:     best
   Install:            true
   BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.client, xenstore.unix
-
-Executable oxenstored
-  Path:               server
-  MainIs:             xenstored.ml
-  Custom:             true
-  CompiledObject:     best
-  Install:            true
-  BuildDepends:       lwt, lwt.unix, bitstring, xenstore
 
 Flag tests
   Description:        Build and run tests

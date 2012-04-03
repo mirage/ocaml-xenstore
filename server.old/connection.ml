@@ -110,7 +110,7 @@ let set_target con target_domid =
 let send_reply con tid rid ty data =
 	Xenbus.Xb.queue con.xb (Xenbus.Xb.Packet.create tid rid ty data)
 
-let send_error con tid rid err = send_reply con tid rid Xenbus.Xb.Op.Error (err ^ "\000")
+let send_error con tid rid err = send_reply con tid rid Xs_packet.Op.Error (err ^ "\000")
 let send_ack con tid rid ty = send_reply con tid rid ty "OK\000"
 
 let get_watch_path con path =
@@ -166,7 +166,7 @@ let list_watches con =
 
 let fire_single_watch watch =
 	let data = Utils.join_by_null [watch.path; watch.token; ""] in
-	send_reply watch.con Transaction.none 0 Xenbus.Xb.Op.Watchevent data
+	send_reply watch.con Transaction.none 0 Xs_packet.Op.Watchevent data
 
 let fire_watch watch path =
 	let new_path =
@@ -179,7 +179,7 @@ let fire_watch watch path =
 			path
 	in
 	let data = Utils.join_by_null [ new_path; watch.token; "" ] in
-	send_reply watch.con Transaction.none 0 Xenbus.Xb.Op.Watchevent data
+	send_reply watch.con Transaction.none 0 Xs_packet.Op.Watchevent data
 
 let find_next_tid con =
 	let ret = con.next_tid in con.next_tid <- con.next_tid + 1; ret

@@ -18,6 +18,8 @@ exception Limit_reached
 exception Data_too_big
 exception Transaction_opened
 
+type domid = int
+
 let warn fmt = Logging.warn "quota" fmt
 let activate = ref true
 let maxent = ref (10000)
@@ -26,7 +28,7 @@ let maxsize = ref (4096)
 type t = {
 	maxent: int;               (* max entities per domU *)
 	maxsize: int;              (* max size of data store in one node *)
-	cur: (Xenctrl.domid, int) Hashtbl.t; (* current domains quota *)
+	cur: (domid, int) Hashtbl.t; (* current domains quota *)
 }
 
 let to_string quota domid =

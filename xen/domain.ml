@@ -18,9 +18,11 @@ open Printf
 
 let debug fmt = Logging.debug "domain" fmt
 
+type domid = int
+
 type t =
 {
-	id: Xenctrl.domid;
+	id: domid;
 	mfn: nativeint;
 	remote_port: int;
 	interface: Xenmmap.mmap_interface;

@@ -210,7 +210,7 @@ let to_file store cons file =
 	        (fun () -> close_out channel)
 end
 
-let _ =
+let main () =
 	let cf = do_argv in
 	let pidfile =
 		if Sys.file_exists (config_filename cf) then
@@ -391,3 +391,8 @@ let _ =
 	info "stopping xenstored";
 	DB.to_file store cons "/var/run/xenstored/db";
 	()
+
+let _ =
+  Lwt_main.run (main ())
+
+
