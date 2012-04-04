@@ -14,7 +14,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-open Stdext
+open Junk
 
 module Node = struct
 
@@ -83,8 +83,8 @@ let check_perm node connection request =
 let check_owner node connection =
 	if not (Perms.check_owner connection node.perms)
 	then begin
-		Logging.info "store|node" "Permission denied: Domain %d not owner" (get_owner node);
-		raise Define.Permission_denied;
+(*		Logging.info "store|node" "Permission denied: Domain %d not owner" (get_owner node);*)
+		raise Perms.Permission_denied;
 	end
 
 let rec recurse fct node = fct node; List.iter (recurse fct) node.children
@@ -94,6 +94,14 @@ let unpack node = (Symbol.to_string node.name, node.perms, node.value)
 end
 
 module Path = struct
+
+exception Invalid_path
+
+exception Lookup_Doesnt_exist of string
+
+exception Doesnt_exist
+
+exception Already_exist
 
 (* represent a path in a store.
  * [] -> "/"
@@ -120,10 +128,27 @@ let of_string s =
 	then []
 	else match String.split '/' s with
 		| "" :: path when is_valid path -> path
-		| _ -> raise Define.Invalid_path
+		| _ -> raise Invalid_path
+
+let path_complete path connection_path =
+	if String.get path 0 <> '/' then
+		connection_path ^ path
+	else
+		path
+
+let path_validate path connection_path =
+	if String.length path = 0 || String.length path > 1024 then
+		raise Invalid_path
+	else
+		let cpath = path_complete path connection_path in
+		if String.get cpath 0 <> '/' then
+			raise Invalid_path
+		else
+			cpath
+
 
 let create path connection_path =
-	of_string (Utils.path_validate path connection_path)
+	of_string (path_validate path connection_path)
 
 let to_string t =
 	"/" ^ (String.concat "/" t)
@@ -134,7 +159,7 @@ let get_parent t =
 	if t = [] then [] else List.rev (List.tl (List.rev t))
 
 let get_hierarchy path =
-	Utils.get_hierarchy path
+	get_hierarchy path
 
 let get_common_prefix p1 p2 =
 	let rec compare l1 l2 =
@@ -149,12 +174,12 @@ let get_common_prefix p1 p2 =
 
 let rec lookup_modify node path fct =
 	match path with
-	| []      -> raise (Define.Invalid_path)
+	| []      -> raise Invalid_path
 	| h :: [] -> fct node h
 	| h :: l  ->
 		let (n, c) =
 			if not (Node.exists node h) then
-				raise (Define.Lookup_Doesnt_exist h)
+				raise (Lookup_Doesnt_exist h)
 			else
 				(node, Node.find node h) in
 		let nc = lookup_modify c l fct in
@@ -165,19 +190,19 @@ let apply_modify rnode path fct =
 
 let rec lookup_get node path =
 	match path with
-	| []      -> raise (Define.Invalid_path)
+	| []      -> raise (Invalid_path)
 	| h :: [] ->
 		(try
 			Node.find node h
 		with Not_found ->
-			raise Define.Doesnt_exist)
+			raise Doesnt_exist)
 	| h :: l  -> let cnode = Node.find node h in lookup_get cnode l
 
 let get_node rnode path =
 	if path = [] then
 		Some rnode
 	else (
-		try Some (lookup_get rnode path) with Define.Doesnt_exist -> None
+		try Some (lookup_get rnode path) with Doesnt_exist -> None
 	)
 
 (* get the deepest existing node for this path *)
@@ -206,7 +231,7 @@ let set_node rnode path nnode =
 (* read | ls | getperms use this *)
 let rec lookup node path fct =
 	match path with
-	| []      -> raise (Define.Invalid_path)
+	| []      -> raise (Invalid_path)
 	| h :: [] -> fct node h
 	| h :: l  -> let cnode = Node.find node h in lookup cnode l fct
 
@@ -234,7 +259,7 @@ let path_mkdir store perm path =
 		try
 			let ent = Node.find node name in
 			Node.check_perm ent perm Perms.WRITE;
-			raise Define.Already_exist
+			raise Path.Already_exist
 		with Not_found ->
 			Node.check_perm node perm Perms.WRITE;
 			Node.add_child node (Node.create name node.Node.perms "") in
@@ -268,7 +293,7 @@ let path_rm store perm path =
 			Node.check_perm ent perm Perms.WRITE;
 			Node.del_childname node name
 		with Not_found ->
-			raise Define.Doesnt_exist in
+			raise Path.Doesnt_exist in
 	if path = [] then
 		Node.del_all_children store.root
 	else
@@ -397,14 +422,14 @@ let mkdir store perm path =
 let rm store perm path =
 	let rmed_node = Path.get_node store.root path in
 	match rmed_node with
-	| None -> raise Define.Doesnt_exist
+	| None -> raise Path.Doesnt_exist
 	| Some rmed_node ->
 		store.root <- path_rm store perm path;
 		Node.recurse (fun node -> Quota.del_entry store.quota (Node.get_owner node)) rmed_node
 
 let setperms store perm path nperms =
 	match Path.get_node store.root path with
-	| None -> raise Define.Doesnt_exist
+	| None -> raise Path.Doesnt_exist
 	| Some node ->
 		let old_owner = Node.get_owner node in
 		let new_owner = Perms.Node.get_owner nperms in

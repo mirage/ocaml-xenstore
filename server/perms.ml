@@ -19,6 +19,8 @@
 
 open Junk
 
+exception Permission_denied
+
 let activate = ref true
 
 type domid = int
@@ -121,8 +123,6 @@ let is_owner (connection:t) id =
 let is_dom0 (connection:t) =
 	is_owner connection 0
 
-exception Permission_denied
-
 let restrict (connection:t) domid =
 	match connection.target, connection.main with
 	| None, (0, perms) -> { connection with main = (domid, perms) }
@@ -167,7 +167,7 @@ let check (connection:Connection.t) request (node:Node.t) =
 	&& not (Connection.is_dom0 connection)
 	&& not (check_owner connection node)
 	&& not (List.exists check_acl (Connection.get_owners connection))
-	then raise Define.Permission_denied
+	then raise Permission_denied
 
 let equiv perm1 perm2 =
 	(Node.to_string perm1) = (Node.to_string perm2)
