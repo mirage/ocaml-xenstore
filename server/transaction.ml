@@ -14,7 +14,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-open Stdext
+open Junk
 
 let none = 0
 let test_eagain = ref false
@@ -156,11 +156,13 @@ let commit ~con t =
 					(* it has to be in the store, otherwise it means bugs
 					   in the lowpath registration. we don't need to handle none. *)
 					maybe (fun n -> Store.set_node cstore p n) n;
-					Logging.write_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p);
+(*					Logging.write_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p);*)
 				) t.write_lowpath;
+(*
 				maybe (fun p ->
 					Logging.read_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p)
 					) t.read_lowpath;
+*)
 				has_coalesced := true;
 				Store.incr_transaction_coalesce cstore;
 				true
@@ -188,11 +190,13 @@ let commit ~con t =
 			false
 		else
 			try_commit oldroot cstore t.store
-		in
+	in
+(*
 	if has_commited && has_write_ops then
 		Disk.write t.store;
-	if not has_commited 
+*)
+(*	if not has_commited 
 	then Logging.conflict ~tid:(get_id t) ~con
 	else if not !has_coalesced 
 	then Logging.commit ~tid:(get_id t) ~con;
-	has_commited
+*)	has_commited
