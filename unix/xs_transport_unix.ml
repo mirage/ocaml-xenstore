@@ -15,15 +15,38 @@
 (** A byte-level transport over the xenstore Unix domain socket *)
 
 open Lwt
-(* open Xs_client *)
 
 let xenstored_socket = "/var/run/xenstored/socket"
-type t = Lwt_unix.file_descr
-let create () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
-  let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-  lwt () = Lwt_unix.connect fd sockaddr in
+
+module Client = struct
+
+  type t = Lwt_unix.file_descr
+  let create () =
+    let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
+    let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
+    lwt () = Lwt_unix.connect fd sockaddr in
   return fd
-let destroy fd = Lwt_unix.close fd
-let read = Lwt_unix.read
-let write = Lwt_unix.write
+  let destroy fd = Lwt_unix.close fd
+  let read = Lwt_unix.read
+  let write = Lwt_unix.write
+
+end
+
+module Server = struct
+
+  type t = Lwt_unix.file_descr
+  let create () =
+    let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
+    let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
+    Lwt_unix.bind fd sockaddr;
+    Lwt_unix.listen fd 5;
+    fd
+
+  let rec serve process fd =
+    lwt conns, _(*exn_option*) = Lwt_unix.accept_n fd 16 in
+    List.iter process conns;
+    serve process fd
+
+end
+
+

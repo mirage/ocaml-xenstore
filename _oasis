@@ -43,6 +43,14 @@ Executable xs_test
   Install:            false
   BuildDepends:       lwt, lwt.unix, bitstring, xenstore, oUnit
 
+Executable server_unix
+  Path:               server_unix
+  MainIs:             server_unix.ml
+  Custom:             true
+  CompiledObject:     best
+  Install:            true
+  BuildDepends:       lwt, lwt.unix, bitstring, xenstore
+
 Executable xs
   Path:               cli
   MainIs:             xs_client_cli.ml
