@@ -140,6 +140,13 @@ let main () =
   end else begin
     verbose := List.mem "-v" args;
     let args = List.filter (fun x -> x <> "-v") args in
+    (* Extract any -path X argument *)
+    let args =
+      List.fold_left (fun (acc, foundit) x ->
+	  if foundit then (Xs_transport_unix.xenstored_socket := x; (acc, false))
+	  else if x = "-path" then (acc, true)
+	  else (x :: acc, false)
+      ) ([], false) args |> fst |> List.rev in
     match args with
     | [ "read"; key ] ->
       lwt client = make () in

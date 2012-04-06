@@ -16,12 +16,12 @@
 
 open Lwt
 
-let xenstored_socket = "/var/run/xenstored/socket"
+let xenstored_socket = ref "/var/run/xenstored/socket"
 
 (* Individual connections *)
 type t = Lwt_unix.file_descr * Lwt_unix.sockaddr
 let create () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
+  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
   lwt () = Lwt_unix.connect fd sockaddr in
   return (fd, sockaddr)
@@ -33,11 +33,12 @@ let write (fd, _) = Lwt_unix.write fd
 type server = Lwt_unix.file_descr
 
 let listen () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
+  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-    Lwt_unix.bind fd sockaddr;
+  lwt () = try_lwt Lwt_unix.unlink !xenstored_socket with _ -> return () in
+  Lwt_unix.bind fd sockaddr;
   Lwt_unix.listen fd 5;
-  fd
+  return fd
 
 let rec accept_forever fd process =
   lwt conns, _ (*exn_option*) = Lwt_unix.accept_n fd 16 in

@@ -18,7 +18,11 @@ open Xs_packet
 module Server = Xs_server.Server(Xs_transport_unix)
 
 let main () =
-      Server.serve_forever ()
+  Arg.parse
+    [ "-path", Arg.Set_string Xs_transport_unix.xenstored_socket, Printf.sprintf "Unix domain socket to listen on (default %s)" !Xs_transport_unix.xenstored_socket ]
+    (fun _ -> ())
+    "User-space xenstore service";
+  Server.serve_forever ()
 
 let _ =
   Lwt_main.run (main ())

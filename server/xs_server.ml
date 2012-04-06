@@ -16,7 +16,7 @@ open Lwt
 
 module type TRANSPORT = sig
   type server
-  val listen: unit -> server
+  val listen: unit -> server Lwt.t
 
   type t
   val read: t -> string -> int -> int -> int Lwt.t
@@ -32,6 +32,6 @@ module Server = functor(T: TRANSPORT) -> struct
     T.destroy t
 
   let serve_forever () =
-    let server = T.listen () in
+    lwt server = T.listen () in
     T.accept_forever server handle_connection
 end
