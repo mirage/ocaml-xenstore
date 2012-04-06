@@ -208,6 +208,55 @@ module Parser = struct
       | Finished f -> Finished f
 end
 
+(* Should we switch to an explicit stream abstraction here? *)
+module type CHANNEL = sig
+  type t
+  val read: t -> string -> int -> int -> int Lwt.t
+  val write: t -> string -> int -> int -> int Lwt.t    
+end
+
+exception Unknown_xenstore_operation of int32
+exception Response_parser_failed
+
+
+module PacketStream = functor(C: CHANNEL) -> struct
+  open Lwt
+  type stream = {
+    channel: C.t;
+    mutable incoming_pkt: Parser.parse; (* incrementally parses the next packet *)
+    outgoing_mutex: Lwt_mutex.t;        (* held to serialise outgoing packets *)
+  }
+
+  let make t = {
+    channel = t;
+    incoming_pkt = Parser.start ();
+    outgoing_mutex = Lwt_mutex.create ();    
+  }
+
+  (* [recv client] returns a single Packet, or fails *)
+  let rec recv t =
+    let open Parser in match Parser.state t.incoming_pkt with
+    | Packet pkt ->
+      t.incoming_pkt <- start ();
+      return pkt
+    | Need_more_data x ->
+      let buf = String.make x '\000' in
+      lwt n = C.read t.channel buf 0 x in
+      let fragment = String.sub buf 0 n in
+      t.incoming_pkt <- input t.incoming_pkt fragment;
+      recv t
+    | Unknown_operation x -> raise_lwt (Unknown_xenstore_operation x)
+    | Parser_failed -> raise_lwt Response_parser_failed
+
+  (* [send client pkt] sends [pkt] and returns (), or fails *)
+  let send t request =
+    let req = to_string request in
+    lwt n = Lwt_mutex.with_lock t.outgoing_mutex
+        (fun () -> C.write t.channel req 0 (String.length req)) in
+    return ()
+end
+
+
 let unique_id () =
     let last = ref 0l in
     fun () ->

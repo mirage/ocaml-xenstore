@@ -13,6 +13,7 @@
  *)
 
 open Lwt
+open Xs_packet
 
 module type TRANSPORT = sig
   type server
@@ -27,8 +28,13 @@ module type TRANSPORT = sig
 end
 
 module Server = functor(T: TRANSPORT) -> struct
+  module PS = PacketStream(T)
 
   let handle_connection t =
+    let channel = PS.make t in
+    lwt request = PS.recv channel in
+    let reply = Xs_packet.create (get_tid request) (get_rid request) Op.Error "Not implemented\000" in
+    lwt () = PS.send channel reply in
     T.destroy t
 
   let serve_forever () =

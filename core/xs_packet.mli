@@ -70,11 +70,29 @@ module Parser : sig
       (see Need_more_data above) *)
 end
 
+module type CHANNEL = sig
+  type t
+  val read: t -> string -> int -> int -> int Lwt.t
+  val write: t -> string -> int -> int -> int Lwt.t
+end
+
+exception Unknown_xenstore_operation of int32
+exception Response_parser_failed
+
+module PacketStream : functor(C: CHANNEL) -> sig
+  type stream
+  val make: C.t -> stream
+  val recv: stream -> t Lwt.t
+  val send: stream -> t -> unit Lwt.t
+end
+
 val to_string : t -> string
 val get_tid : t -> int32
 val get_ty : t -> Op.t
 val get_data : t -> string
 val get_rid : t -> int32
+
+val create : int32 -> int32 -> Op.t -> string -> t
 
 module Token : sig
   type t

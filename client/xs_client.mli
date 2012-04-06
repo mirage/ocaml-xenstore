@@ -20,8 +20,6 @@ module type TRANSPORT = sig
   val write: t -> string -> int -> int -> int Lwt.t
 end
 
-exception Unknown_xenstore_operation of int32
-exception Response_parser_failed
 exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed

@@ -80,46 +80,25 @@ module Watcher = struct
     ()
 end
 
-exception Unknown_xenstore_operation of int32
-exception Response_parser_failed
 exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
 module Client = functor(T: TRANSPORT) -> struct
+  module PS = PacketStream(T)
 
   (* Represents a single acive connection to a server *)
   type client = {
     transport: T.t;
-    mutable incoming_pkt: Parser.parse; (* incrementally parses the next packet *)
-    outgoing_mutex: Lwt_mutex.t;        (* held to serialise outgoing packets *)
+    ps: PS.stream;
     rid_to_wakeup: (int32, Xs_packet.t Lwt.u) Hashtbl.t;
     mutable dispatcher_thread: unit Lwt.t;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
   }
 
-  (* [recv_one client] returns a single Packet, or fails *)
-  let rec recv_one t =
-    let open Parser in match Parser.state t.incoming_pkt with
-    | Packet pkt ->
-      t.incoming_pkt <- start ();
-      return pkt
-    | Need_more_data x ->
-      let buf = String.make x '\000' in
-      lwt n = T.read t.transport buf 0 x in
-      let fragment = String.sub buf 0 n in
-      t.incoming_pkt <- input t.incoming_pkt fragment;
-      recv_one t
-    | Unknown_operation x -> raise_lwt (Unknown_xenstore_operation x)
-    | Parser_failed -> raise_lwt Response_parser_failed
-
-  (* [send_one client pkt] sends [pkt] and returns (), or fails *)
-  let send_one t request =
-    let req = to_string request in
-    lwt n = Lwt_mutex.with_lock t.outgoing_mutex
-        (fun () -> T.write t.transport req 0 (String.length req)) in
-    return ()
+  let recv_one t = PS.recv t.ps
+  let send_one t = PS.send t.ps
 
   let rec dispatcher t =
     try_lwt
@@ -156,8 +135,7 @@ module Client = functor(T: TRANSPORT) -> struct
     lwt transport = T.create () in
     let t = {
       transport = transport;
-      incoming_pkt = Parser.start ();
-      outgoing_mutex = Lwt_mutex.create ();
+      ps = PS.make transport;
       rid_to_wakeup = Hashtbl.create 10;
       dispatcher_thread = return ();
       dispatcher_shutting_down = false;
