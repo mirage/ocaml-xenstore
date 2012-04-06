@@ -111,6 +111,11 @@ module Token : sig
   (** [of_string x] parses the marshalled token [x] *)
 end
 
+module Response : sig
+  val read : t -> string -> t
+  val error : t -> string -> t
+end
+
 module Request : sig
   val directory : string -> int32 -> t option
   val read : string -> int32 -> t option

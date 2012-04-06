@@ -324,6 +324,20 @@ let with_path ty (tid: int32) (path: string) =
 	let data = data_concat [ path; ] in
 	create tid (next_rid ()) ty data
 
+let set_data pkt (data: string) =
+  let len = String.length data in
+  let b = Buffer.create len in
+  Buffer.add_string b data;
+  { pkt with len = len; data = b }
+
+module Response = struct
+
+  let read request x = set_data request (data_concat [ x ])
+
+  let error request x = set_data request (data_concat [ x ])
+
+end
+
 module Request = struct
 
   let directory path tid =

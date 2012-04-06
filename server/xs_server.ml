@@ -29,11 +29,16 @@ end
 
 module Server = functor(T: TRANSPORT) -> struct
   module PS = PacketStream(T)
+  open Xs_packet
 
   let handle_connection t =
     let channel = PS.make t in
     lwt request = PS.recv channel in
-    let reply = Xs_packet.create (get_tid request) (get_rid request) Op.Error "Not implemented\000" in
+    let reply = match get_ty request with
+      | Op.Read ->
+	Response.read request "something"
+      | _ ->
+	Response.error request "Not implemented" in
     lwt () = PS.send channel reply in
     T.destroy t
 
