@@ -138,7 +138,7 @@ let getperms t perm path =
 	set_read_lowpath t path;
 	r
 
-let commit ~con t =
+let commit (* ~con *) t =
 	let has_write_ops = List.length t.ops > 0 in
 	let has_coalesced = ref false in
 	let has_commited =
