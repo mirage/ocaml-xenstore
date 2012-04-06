@@ -13,12 +13,25 @@
  *)
 
 open Lwt
-open Xs_packet
 
-module Server = Xs_server.Server(Xs_transport_unix)
+module type TRANSPORT = sig
+  type server
+  val listen: unit -> server
 
-let main () =
-      Server.serve_forever ()
+  type t
+  val read: t -> string -> int -> int -> int Lwt.t
+  val write: t -> string -> int -> int -> int Lwt.t
+  val destroy: t -> unit Lwt.t
 
-let _ =
-  Lwt_main.run (main ())
+  val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
+end
+
+module Server = functor(T: TRANSPORT) -> struct
+
+  let handle_connection t =
+    T.destroy t
+
+  let serve_forever () =
+    let server = T.listen () in
+    T.accept_forever server handle_connection
+end

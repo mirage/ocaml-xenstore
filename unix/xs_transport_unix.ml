@@ -18,35 +18,31 @@ open Lwt
 
 let xenstored_socket = "/var/run/xenstored/socket"
 
-module Client = struct
+(* Individual connections *)
+type t = Lwt_unix.file_descr * Lwt_unix.sockaddr
+let create () =
+  let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
+  let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
+  lwt () = Lwt_unix.connect fd sockaddr in
+  return (fd, sockaddr)
+let destroy (fd, _) = Lwt_unix.close fd
+let read (fd, _) = Lwt_unix.read fd
+let write (fd, _) = Lwt_unix.write fd
 
-  type t = Lwt_unix.file_descr
-  let create () =
-    let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
-    let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-    lwt () = Lwt_unix.connect fd sockaddr in
-  return fd
-  let destroy fd = Lwt_unix.close fd
-  let read = Lwt_unix.read
-  let write = Lwt_unix.write
+(* Servers which accept connections *)
+type server = Lwt_unix.file_descr
 
-end
-
-module Server = struct
-
-  type t = Lwt_unix.file_descr
-  let create () =
-    let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
-    let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
+let listen () =
+  let sockaddr = Lwt_unix.ADDR_UNIX(xenstored_socket) in
+  let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
     Lwt_unix.bind fd sockaddr;
-    Lwt_unix.listen fd 5;
-    fd
+  Lwt_unix.listen fd 5;
+  fd
 
-  let rec serve process fd =
-    lwt conns, _(*exn_option*) = Lwt_unix.accept_n fd 16 in
-    List.iter process conns;
-    serve process fd
+let rec accept_forever fd process =
+  lwt conns, _ (*exn_option*) = Lwt_unix.accept_n fd 16 in
+  let (_: unit Lwt.t list) = List.map process conns in
+  accept_forever fd process
 
-end
 
 

@@ -14,7 +14,7 @@
 
 open Lwt
 open Xs_packet
-module Client = Xs_client.Client(Xs_transport_unix.Client)
+module Client = Xs_client.Client(Xs_transport_unix)
 open Client
 
 let ( |> ) a b = b a
