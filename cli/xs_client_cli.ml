@@ -114,6 +114,8 @@ let usage () =
     "   -- read the value stored at <key>, or fail if it doesn't exist";
     bin " write <key=val> [and keyN=valN]*";
     "   -- write the key value pair(s)";
+    bin " directory <key>";
+    "   -- list the direct children of <key>";
     bin " wait <expr>";
     "   -- block until the <expr> is true";
     "";
@@ -154,6 +156,13 @@ let main () =
 	(fun xs ->
 	  lwt v = read xs key in
 	  Lwt_io.write Lwt_io.stdout v
+        ) >> return ()
+    | [ "directory"; key ] ->
+      lwt client = make () in
+      with_xs client
+        (fun xs ->
+          lwt ls = directory xs key in
+          Lwt_list.iter_s (fun x -> Lwt_io.write Lwt_io.stdout (x ^ "\n")) ls
         ) >> return ()
     | "write" :: expr ->
       begin lwt items = try_lwt
