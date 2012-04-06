@@ -39,18 +39,30 @@ module Server = functor(T: TRANSPORT) -> struct
 	Response.read request "something"
       | Op.Directory ->
 	Response.directory request [ "hello"; "there" ]
+      | Op.Getperms ->
+	Response.getperms request (0, ACL.NONE, [])
+      | Op.Getdomainpath ->
+	Response.getdomainpath request "/local/domain/none"
+      | Op.Transaction_start ->
+	Response.transaction_start request 1l
       | Op.Write ->
 	Response.write request
       | Op.Mkdir ->
 	Response.mkdir request
       | Op.Rm ->
 	Response.rm request
+      | Op.Setperms ->
+	Response.setperms request
+      | Op.Watch ->
+	Response.watch request
+      | Op.Unwatch ->
+	Response.unwatch request
+      | Op.Transaction_end ->
+	Response.transaction_end request
 
-      | Op.Debug | Op.Getperms
-      | Op.Watch | Op.Unwatch | Op.Transaction_start
-      | Op.Transaction_end | Op.Introduce | Op.Release
-      | Op.Getdomainpath
-      | Op.Setperms | Op.Watchevent | Op.Error | Op.Isintroduced
+      | Op.Debug
+      | Op.Introduce | Op.Release
+      | Op.Watchevent | Op.Error | Op.Isintroduced
       | Op.Resume | Op.Set_target ->
 	Response.error request "Not implemented" in
     lwt () = PS.send channel reply in

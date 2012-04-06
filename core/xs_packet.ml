@@ -333,6 +333,9 @@ let set_data pkt (data: string) =
 module Response = struct
 
   let read request x = set_data request (data_concat [ x ])
+  let getperms request perms = set_data request (data_concat [ ACL.to_string perms ])
+  let getdomainpath request x = set_data request (data_concat [ x ])
+  let transaction_start request tid = set_data request (data_concat [ Int32.to_string tid ])
   let directory request ls = set_data request (if ls = [] then "" else data_concat ls)
 
   let error request x = set_data request (data_concat [ x ])
@@ -342,7 +345,10 @@ module Response = struct
   let write = ack
   let mkdir = ack
   let rm = ack
-
+  let setperms = ack
+  let watch = ack
+  let unwatch = ack
+  let transaction_end = ack
 end
 
 module Request = struct

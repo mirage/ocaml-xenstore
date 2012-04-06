@@ -113,10 +113,17 @@ end
 
 module Response : sig
   val read : t -> string -> t
+  val getperms : t -> ACL.t -> t
+  val getdomainpath : t -> string -> t
+  val transaction_start : t -> int32 -> t
   val directory : t -> string list -> t
   val write : t -> t
   val mkdir : t -> t
   val rm : t -> t
+  val setperms : t -> t
+  val watch : t -> t
+  val unwatch : t -> t
+  val transaction_end : t -> t
   val error : t -> string -> t
 end
 
