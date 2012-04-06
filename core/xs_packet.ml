@@ -333,8 +333,15 @@ let set_data pkt (data: string) =
 module Response = struct
 
   let read request x = set_data request (data_concat [ x ])
+  let directory request ls = set_data request (if ls = [] then "" else data_concat ls)
 
   let error request x = set_data request (data_concat [ x ])
+
+  let ack request = set_data request "OK\000"
+
+  let write = ack
+  let mkdir = ack
+  let rm = ack
 
 end
 

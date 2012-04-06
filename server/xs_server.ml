@@ -37,7 +37,21 @@ module Server = functor(T: TRANSPORT) -> struct
     let reply = match get_ty request with
       | Op.Read ->
 	Response.read request "something"
-      | _ ->
+      | Op.Directory ->
+	Response.directory request [ "hello"; "there" ]
+      | Op.Write ->
+	Response.write request
+      | Op.Mkdir ->
+	Response.mkdir request
+      | Op.Rm ->
+	Response.rm request
+
+      | Op.Debug | Op.Getperms
+      | Op.Watch | Op.Unwatch | Op.Transaction_start
+      | Op.Transaction_end | Op.Introduce | Op.Release
+      | Op.Getdomainpath
+      | Op.Setperms | Op.Watchevent | Op.Error | Op.Isintroduced
+      | Op.Resume | Op.Set_target ->
 	Response.error request "Not implemented" in
     lwt () = PS.send channel reply in
     T.destroy t

@@ -113,6 +113,10 @@ end
 
 module Response : sig
   val read : t -> string -> t
+  val directory : t -> string list -> t
+  val write : t -> t
+  val mkdir : t -> t
+  val rm : t -> t
   val error : t -> string -> t
 end
 
