@@ -242,9 +242,11 @@ module PacketStream = functor(C: CHANNEL) -> struct
     | Need_more_data x ->
       let buf = String.make x '\000' in
       lwt n = C.read t.channel buf 0 x in
-      let fragment = String.sub buf 0 n in
-      t.incoming_pkt <- input t.incoming_pkt fragment;
-      recv t
+      if n = 0
+      then raise_lwt Response_parser_failed
+      else let fragment = String.sub buf 0 n in
+	   t.incoming_pkt <- input t.incoming_pkt fragment;
+	   recv t
     | Unknown_operation x -> raise_lwt (Unknown_xenstore_operation x)
     | Parser_failed -> raise_lwt Response_parser_failed
 
