@@ -39,8 +39,13 @@ module ACL : sig
     | WRITE
     | RDWR
 
-  type t = int * perm * (int * perm) list
-  (** owner domid * default for others * access control list *)
+  type domid = int
+
+  type t = {
+	  owner: domid;             (** domain which "owns", has full access *)
+	  other: perm;              (** default permissions for all others... *)
+	  acl: (domid * perm) list; (** ... unless overridden in the ACL *)
+  }
 
   val of_string: string -> t option
 

@@ -86,17 +86,22 @@ module ACL = struct
     | WRITE
     | RDWR
 
-  type t = int * perm * (int * perm) list
+  type domid = int
+
+  type t = {
+	  owner: domid;             (** domain which "owns", has full access *)
+	  other: perm;              (** default permissions for all others... *)
+	  acl: (domid * perm) list; (** ... unless overridden in the ACL *)
+  }
 
   let to_string perms =
-    let owner, other, acl = perms in
     let char_of_perm = function
       | NONE -> 'n'
       | READ -> 'r'
       | WRITE -> 'w'
       | RDWR -> 'b' in
     let string_of_perm (id, perm) = Printf.sprintf "%c%u" (char_of_perm perm) id in
-    String.concat "\000" (List.map string_of_perm ((owner,other) :: acl))
+    String.concat "\000" (List.map string_of_perm ((perms.owner,perms.other) :: perms.acl))
 
   let of_string s =
     let perm_of_char = function
@@ -113,8 +118,8 @@ module ACL = struct
     try
       let l = List.map perm_of_string (split_string '\000' s) in
       match l with
-	| h :: l -> Some (fst h, snd h, l)
-	| [] -> Some (0, NONE, [])
+	| h :: l -> Some { owner = fst h; other = snd h; acl = l }
+	| [] -> Some { owner = 0; other = NONE; acl = [] }
     with e ->
       None
 end

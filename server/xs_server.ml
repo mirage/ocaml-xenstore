@@ -54,7 +54,7 @@ module Server = functor(T: TRANSPORT) -> struct
 	open Xs_packet
 	open Junk
 
-	let perm' = (0, ACL.NONE, [])
+	let perm' = ACL.( { owner = 0; other = NONE; acl = [] })
 	let perm = Perms.Connection.full_rights
 
 	let split_one_path data connection_path =

@@ -33,8 +33,8 @@ let op_ids _ =
 let acl_parser _ =
   let open Xs_packet.ACL in
   let ts = [
-    5, READ, [ 2, WRITE; 3, RDWR ];
-    1, WRITE, [];
+    { owner = 5; other = READ; acl = [ 2, WRITE; 3, RDWR ] };
+    { owner = 1; other = WRITE; acl = [] };
   ] in
   let ss = List.map to_string ts in
   let ts' = List.map of_string ss in
@@ -138,7 +138,7 @@ let example_response_packets =
 	let open Xs_packet.Response in [
 		make_example_response Read (fun t -> read t "theresult")
 			"\x02\x00\x00\x00\x0e\x00\x00\x00\x06\x00\x00\x00\x0a\x00\x00\x00\x74\x68\x65\x72\x65\x73\x75\x6c\x74\x00";
-		make_example_response Getperms (fun t -> getperms t (2, Xs_packet.ACL.READ, [ 4, Xs_packet.ACL.NONE ]))
+		make_example_response Getperms (fun t -> getperms t (Xs_packet.ACL.( { owner = 2; other = READ; acl = [ 4, NONE ] } )))
 			"\x03\x00\x00\x00\x0d\x00\x00\x00\x07\x00\x00\x00\x06\x00\x00\x00\x72\x32\x00\x6e\x34\x00";
 		make_example_response Getdomainpath (fun t -> getdomainpath t "/local/domain/4")
 			"\x0a\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x2f\x6c\x6f\x63\x61\x6c\x2f\x64\x6f\x6d\x61\x69\x6e\x2f\x34\x00";
