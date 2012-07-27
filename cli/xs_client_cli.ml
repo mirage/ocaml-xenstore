@@ -110,6 +110,10 @@ let usage () =
     bin " : a xenstore protocol client";
     "";
     "Usage:";
+	bin " [-path /var/run/xenstored/socket] <subcommand> [args]";
+	"";
+	"Where <subcommand> can be one of:";
+	"";
     bin " read <key>";
     "   -- read the value stored at <key>, or fail if it doesn't exist";
     bin " write <key=val> [and keyN=valN]*";
