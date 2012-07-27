@@ -60,11 +60,17 @@ module Server = functor(T: TRANSPORT) -> struct
 	let perm' = ACL.( { owner = 0; other = NONE; acl = [] })
 	let perm = Perms.Connection.full_rights
 
-	let first data =
+	let one_string data =
         let args = String.split ~limit:2 '\000' data in
         match args with
-        | path :: [] -> path
-        | _          -> failwith (Printf.sprintf "parse failure: [%s](%d)" data (String.length data))
+			| x :: [] -> x
+			| _       -> failwith (Printf.sprintf "one_string parse failure: [%s](%d)" data (String.length data))
+
+	let two_strings data =
+        let args = String.split ~limit:2 '\000' data in
+		match args with
+			| a :: b :: [] -> a, b
+			| _            -> failwith (Printf.sprintf "two_strings parse failure: [%s](%d)" data (String.length data))
 
 	let c_int_of_string s =
 		let v = ref 0 in
@@ -83,7 +89,7 @@ module Server = functor(T: TRANSPORT) -> struct
 
 	let handle_connection t =
 		let channel = PS.make t in
-		let resolve_path data = Store.Path.create (first data) "/connection_path" in
+		let resolve data = Store.Path.create data "/connection_path" in
 		let connection_perm = Perms.Connection.full_rights in
 		lwt request = PS.recv channel in
 		let reply =
@@ -92,35 +98,32 @@ module Server = functor(T: TRANSPORT) -> struct
 				let t = Transaction.make (Int32.to_int (get_tid request)) store in
 				match get_ty request with
 					| Op.Read ->
-						let path = resolve_path data in
+						let path = data |> one_string |> resolve in
 						let v = Transaction.read t connection_perm path in
 						Transaction.commit t;
 						Response.read request v
 					| Op.Directory ->
-						let path = resolve_path data in
+						let path = data |> one_string |> resolve in
 						let entries = Transaction.ls t connection_perm path in
 						Response.directory request entries
 					| Op.Getperms ->
-						let path = resolve_path data in
+						let path = data |> one_string |> resolve in
 						let v = Transaction.getperms t connection_perm path in
 						Response.getperms request perm'
 					| Op.Getdomainpath ->
-						(Response.getdomainpath request ++ (Printf.sprintf "/local/domain/%u") ++ c_int_of_string ++ first) data
+						(Response.getdomainpath request ++ (Printf.sprintf "/local/domain/%u") ++ c_int_of_string ++ one_string) data
 					| Op.Transaction_start ->
 						Response.transaction_start request 1l
 					| Op.Write ->
-						let path, value =
-							match (String.split ~limit:2 '\000' (get_data request)) with
-								| path :: value :: [] -> Store.Path.create path "/connection_path", value
-								| _                   -> failwith "parse failure"
-						in
+						let path, value = two_strings data in
+						let path = resolve path in
 						let t = Transaction.make (Int32.to_int (get_tid request)) store in
 						create_implicit_path t connection_perm path;
 						Transaction.write t connection_perm path value;
 						Transaction.commit t;
 						Response.write request
 					| Op.Mkdir ->
-						let path = resolve_path data in
+						let path = data |> one_string |> resolve in
 						create_implicit_path t connection_perm path;
 						begin
 							try
@@ -129,7 +132,7 @@ module Server = functor(T: TRANSPORT) -> struct
 						end;
 						Response.mkdir request
 					| Op.Rm ->
-						let path = resolve_path data in
+						let path = data |> one_string |> resolve in
 						begin
 							try
 								Transaction.rm t connection_perm path
@@ -137,6 +140,9 @@ module Server = functor(T: TRANSPORT) -> struct
 						end;
 						Response.rm request
 					| Op.Setperms ->
+						let path, perms = two_strings data in
+						let path = resolve path in
+						Transaction.setperms t connection_perm path (Perms.Node.of_string perms);
 						Response.setperms request
 					| Op.Watch ->
 						Response.watch request
