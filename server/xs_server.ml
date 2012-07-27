@@ -129,6 +129,12 @@ module Server = functor(T: TRANSPORT) -> struct
 						end;
 						Response.mkdir request
 					| Op.Rm ->
+						let path = resolve_path data in
+						begin
+							try
+								Transaction.rm t connection_perm path
+							with Store.Path.Doesnt_exist -> ()
+						end;
 						Response.rm request
 					| Op.Setperms ->
 						Response.setperms request
