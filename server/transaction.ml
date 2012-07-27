@@ -27,7 +27,7 @@ let check_parents_perms_identical root1 root2 path =
 		and n2 = Store.Path.get_node root2 path in
 		match n1, n2 with
 		| Some n1, Some n2 ->
-			not (Perms.equiv (Store.Node.get_perms n1) (Store.Node.get_perms n2)) || acc
+			(Store.Node.get_perms n1) <> (Store.Node.get_perms n2) || acc
 		| _ ->
 			true || acc
 	) false hierarch in

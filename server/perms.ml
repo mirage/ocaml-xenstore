@@ -106,5 +106,4 @@ let check (connection:Connection.t) request (node:Xs_packet.ACL.t) =
 	&& not (List.exists check_acl (Connection.get_owners connection))
 	then raise Permission_denied
 
-let equiv perm1 perm2 =
-	(Xs_packet.ACL.to_string perm1) = (Xs_packet.ACL.to_string perm2)
+
