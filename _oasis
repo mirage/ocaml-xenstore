@@ -31,7 +31,7 @@ Library xenstore_server
   Path: server
   Findlibname: server
   FindlibParent: xenstore
-  Modules: Trie, Symbol, Quota, Perms, Store, Transaction, Xs_server, Junk
+  Modules: Logging, Trie, Symbol, Quota, Perms, Store, Transaction, Xs_server, Junk
   BuildDepends: lwt, xenstore
 
 Executable xs_test
