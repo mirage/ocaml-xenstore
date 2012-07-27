@@ -16,27 +16,26 @@ open Lwt
 open Xs_packet
 
 let store =
-  let store = Store.create () in
-  let localpath = Store.Path.of_string "/local" in
-  if not (Store.path_exists store localpath)
-  then Store.mkdir store (Perms.Connection.create 0) localpath;
-  store
+	let store = Store.create () in
+	let localpath = Store.Path.of_string "/local" in
+	if not (Store.path_exists store localpath)
+	then Store.mkdir store (Perms.Connection.create 0) localpath;
+	store
 
 let create_implicit_path t perm path =
-  let dirname = Store.Path.get_parent path in
-  if not (Transaction.path_exists t dirname) then (
-    let rec check_path p =
-      match p with
-        | []      -> []
-        | h :: l  ->
-          if Transaction.path_exists t h then
-            check_path l
-          else
-            p in
-    let ret = check_path (List.tl (Store.Path.get_hierarchy dirname)) in
-    List.iter (fun s -> Transaction.mkdir ~with_watch:false t perm s) ret
-  )
-
+	let dirname = Store.Path.get_parent path in
+	if not (Transaction.path_exists t dirname) then (
+		let rec check_path p =
+			match p with
+				| []      -> []
+				| h :: l  ->
+					if Transaction.path_exists t h then
+						check_path l
+					else
+						p in
+		let ret = check_path (List.tl (Store.Path.get_hierarchy dirname)) in
+		List.iter (fun s -> Transaction.mkdir ~with_watch:false t perm s) ret
+	)
 
 module type TRANSPORT = sig
   type server
@@ -51,67 +50,66 @@ module type TRANSPORT = sig
 end
 
 module Server = functor(T: TRANSPORT) -> struct
-  module PS = PacketStream(T)
-  open Xs_packet
-  open Junk
+	module PS = PacketStream(T)
+	open Xs_packet
+	open Junk
 
-  let perm' = (0, ACL.NONE, [])
-  let perm = Perms.Connection.full_rights
+	let perm' = (0, ACL.NONE, [])
+	let perm = Perms.Connection.full_rights
 
-  let handle_connection t =
-    let channel = PS.make t in
-    lwt request = PS.recv channel in
-    let reply = match get_ty request with
-      | Op.Read ->
-	let data = get_data request in
-        let path = match (String.split ~limit:2 '\000' data) with
-          | path :: "" :: [] -> Store.Path.create path "/tmp"
-          | _                -> failwith (Printf.sprintf "parse failure: [%s](%d)" data (String.length data)) in
-	let t = Transaction.make (Int32.to_int (get_tid request)) store in
-        let v = Transaction.read t perm path in
-	Transaction.commit t;
-	Response.read request v
-      | Op.Directory ->
-	Response.directory request [ "hello"; "there" ]
-      | Op.Getperms ->
-	Response.getperms request perm'
-      | Op.Getdomainpath ->
-	Response.getdomainpath request "/local/domain/none"
-      | Op.Transaction_start ->
-	Response.transaction_start request 1l
-      | Op.Write ->
-	let path, value =
-          match (String.split ~limit:2 '\000' (get_data request)) with
-            | path :: value :: [] -> Store.Path.create path "/tmp", value
-            | _                   -> failwith "parse failure"
-        in
-	let t = Transaction.make (Int32.to_int (get_tid request)) store in
-        create_implicit_path t perm path;
-        Transaction.write t perm path value;
-	Transaction.commit t;
-	Response.write request
-      | Op.Mkdir ->
-	Response.mkdir request
-      | Op.Rm ->
-	Response.rm request
-      | Op.Setperms ->
-	Response.setperms request
-      | Op.Watch ->
-	Response.watch request
-      | Op.Unwatch ->
-	Response.unwatch request
-      | Op.Transaction_end ->
-	Response.transaction_end request
+	let handle_connection t =
+		let channel = PS.make t in
+		lwt request = PS.recv channel in
+		let reply = match get_ty request with
+			| Op.Read ->
+				let data = get_data request in
+				let path = match (String.split ~limit:2 '\000' data) with
+					| path :: "" :: [] -> Store.Path.create path "/tmp"
+					| _                -> failwith (Printf.sprintf "parse failure: [%s](%d)" data (String.length data)) in
+				let t = Transaction.make (Int32.to_int (get_tid request)) store in
+				let v = Transaction.read t perm path in
+				Transaction.commit t;
+				Response.read request v
+			| Op.Directory ->
+				Response.directory request [ "hello"; "there" ]
+			| Op.Getperms ->
+				Response.getperms request perm'
+			| Op.Getdomainpath ->
+				Response.getdomainpath request "/local/domain/none"
+			| Op.Transaction_start ->
+				Response.transaction_start request 1l
+			| Op.Write ->
+				let path, value =
+					match (String.split ~limit:2 '\000' (get_data request)) with
+						| path :: value :: [] -> Store.Path.create path "/tmp", value
+						| _                   -> failwith "parse failure"
+				in
+				let t = Transaction.make (Int32.to_int (get_tid request)) store in
+				create_implicit_path t perm path;
+				Transaction.write t perm path value;
+				Transaction.commit t;
+				Response.write request
+			| Op.Mkdir ->
+				Response.mkdir request
+			| Op.Rm ->
+				Response.rm request
+			| Op.Setperms ->
+				Response.setperms request
+			| Op.Watch ->
+				Response.watch request
+			| Op.Unwatch ->
+				Response.unwatch request
+			| Op.Transaction_end ->
+				Response.transaction_end request
+			| Op.Debug
+			| Op.Introduce | Op.Release
+			| Op.Watchevent | Op.Error | Op.Isintroduced
+			| Op.Resume | Op.Set_target ->
+				Response.error request "Not implemented" in
+		lwt () = PS.send channel reply in
+		T.destroy t
 
-      | Op.Debug
-      | Op.Introduce | Op.Release
-      | Op.Watchevent | Op.Error | Op.Isintroduced
-      | Op.Resume | Op.Set_target ->
-	Response.error request "Not implemented" in
-    lwt () = PS.send channel reply in
-    T.destroy t
-
-  let serve_forever () =
-    lwt server = T.listen () in
-    T.accept_forever server handle_connection
+	let serve_forever () =
+		lwt server = T.listen () in
+		T.accept_forever server handle_connection
 end
