@@ -57,55 +57,69 @@ module Server = functor(T: TRANSPORT) -> struct
 	let perm' = (0, ACL.NONE, [])
 	let perm = Perms.Connection.full_rights
 
+	let split_one_path data connection_path =
+        let args = String.split ~limit:2 '\000' data in
+        match args with
+        | path :: [] -> Store.Path.create path connection_path
+        | _          -> failwith (Printf.sprintf "parse failure: [%s](%d)" data (String.length data))
+
 	let handle_connection t =
 		let channel = PS.make t in
+		let connection_path = "/connection_path" in
+		let connection_perm = Perms.Connection.full_rights in
 		lwt request = PS.recv channel in
-		let reply = match get_ty request with
-			| Op.Read ->
+		let reply =
+			try
 				let data = get_data request in
-				let path = match (String.split ~limit:2 '\000' data) with
-					| path :: "" :: [] -> Store.Path.create path "/tmp"
-					| _                -> failwith (Printf.sprintf "parse failure: [%s](%d)" data (String.length data)) in
-				let t = Transaction.make (Int32.to_int (get_tid request)) store in
-				let v = Transaction.read t perm path in
-				Transaction.commit t;
-				Response.read request v
-			| Op.Directory ->
-				Response.directory request [ "hello"; "there" ]
-			| Op.Getperms ->
-				Response.getperms request perm'
-			| Op.Getdomainpath ->
-				Response.getdomainpath request "/local/domain/none"
-			| Op.Transaction_start ->
-				Response.transaction_start request 1l
-			| Op.Write ->
-				let path, value =
-					match (String.split ~limit:2 '\000' (get_data request)) with
-						| path :: value :: [] -> Store.Path.create path "/tmp", value
-						| _                   -> failwith "parse failure"
-				in
-				let t = Transaction.make (Int32.to_int (get_tid request)) store in
-				create_implicit_path t perm path;
-				Transaction.write t perm path value;
-				Transaction.commit t;
-				Response.write request
-			| Op.Mkdir ->
-				Response.mkdir request
-			| Op.Rm ->
-				Response.rm request
-			| Op.Setperms ->
-				Response.setperms request
-			| Op.Watch ->
-				Response.watch request
-			| Op.Unwatch ->
-				Response.unwatch request
-			| Op.Transaction_end ->
-				Response.transaction_end request
-			| Op.Debug
-			| Op.Introduce | Op.Release
-			| Op.Watchevent | Op.Error | Op.Isintroduced
-			| Op.Resume | Op.Set_target ->
-				Response.error request "Not implemented" in
+				match get_ty request with
+					| Op.Read ->
+						let path = split_one_path data connection_path in
+						let t = Transaction.make (Int32.to_int (get_tid request)) store in
+						let v = Transaction.read t connection_perm path in
+						Transaction.commit t;
+						Response.read request v
+					| Op.Directory ->
+						let path = split_one_path data connection_path in
+						let t = Transaction.make (Int32.to_int (get_tid request)) store in
+						let entries = Transaction.ls t connection_perm path in
+						Response.directory request entries
+					| Op.Getperms ->
+						Response.getperms request perm'
+					| Op.Getdomainpath ->
+						Response.getdomainpath request "/local/domain/none"
+					| Op.Transaction_start ->
+						Response.transaction_start request 1l
+					| Op.Write ->
+						let path, value =
+							match (String.split ~limit:2 '\000' (get_data request)) with
+								| path :: value :: [] -> Store.Path.create path "/tmp", value
+								| _                   -> failwith "parse failure"
+						in
+						let t = Transaction.make (Int32.to_int (get_tid request)) store in
+						create_implicit_path t perm path;
+						Transaction.write t perm path value;
+						Transaction.commit t;
+						Response.write request
+					| Op.Mkdir ->
+						Response.mkdir request
+					| Op.Rm ->
+						Response.rm request
+					| Op.Setperms ->
+						Response.setperms request
+					| Op.Watch ->
+						Response.watch request
+					| Op.Unwatch ->
+						Response.unwatch request
+					| Op.Transaction_end ->
+						Response.transaction_end request
+					| Op.Debug
+					| Op.Introduce | Op.Release
+					| Op.Watchevent | Op.Error | Op.Isintroduced
+					| Op.Resume | Op.Set_target ->
+						Response.error request "Not implemented"
+			with e ->
+				Lwt_io.printf "Caught: %s\n" (Printexc.to_string e);
+				Response.error request (Printexc.to_string e) in
 		lwt () = PS.send channel reply in
 		T.destroy t
 
