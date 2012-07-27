@@ -111,15 +111,22 @@ module Server = functor(T: TRANSPORT) -> struct
 					| Op.Write ->
 						let path, value =
 							match (String.split ~limit:2 '\000' (get_data request)) with
-								| path :: value :: [] -> Store.Path.create path "/tmp", value
+								| path :: value :: [] -> Store.Path.create path "/connection_path", value
 								| _                   -> failwith "parse failure"
 						in
 						let t = Transaction.make (Int32.to_int (get_tid request)) store in
-						create_implicit_path t perm path;
-						Transaction.write t perm path value;
+						create_implicit_path t connection_perm path;
+						Transaction.write t connection_perm path value;
 						Transaction.commit t;
 						Response.write request
 					| Op.Mkdir ->
+						let path = resolve_path data in
+						create_implicit_path t connection_perm path;
+						begin
+							try
+								Transaction.mkdir t connection_perm path
+							with Store.Path.Already_exist -> ()
+						end;
 						Response.mkdir request
 					| Op.Rm ->
 						Response.rm request
