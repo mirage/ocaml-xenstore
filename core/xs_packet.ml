@@ -86,6 +86,19 @@ module ACL = struct
     | WRITE
     | RDWR
 
+  let char_of_perm = function
+	  | READ -> 'r'
+	  | WRITE -> 'w'
+	  | RDWR -> 'b'
+	  | NONE -> 'n'
+
+  let perm_of_char = function
+	  | 'r' -> Some READ
+	  | 'w' -> Some WRITE
+	  | 'b' -> Some RDWR
+	  | 'n' -> Some NONE
+	  | _ -> None
+
   type domid = int
 
   type t = {
@@ -95,33 +108,23 @@ module ACL = struct
   }
 
   let to_string perms =
-    let char_of_perm = function
-      | NONE -> 'n'
-      | READ -> 'r'
-      | WRITE -> 'w'
-      | RDWR -> 'b' in
     let string_of_perm (id, perm) = Printf.sprintf "%c%u" (char_of_perm perm) id in
     String.concat "\000" (List.map string_of_perm ((perms.owner,perms.other) :: perms.acl))
 
   let of_string s =
-    let perm_of_char = function
-      | 'n' -> NONE
-      | 'r' -> READ
-      | 'w' -> WRITE
-      | 'b' -> RDWR
-      | c -> invalid_arg (Printf.sprintf "Unknown permission: '%c'" c) in
-    (* A perm is stored as '<c>domid' *)
-    let perm_of_string s =
-      if String.length s < 2
-      then invalid_arg (Printf.sprintf "Permission string too short: '%s'" s);
-      int_of_string (String.sub s 1 (String.length s - 1)), perm_of_char s.[0] in
-    try
-      let l = List.map perm_of_string (split_string '\000' s) in
-      match l with
-	| h :: l -> Some { owner = fst h; other = snd h; acl = l }
-	| [] -> Some { owner = 0; other = NONE; acl = [] }
-    with e ->
-      None
+      (* A perm is stored as '<c>domid' *)
+	  let perm_of_char_exn x = match (perm_of_char x) with Some y -> y | None -> raise Not_found in
+	  try
+		  let perm_of_string s =
+			  if String.length s < 2
+			  then invalid_arg (Printf.sprintf "Permission string too short: '%s'" s);
+			  int_of_string (String.sub s 1 (String.length s - 1)), perm_of_char_exn s.[0] in
+		  let l = List.map perm_of_string (split_string '\000' s) in
+		  match l with
+			  | (owner, other) :: l -> Some { owner = owner; other = other; acl = l }
+			  | [] -> Some { owner = 0; other = NONE; acl = [] }
+      with e ->
+		  None
 end
 
 type t = {

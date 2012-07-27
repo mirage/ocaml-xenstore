@@ -39,6 +39,10 @@ module ACL : sig
     | WRITE
     | RDWR
 
+  val char_of_perm: perm -> char
+
+  val perm_of_char: char -> perm option
+
   type domid = int
 
   type t = {

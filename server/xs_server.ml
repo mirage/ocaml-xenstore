@@ -142,8 +142,13 @@ module Server = functor(T: TRANSPORT) -> struct
 					| Op.Setperms ->
 						let path, perms = two_strings data in
 						let path = resolve path in
-						Transaction.setperms t connection_perm path (Perms.Node.of_string perms);
-						Response.setperms request
+						begin match Xs_packet.ACL.of_string perms with
+							| Some x ->
+								Transaction.setperms t connection_perm path x;
+								Response.setperms request
+							| None ->
+								Response.error request "failed to parse perms"
+						end
 					| Op.Watch ->
 						Response.watch request
 					| Op.Unwatch ->

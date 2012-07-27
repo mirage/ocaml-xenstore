@@ -20,7 +20,7 @@ module Node = struct
 
 type t = {
 	name: Symbol.t;
-	perms: Perms.Node.t;
+	perms: Xs_packet.ACL.t;
 	value: string;
 	children: t list;
 }
@@ -28,7 +28,7 @@ type t = {
 let create _name _perms _value =
 	{ name = Symbol.of_string _name; perms = _perms; value = _value; children = []; }
 
-let get_owner node = Perms.Node.get_owner node.perms
+let get_owner node = node.perms.Xs_packet.ACL.owner
 let get_children node = node.children
 let get_value node = node.value
 let get_perms node = node.perms
@@ -258,10 +258,10 @@ let path_mkdir store perm path =
 	let do_mkdir node name =
 		try
 			let ent = Node.find node name in
-			Node.check_perm ent perm Perms.WRITE;
+			Node.check_perm ent perm Xs_packet.ACL.WRITE;
 			raise Path.Already_exist
 		with Not_found ->
-			Node.check_perm node perm Perms.WRITE;
+			Node.check_perm node perm Xs_packet.ACL.WRITE;
 			Node.add_child node (Node.create name node.Node.perms "") in
 	if path = [] then
 		store.root
@@ -273,15 +273,15 @@ let path_write store perm path value =
 	let do_write node name =
 		try
 			let ent = Node.find node name in
-			Node.check_perm ent perm Perms.WRITE;
+			Node.check_perm ent perm Xs_packet.ACL.WRITE;
 			let nent = Node.set_value ent value in
 			Node.replace_child node ent nent
 		with Not_found ->
 			node_created := true;
-			Node.check_perm node perm Perms.WRITE;
+			Node.check_perm node perm Xs_packet.ACL.WRITE;
 			Node.add_child node (Node.create name node.Node.perms value) in
 	if path = [] then (
-		Node.check_perm store.root perm Perms.WRITE;
+		Node.check_perm store.root perm Xs_packet.ACL.WRITE;
 		Node.set_value store.root value, false
 	) else
 		Path.apply_modify store.root path do_write, !node_created
@@ -290,7 +290,7 @@ let path_rm store perm path =
 	let do_rm node name =
 		try
 			let ent = Node.find node name in
-			Node.check_perm ent perm Perms.WRITE;
+			Node.check_perm ent perm Xs_packet.ACL.WRITE;
 			Node.del_childname node name
 		with Not_found ->
 			raise Path.Doesnt_exist in
@@ -306,7 +306,7 @@ let path_setperms store perm path perms =
 		let do_setperms node name =
 			let c = Node.find node name in
 			Node.check_owner c perm;
-			Node.check_perm c perm Perms.WRITE;
+			Node.check_perm c perm Xs_packet.ACL.WRITE;
 			let nc = Node.set_perms c perms in
 			Node.replace_child node c nc
 		in
@@ -322,12 +322,12 @@ let get_deepest_existing_node store path =
 let read store perm path =
 	let do_read node name =
 		let ent = Node.find node name in
-		Node.check_perm ent perm Perms.READ;
+		Node.check_perm ent perm Xs_packet.ACL.READ;
 		ent.Node.value
 	in
 	if path = [] then (
 		let ent = store.root in
-		Node.check_perm ent perm Perms.READ;
+		Node.check_perm ent perm Xs_packet.ACL.READ;
 		ent.Node.value
 	) else
 		Path.apply store.root path do_read
@@ -339,7 +339,7 @@ let ls store perm path =
 		else
 			let do_ls node name =
 				let cnode = Node.find node name in
-				Node.check_perm cnode perm Perms.READ;
+				Node.check_perm cnode perm Xs_packet.ACL.READ;
 				cnode.Node.children in
 			Path.apply store.root path do_ls in
 	List.rev (List.map (fun n -> Symbol.to_string n.Node.name) children)
@@ -350,7 +350,7 @@ let getperms store perm path =
 	else
 		let fct n name =
 			let c = Node.find n name in
-			Node.check_perm c perm Perms.READ;
+			Node.check_perm c perm Xs_packet.ACL.READ;
 			c.Node.perms in
 		Path.apply store.root path fct
 
@@ -379,7 +379,7 @@ let dump_store_buf root_node =
 	let dump_node path node =
 		let pathstr = String.concat "/" path in
 		Printf.bprintf buf "%s/%s{%s}" pathstr (Symbol.to_string node.Node.name)
-		               (String.escaped (Perms.Node.to_string (Node.get_perms node)));
+		               (String.escaped (Xs_packet.ACL.to_string (Node.get_perms node)));
 		if String.length node.Node.value > 0 then
 			Printf.bprintf buf " = %s\n" (String.escaped node.Node.value)
 		else
@@ -432,7 +432,7 @@ let setperms store perm path nperms =
 	| None -> raise Path.Doesnt_exist
 	| Some node ->
 		let old_owner = Node.get_owner node in
-		let new_owner = Perms.Node.get_owner nperms in
+		let new_owner = nperms.Xs_packet.ACL.owner in
 		Quota.check store.quota new_owner 0;
 		store.root <- path_setperms store perm path nperms;
 		Quota.del_entry store.quota old_owner;
@@ -443,10 +443,10 @@ type ops = {
 	write: Path.t -> string -> unit;
 	mkdir: Path.t -> unit;
 	rm: Path.t -> unit;
-	setperms: Path.t -> Perms.Node.t -> unit;
+	setperms: Path.t -> Xs_packet.ACL.t -> unit;
 	ls: Path.t -> string list;
 	read: Path.t -> string;
-	getperms: Path.t -> Perms.Node.t;
+	getperms: Path.t -> Xs_packet.ACL.t;
 	path_exists: Path.t -> bool;
 }
 
@@ -465,7 +465,7 @@ let get_ops store perms = {
 let create () = {
 	stat_transaction_coalesce = 0;
 	stat_transaction_abort = 0;
-	root = Node.create "" Perms.Node.default0 "";
+	root = Node.create "" (Xs_packet.ACL.({ owner = 0; other = NONE; acl = [] })) "";
 	quota = Quota.create ();
 }
 let copy store = {
