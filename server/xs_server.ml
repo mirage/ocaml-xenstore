@@ -15,6 +15,9 @@
 open Lwt
 open Xs_packet
 
+let ( |> ) a b = b a
+let ( ++ ) f g x = f (g x)
+
 let store =
 	let store = Store.create () in
 	let localpath = Store.Path.of_string "/local" in
@@ -57,36 +60,52 @@ module Server = functor(T: TRANSPORT) -> struct
 	let perm' = ACL.( { owner = 0; other = NONE; acl = [] })
 	let perm = Perms.Connection.full_rights
 
-	let split_one_path data connection_path =
+	let first data =
         let args = String.split ~limit:2 '\000' data in
         match args with
-        | path :: [] -> Store.Path.create path connection_path
+        | path :: [] -> path
         | _          -> failwith (Printf.sprintf "parse failure: [%s](%d)" data (String.length data))
+
+	let c_int_of_string s =
+		let v = ref 0 in
+		let is_digit c = c >= '0' && c <= '9' in
+		let len = String.length s in
+		let i = ref 0 in
+		while !i < len && not (is_digit s.[!i]) do incr i done;
+		while !i < len && is_digit s.[!i]
+		do
+            let x = (Char.code s.[!i]) - (Char.code '0') in
+            v := !v * 10 + x;
+            incr i
+		done;
+		!v
+
 
 	let handle_connection t =
 		let channel = PS.make t in
-		let connection_path = "/connection_path" in
+		let resolve_path data = Store.Path.create (first data) "/connection_path" in
 		let connection_perm = Perms.Connection.full_rights in
 		lwt request = PS.recv channel in
 		let reply =
 			try
 				let data = get_data request in
+				let t = Transaction.make (Int32.to_int (get_tid request)) store in
 				match get_ty request with
 					| Op.Read ->
-						let path = split_one_path data connection_path in
-						let t = Transaction.make (Int32.to_int (get_tid request)) store in
+						let path = resolve_path data in
 						let v = Transaction.read t connection_perm path in
 						Transaction.commit t;
 						Response.read request v
 					| Op.Directory ->
-						let path = split_one_path data connection_path in
-						let t = Transaction.make (Int32.to_int (get_tid request)) store in
+						let path = resolve_path data in
 						let entries = Transaction.ls t connection_perm path in
 						Response.directory request entries
 					| Op.Getperms ->
+						let path = resolve_path data in
+						let v = Transaction.getperms t connection_perm path in
 						Response.getperms request perm'
 					| Op.Getdomainpath ->
-						Response.getdomainpath request "/local/domain/none"
+						(Response.getdomainpath request ++ (Printf.sprintf "/local/domain/%u") ++ c_int_of_string ++ first) data
 					| Op.Transaction_start ->
 						Response.transaction_start request 1l
 					| Op.Write ->
