@@ -15,7 +15,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-(*let info fmt = Logging.info "perms" fmt*)
+let info = Logging.info "perms"
 
 open Junk
 
@@ -83,16 +83,16 @@ let check (connection:t) request (node:Xs_packet.ACL.t) =
 		in
 		match perm, request with
 		| NONE, _ ->
-(*			info "Permission denied: Domain %d has no permission" domainid;*)
+			info "Permission denied: Domain %d has no permission" domainid;
 			false
 		| RDWR, _ -> true
 		| READ, READ -> true
 		| WRITE, WRITE -> true
 		| READ, _ ->
-(*			info "Permission denied: Domain %d has read only access" domainid;*)
+			info "Permission denied: Domain %d has read only access" domainid;
 			false
 		| WRITE, _ ->
-(*			info "Permission denied: Domain %d has write only access" domainid;*)
+			info "Permission denied: Domain %d has write only access" domainid;
 			false
 	in
 	if true
