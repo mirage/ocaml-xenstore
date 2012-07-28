@@ -31,12 +31,12 @@ type t =
 	{ main: elt;
 	  target: elt option; }
 
-let full_rights : t =
+let superuser : t =
 	{ main = 0, [READ; WRITE];
 	  target = None }
 
-let create ?(perms=[NONE]) domid : t =
-	{ main = (domid, perms);
+let of_domain domid : t =
+	{ main = (domid, [READ; WRITE]);
 	  target = None }
 
 let set_target (connection:t) ?(perms=[NONE]) domid =
@@ -66,6 +66,11 @@ let elt_to_string (i,p) =
 let to_string connection =
 	Printf.sprintf "%s%s" (elt_to_string connection.main) (default "" (may elt_to_string connection.target))
 
+type permission =
+	| READ
+	| WRITE
+	| CHANGE_ACL
+
 (* check if owner of the current connection and of the current node are the same *)
 let check_owner (connection:t) (node:Xs_packet.ACL.t) =
 	if not (is_dom0 connection)
@@ -74,7 +79,6 @@ let check_owner (connection:t) (node:Xs_packet.ACL.t) =
 
 (* check if the current connection has the requested perm on the current node *)
 let check (connection:t) request (node:Xs_packet.ACL.t) =
-	let open Xs_packet.ACL in
 	let check_acl domainid =
 		let perm =
 			if List.mem_assoc domainid node.Xs_packet.ACL.acl
@@ -82,16 +86,16 @@ let check (connection:t) request (node:Xs_packet.ACL.t) =
 			else node.Xs_packet.ACL.other
 		in
 		match perm, request with
-		| NONE, _ ->
+		| Xs_packet.ACL.NONE, _ ->
 			info "Permission denied: Domain %d has no permission" domainid;
 			false
-		| RDWR, _ -> true
-		| READ, READ -> true
-		| WRITE, WRITE -> true
-		| READ, _ ->
+		| Xs_packet.ACL.RDWR, _ -> true
+		| Xs_packet.ACL.READ, READ -> true
+		| Xs_packet.ACL.WRITE, WRITE -> true
+		| Xs_packet.ACL.READ, _ ->
 			info "Permission denied: Domain %d has read only access" domainid;
 			false
-		| WRITE, _ ->
+		| Xs_packet.ACL.WRITE, _ ->
 			info "Permission denied: Domain %d has write only access" domainid;
 			false
 	in

@@ -75,18 +75,6 @@ let del_childname node childname =
 let del_all_children node =
 	{ node with children = [] }
 
-(* check if the current node can be accessed by the current connection with rperm permissions *)
-let check_perm node connection request =
-	Perms.check connection request node.perms
-
-(* check if the current node is owned by the current connection *)
-let check_owner node connection =
-	if not (Perms.check_owner connection node.perms)
-	then begin
-(*		Logging.info "store|node" "Permission denied: Domain %d not owner" (get_owner node);*)
-		raise Perms.Permission_denied;
-	end
-
 let rec recurse fct node = fct node; List.iter (recurse fct) node.children
 
 let unpack node = (Symbol.to_string node.name, node.perms, node.value)
@@ -258,10 +246,10 @@ let path_mkdir store perm path =
 	let do_mkdir node name =
 		try
 			let ent = Node.find node name in
-			Node.check_perm ent perm Xs_packet.ACL.WRITE;
+			Perms.check perm Perms.WRITE ent.Node.perms;
 			raise Path.Already_exist
 		with Not_found ->
-			Node.check_perm node perm Xs_packet.ACL.WRITE;
+			Perms.check perm Perms.WRITE node.Node.perms;
 			Node.add_child node (Node.create name node.Node.perms "") in
 	if path = [] then
 		store.root
@@ -273,15 +261,15 @@ let path_write store perm path value =
 	let do_write node name =
 		try
 			let ent = Node.find node name in
-			Node.check_perm ent perm Xs_packet.ACL.WRITE;
+			Perms.check perm Perms.WRITE ent.Node.perms;
 			let nent = Node.set_value ent value in
 			Node.replace_child node ent nent
 		with Not_found ->
 			node_created := true;
-			Node.check_perm node perm Xs_packet.ACL.WRITE;
+			Perms.check perm Perms.WRITE node.Node.perms;
 			Node.add_child node (Node.create name node.Node.perms value) in
 	if path = [] then (
-		Node.check_perm store.root perm Xs_packet.ACL.WRITE;
+		Perms.check perm Perms.WRITE store.root.Node.perms;
 		Node.set_value store.root value, false
 	) else
 		Path.apply_modify store.root path do_write, !node_created
@@ -290,7 +278,7 @@ let path_rm store perm path =
 	let do_rm node name =
 		try
 			let ent = Node.find node name in
-			Node.check_perm ent perm Xs_packet.ACL.WRITE;
+			Perms.check perm Perms.WRITE ent.Node.perms;
 			Node.del_childname node name
 		with Not_found ->
 			raise Path.Doesnt_exist in
@@ -305,8 +293,8 @@ let path_setperms store perm path perms =
 	else
 		let do_setperms node name =
 			let c = Node.find node name in
-			Node.check_owner c perm;
-			Node.check_perm c perm Xs_packet.ACL.WRITE;
+			Perms.check perm Perms.CHANGE_ACL c.Node.perms;
+			Perms.check perm Perms.WRITE c.Node.perms;
 			let nc = Node.set_perms c perms in
 			Node.replace_child node c nc
 		in
@@ -322,12 +310,12 @@ let get_deepest_existing_node store path =
 let read store perm path =
 	let do_read node name =
 		let ent = Node.find node name in
-		Node.check_perm ent perm Xs_packet.ACL.READ;
+		Perms.check perm Perms.READ ent.Node.perms;
 		ent.Node.value
 	in
 	if path = [] then (
 		let ent = store.root in
-		Node.check_perm ent perm Xs_packet.ACL.READ;
+		Perms.check perm Perms.READ ent.Node.perms;
 		ent.Node.value
 	) else
 		Path.apply store.root path do_read
@@ -339,7 +327,7 @@ let ls store perm path =
 		else
 			let do_ls node name =
 				let cnode = Node.find node name in
-				Node.check_perm cnode perm Xs_packet.ACL.READ;
+				Perms.check perm Perms.READ cnode.Node.perms;
 				cnode.Node.children in
 			Path.apply store.root path do_ls in
 	List.rev (List.map (fun n -> Symbol.to_string n.Node.name) children)
@@ -350,7 +338,7 @@ let getperms store perm path =
 	else
 		let fct n name =
 			let c = Node.find n name in
-			Node.check_perm c perm Xs_packet.ACL.READ;
+			Perms.check perm Perms.READ c.Node.perms;
 			c.Node.perms in
 		Path.apply store.root path fct
 
