@@ -15,14 +15,35 @@
 open Lwt
 open Xs_packet
 
+let debug = Logging.debug "server_unix"
+
+let string_of_date () =
+	let time = Unix.gettimeofday () in
+	let tm = Unix.gmtime time in
+	let msec = time -. (floor time) in
+	Printf.sprintf "%d%.2d%.2dT%.2d:%.2d:%.2d.%.3dZ"
+		(1900 + tm.Unix.tm_year) (tm.Unix.tm_mon + 1) tm.Unix.tm_mday
+		tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+		(int_of_float (1000.0 *. msec))
+
 module Server = Xs_server.Server(Xs_transport_unix)
 
+let rec logging_thread logger =
+	lwt lines = Logging.get logger in
+	lwt () = Lwt_list.iter_s (Lwt_io.write_line Lwt_io.stdout) lines in
+	logging_thread logger
+
 let main () =
-  Arg.parse
-    [ "-path", Arg.Set_string Xs_transport_unix.xenstored_socket, Printf.sprintf "Unix domain socket to listen on (default %s)" !Xs_transport_unix.xenstored_socket ]
-    (fun _ -> ())
-    "User-space xenstore service";
-  Server.serve_forever ()
+	Logging.string_of_date := string_of_date;
+	debug "Unix xenstored starting";
+	let main_log = logging_thread Logging.logger in
+	let access_log = logging_thread Logging.access_logger in
+
+	Arg.parse
+		[ "-path", Arg.Set_string Xs_transport_unix.xenstored_socket, Printf.sprintf "Unix domain socket to listen on (default %s)" !Xs_transport_unix.xenstored_socket ]
+		(fun _ -> ())
+		"User-space xenstore service";
+	Server.serve_forever ()
 
 let _ =
-  Lwt_main.run (main ())
+	Lwt_main.run (main ())

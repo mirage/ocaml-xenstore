@@ -14,17 +14,60 @@
  * GNU Lesser General Public License for more details.
  *)
 
+open Lwt
 open Printf
 
 type logger = {
-	write: 'a. ('a, unit, string, unit) format4 -> 'a
+	stream: string Lwt_stream.t;
+	push: string -> unit;
+	elements: int ref;
+	max_elements: int;
+	dropped_elements: int ref;
 }
 
+let create max_elements =
+	let elements = ref (ref 0) in
+	let dropped_elements = ref (ref 0) in
+	let stream, stream_push = Lwt_stream.create () in
+	let push line =
+		if !(!elements) > max_elements then begin
+			incr !dropped_elements
+		end else begin
+			stream_push (Some line);
+			incr !elements
+		end in
+	{
+		stream = stream;
+		push = push;
+		elements = !elements;
+		max_elements = max_elements;
+		dropped_elements = !dropped_elements;
+	}
+
+let get (logger: logger) =
+	let return_lines all =
+		logger.elements := !(logger.elements) - (List.length all);
+		let dropped = !(logger.dropped_elements) in
+		logger.dropped_elements := 0;
+		return (if dropped <> 0
+			then Printf.sprintf "<-- dropped %d log lines" dropped :: all
+			else all) in
+
+	(* Grab as many elements as we can without blocking *)
+	let all = Lwt_stream.get_available logger.stream in
+	if all <> []
+	then return_lines all
+	else begin
+		(* Block for at least one line *)
+		lwt all = Lwt_stream.nget 1 logger.stream in
+		return_lines all
+	end
+
 (* General system logging *)
-let logger = ref (None: logger option)
+let logger = create 512
 
 (* Operation logging *)
-let access_logger = ref (None: logger option)
+let access_logger = create 512
 
 let string_of_date = ref (fun () -> "unknown")
 
@@ -41,12 +84,9 @@ let string_of_level = function
 	| Error -> "error" | Null -> "null"
 
 let log level key (fmt: (_,_,_,_) format4) =
-	match !logger with
-	| Some logger when int_of_level level >= int_of_level !log_level ->
-	       	let date = !string_of_date() in
-       		let level = string_of_level level in
-       		logger.write ("[%s|%5s|%s] " ^^ fmt) date level key
-	| _ -> Printf.ksprintf ignore fmt
+	let date = !string_of_date() in
+	let level = string_of_level level in
+	Printf.ksprintf logger.push ("[%s|%5s|%s] " ^^ fmt) date level key
 
 let debug key = log Debug key
 let info key = log Info key
@@ -123,14 +163,11 @@ let access_log_transaction_ops = ref false
 let access_log_special_ops = ref false
 
 let access_logging ~con ~tid ?(data="") access_type =
-	match !access_logger with
-	| Some logger ->
-		let date = !string_of_date() in
-		let tid = string_of_tid ~con tid in
-		let access_type = string_of_access_type access_type in
-		let data = sanitize_data data in
-		logger.write "[%s] %s %s %s" date tid access_type data
-        | None -> ()
+	let date = !string_of_date() in
+	let tid = string_of_tid ~con tid in
+	let access_type = string_of_access_type access_type in
+	let data = sanitize_data data in
+	Printf.ksprintf logger.push "[%s] %s %s %s" date tid access_type data
 
 let new_connection = access_logging Newconn
 let end_connection = access_logging Endconn

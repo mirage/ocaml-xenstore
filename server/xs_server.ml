@@ -18,6 +18,8 @@ open Xs_packet
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
 
+let debug = Logging.debug "xs_server"
+
 let store =
 	let store = Store.create () in
 	let localpath = Store.Path.of_string "/local" in
@@ -88,6 +90,7 @@ module Server = functor(T: TRANSPORT) -> struct
 
 
 	let handle_connection t =
+		debug "New connection";
 		let channel = PS.make t in
 		let resolve data = Store.Path.create data "/connection_path" in
 		let connection_perm = Perms.Connection.full_rights in
