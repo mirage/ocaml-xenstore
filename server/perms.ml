@@ -26,9 +26,7 @@ let activate = ref true
 type domid = int
 
 (* permission of connections *)
-module Connection =
-struct
-	open Xs_packet.ACL
+open Xs_packet.ACL
 
 type elt = domid * (perm list)
 type t =
@@ -69,16 +67,15 @@ let elt_to_string (i,p) =
 
 let to_string connection =
 	Printf.sprintf "%s%s" (elt_to_string connection.main) (default "" (may elt_to_string connection.target))
-end
 
 (* check if owner of the current connection and of the current node are the same *)
-let check_owner (connection:Connection.t) (node:Xs_packet.ACL.t) =
-	if !activate && not (Connection.is_dom0 connection)
-	then Connection.is_owner connection node.Xs_packet.ACL.owner
+let check_owner (connection:t) (node:Xs_packet.ACL.t) =
+	if !activate && not (is_dom0 connection)
+	then is_owner connection node.Xs_packet.ACL.owner
 	else true
 
 (* check if the current connection has the requested perm on the current node *)
-let check (connection:Connection.t) request (node:Xs_packet.ACL.t) =
+let check (connection:t) request (node:Xs_packet.ACL.t) =
 	let open Xs_packet.ACL in
 	let check_acl domainid =
 		let perm =
@@ -101,9 +98,9 @@ let check (connection:Connection.t) request (node:Xs_packet.ACL.t) =
 			false
 	in
 	if !activate
-	&& not (Connection.is_dom0 connection)
+	&& not (is_dom0 connection)
 	&& not (check_owner connection node)
-	&& not (List.exists check_acl (Connection.get_owners connection))
+	&& not (List.exists check_acl (get_owners connection))
 	then raise Permission_denied
 
 

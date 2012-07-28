@@ -24,7 +24,7 @@ let store =
 	let store = Store.create () in
 	let localpath = Store.Path.of_string "/local" in
 	if not (Store.path_exists store localpath)
-	then Store.mkdir store (Perms.Connection.create 0) localpath;
+	then Store.mkdir store (Perms.create 0) localpath;
 	store
 
 let create_implicit_path t perm path =
@@ -60,7 +60,7 @@ module Server = functor(T: TRANSPORT) -> struct
 	open Junk
 
 	let perm' = ACL.( { owner = 0; other = NONE; acl = [] })
-	let perm = Perms.Connection.full_rights
+	let perm = Perms.full_rights
 
 	let one_string data =
         let args = String.split ~limit:2 '\000' data in
@@ -93,7 +93,7 @@ module Server = functor(T: TRANSPORT) -> struct
 		debug "New connection";
 		let channel = PS.make t in
 		let resolve data = Store.Path.create data "/connection_path" in
-		let connection_perm = Perms.Connection.full_rights in
+		let connection_perm = Perms.full_rights in
 		lwt request = PS.recv channel in
 		let reply =
 			try
