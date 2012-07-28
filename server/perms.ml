@@ -21,8 +21,6 @@ open Junk
 
 exception Permission_denied
 
-let activate = ref true
-
 type domid = int
 
 (* permission of connections *)
@@ -70,7 +68,7 @@ let to_string connection =
 
 (* check if owner of the current connection and of the current node are the same *)
 let check_owner (connection:t) (node:Xs_packet.ACL.t) =
-	if !activate && not (is_dom0 connection)
+	if not (is_dom0 connection)
 	then is_owner connection node.Xs_packet.ACL.owner
 	else true
 
@@ -97,7 +95,7 @@ let check (connection:t) request (node:Xs_packet.ACL.t) =
 (*			info "Permission denied: Domain %d has write only access" domainid;*)
 			false
 	in
-	if !activate
+	if true
 	&& not (is_dom0 connection)
 	&& not (check_owner connection node)
 	&& not (List.exists check_acl (get_owners connection))
