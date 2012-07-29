@@ -97,6 +97,8 @@ exception Already_exist
  *)
 type t = string list
 
+let getdomainpath domid = Printf.sprintf "/local/domain/%u" domid
+
 let char_is_valid c =
 	(c >= 'a' && c <= 'z') ||
 	(c >= 'A' && c <= 'Z') ||

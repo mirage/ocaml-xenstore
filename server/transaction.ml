@@ -138,7 +138,7 @@ let getperms t perm path =
 	set_read_lowpath t path;
 	r
 
-let commit (* ~con *) t =
+let commit ~con t =
 	let has_write_ops = List.length t.ops > 0 in
 	let has_coalesced = ref false in
 	let has_commited =
@@ -156,13 +156,11 @@ let commit (* ~con *) t =
 					(* it has to be in the store, otherwise it means bugs
 					   in the lowpath registration. we don't need to handle none. *)
 					maybe (fun n -> Store.set_node cstore p n) n;
-(*					Logging.write_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p);*)
+					Logging.write_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p);
 				) t.write_lowpath;
-(*
 				maybe (fun p ->
 					Logging.read_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p)
 					) t.read_lowpath;
-*)
 				has_coalesced := true;
 				Store.incr_transaction_coalesce cstore;
 				true

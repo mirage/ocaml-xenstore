@@ -22,6 +22,13 @@ val superuser: t
 val of_domain : int -> t
 (** The role associated with a specific domain id *)
 
+val restrict: t -> int -> t
+(** [restrict role domid] returns a new role which contains the subset
+    of [role] which applies to domain [domid] *)
+
+val set_target: t -> int -> t
+(** [set_target role domid] needs rationalising *)
+
 type permission =
 	| READ        (** ability to read the value associated with a node *)
 	| WRITE       (** ability to modify the value associated with a node *)

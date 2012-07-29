@@ -39,8 +39,8 @@ let of_domain domid : t =
 	{ main = (domid, [READ; WRITE]);
 	  target = None }
 
-let set_target (connection:t) ?(perms=[NONE]) domid =
-	{ connection with target = Some (domid, perms) }
+let set_target (connection:t)  domid =
+	{ connection with target = Some (domid, [READ; WRITE]) }
 
 let get_owners (connection:t) =
 	match connection.main, connection.target with

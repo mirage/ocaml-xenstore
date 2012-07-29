@@ -114,7 +114,7 @@ module Server = functor(T: TRANSPORT) -> struct
 						let v = Transaction.getperms t connection_perm path in
 						Response.getperms request perm'
 					| Op.Getdomainpath ->
-						(Response.getdomainpath request ++ (Printf.sprintf "/local/domain/%u") ++ c_int_of_string ++ one_string) data
+						(Response.getdomainpath request ++ Store.Path.getdomainpath ++ c_int_of_string ++ one_string) data
 					| Op.Transaction_start ->
 						Response.transaction_start request 1l
 					| Op.Write ->
