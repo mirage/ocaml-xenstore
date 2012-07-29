@@ -36,8 +36,8 @@ let rec logging_thread logger =
 let main () =
 	Logging.string_of_date := string_of_date;
 	debug "Unix xenstored starting";
-	let main_log = logging_thread Logging.logger in
-	let access_log = logging_thread Logging.access_logger in
+	let (_: 'a) = logging_thread Logging.logger in
+	let (_: 'a) = logging_thread Logging.access_logger in
 
 	Arg.parse
 		[ "-path", Arg.Set_string Xs_transport_unix.xenstored_socket, Printf.sprintf "Unix domain socket to listen on (default %s)" !Xs_transport_unix.xenstored_socket ]

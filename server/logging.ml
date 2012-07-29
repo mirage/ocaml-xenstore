@@ -104,9 +104,9 @@ type access_type =
 	| XbOp of Xs_packet.Op.t
 
 let string_of_tid ~con tid =
-	if tid = 0
+	if tid = 0l
 	then sprintf "%-12s" con
-	else sprintf "%-12s" (sprintf "%s.%i" con tid)
+	else sprintf "%-12s" (sprintf "%s.%li" con tid)
 
 let string_of_access_type = function
 	| Coalesce                -> "coalesce "
@@ -190,11 +190,11 @@ let xb_op ~tid ~con ~ty data =
 	if print then access_logging ~tid ~con ~data (XbOp ty)
 
 let start_transaction ~tid ~con = 
-	if !access_log_transaction_ops && tid <> 0
+	if !access_log_transaction_ops && tid <> 0l
 	then access_logging ~tid ~con (XbOp Xs_packet.Op.Transaction_start)
 
 let end_transaction ~tid ~con = 
-	if !access_log_transaction_ops && tid <> 0
+	if !access_log_transaction_ops && tid <> 0l
 	then access_logging ~tid ~con (XbOp Xs_packet.Op.Transaction_end)
 
 let startswith prefix x =

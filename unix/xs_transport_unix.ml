@@ -29,6 +29,8 @@ let destroy (fd, _) = Lwt_unix.close fd
 let read (fd, _) = Lwt_unix.read fd
 let write (fd, _) = Lwt_unix.write fd
 
+let domain_of _ = 0
+
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr
 

@@ -29,8 +29,8 @@ and t = {
 (* 	xb: Xenbus.Xb.t; *)
 	domid: int;
 	domstr: string;
-	transactions: (int, Transaction.t) Hashtbl.t;
-	mutable next_tid: int;
+	transactions: (int32, Transaction.t) Hashtbl.t;
+	mutable next_tid: int32;
 	watches: (string, watch list) Hashtbl.t;
 	mutable nb_watches: int;
 	mutable stat_nb_ops: int;
@@ -58,7 +58,7 @@ let create (* xbcon *) dom =
 		domid = dom;
 		domstr = "D" ^ (string_of_int dom); (* XXX unix domain socket *)
 		transactions = Hashtbl.create 5;
-		next_tid = 1;
+		next_tid = 1l;
 		watches = Hashtbl.create 8;
 		nb_watches = 0;
 		stat_nb_ops = 0;
@@ -175,7 +175,7 @@ let fire_watch watch path =
 *)
 
 let find_next_tid con =
-	let ret = con.next_tid in con.next_tid <- con.next_tid + 1; ret
+	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret
 
 let start_transaction con store =
 (*
@@ -189,11 +189,8 @@ let start_transaction con store =
 	Logging.start_transaction ~tid:id ~con:con.domstr;
 	id
 
-let end_transaction con tid commit =
-	let trans = Hashtbl.find con.transactions tid in
-	Hashtbl.remove con.transactions tid;
-	Logging.end_transaction ~tid ~con:con.domstr;
-	if commit then Transaction.commit ~con:con.domstr trans else true
+let unregister_transaction con tid =
+	Hashtbl.remove con.transactions tid
 
 let get_transaction con tid =
 	Hashtbl.find con.transactions tid

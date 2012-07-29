@@ -16,7 +16,7 @@
  *)
 open Junk
 
-let none = 0
+let none = 0l
 let test_eagain = ref false
 let do_coalesce = ref true
 
@@ -69,7 +69,7 @@ let can_coalesce oldroot currentroot path =
 	else
 		false
 
-type ty = No | Full of (int * Store.Node.t * Store.t)
+type ty = No | Full of (int32 * Store.Node.t * Store.t)
 
 type t = {
 	ty: ty;
@@ -193,8 +193,8 @@ let commit ~con t =
 	if has_commited && has_write_ops then
 		Disk.write t.store;
 *)
-(*	if not has_commited 
+	if not has_commited 
 	then Logging.conflict ~tid:(get_id t) ~con
 	else if not !has_coalesced 
 	then Logging.commit ~tid:(get_id t) ~con;
-*)	has_commited
+	has_commited

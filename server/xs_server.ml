@@ -19,6 +19,7 @@ let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
 
 let debug = Logging.debug "xs_server"
+let error = Logging.error "xs_server"
 
 let store =
 	let store = Store.create () in
@@ -50,6 +51,7 @@ module type TRANSPORT = sig
   val read: t -> string -> int -> int -> int Lwt.t
   val write: t -> string -> int -> int -> int Lwt.t
   val destroy: t -> unit Lwt.t
+  val domain_of: t -> int
 
   val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
 end
@@ -91,28 +93,30 @@ module Server = functor(T: TRANSPORT) -> struct
 
 	let handle_connection t =
 		debug "New connection";
+		let domid = T.domain_of t in
+		let c = Connection.create domid in
 		let channel = PS.make t in
-		let resolve data = Store.Path.create data "/connection_path" in
-		let connection_perm = Perms.superuser in
+		let connection_path = Store.Path.getdomainpath domid in
+		let resolve data = Store.Path.create data connection_path in
 		lwt request = PS.recv channel in
 		let reply =
 			try
 				let data = get_data request in
-				let t = Transaction.make (Int32.to_int (get_tid request)) store in
+				let tid = get_tid request in
+				let t = Transaction.make tid store in
 				match get_ty request with
 					| Op.Read ->
 						let path = data |> one_string |> resolve in
-						let v = Transaction.read t connection_perm path in
-						Transaction.commit t;
+						let v = Transaction.read t c.Connection.perm path in
 						Response.read request v
 					| Op.Directory ->
 						let path = data |> one_string |> resolve in
-						let entries = Transaction.ls t connection_perm path in
+						let entries = Transaction.ls t c.Connection.perm path in
 						Response.directory request entries
 					| Op.Getperms ->
 						let path = data |> one_string |> resolve in
-						let v = Transaction.getperms t connection_perm path in
-						Response.getperms request perm'
+						let v = Transaction.getperms t c.Connection.perm path in
+						Response.getperms request v
 					| Op.Getdomainpath ->
 						(Response.getdomainpath request ++ Store.Path.getdomainpath ++ c_int_of_string ++ one_string) data
 					| Op.Transaction_start ->
@@ -120,17 +124,15 @@ module Server = functor(T: TRANSPORT) -> struct
 					| Op.Write ->
 						let path, value = two_strings data in
 						let path = resolve path in
-						let t = Transaction.make (Int32.to_int (get_tid request)) store in
-						create_implicit_path t connection_perm path;
-						Transaction.write t connection_perm path value;
-						Transaction.commit t;
+						create_implicit_path t c.Connection.perm path;
+						Transaction.write t c.Connection.perm path value;
 						Response.write request
 					| Op.Mkdir ->
 						let path = data |> one_string |> resolve in
-						create_implicit_path t connection_perm path;
+						create_implicit_path t c.Connection.perm path;
 						begin
 							try
-								Transaction.mkdir t connection_perm path
+								Transaction.mkdir t c.Connection.perm path
 							with Store.Path.Already_exist -> ()
 						end;
 						Response.mkdir request
@@ -138,7 +140,7 @@ module Server = functor(T: TRANSPORT) -> struct
 						let path = data |> one_string |> resolve in
 						begin
 							try
-								Transaction.rm t connection_perm path
+								Transaction.rm t c.Connection.perm path
 							with Store.Path.Doesnt_exist -> ()
 						end;
 						Response.rm request
@@ -147,7 +149,7 @@ module Server = functor(T: TRANSPORT) -> struct
 						let path = resolve path in
 						begin match Xs_packet.ACL.of_string perms with
 							| Some x ->
-								Transaction.setperms t connection_perm path x;
+								Transaction.setperms t c.Connection.perm path x;
 								Response.setperms request
 							| None ->
 								Response.error request "failed to parse perms"
@@ -157,14 +159,27 @@ module Server = functor(T: TRANSPORT) -> struct
 					| Op.Unwatch ->
 						Response.unwatch request
 					| Op.Transaction_end ->
-						Response.transaction_end request
+						Connection.unregister_transaction c tid;
+						begin match one_string data with
+						| "F" ->
+							(* Don't log an explicit abort *)
+							Response.transaction_end request
+						| "T" ->
+							Logging.end_transaction ~tid ~con:c.Connection.domstr;
+							if Transaction.commit ~con:c.Connection.domstr t then begin
+								(* process_watch (List.rev (Transaction.get_ops t)) cons*)
+								Response.transaction_end request
+							end else Response.error request "EAGAIN"
+						| _ ->
+							Response.error request "EINVAL"
+						end
 					| Op.Debug
 					| Op.Introduce | Op.Release
 					| Op.Watchevent | Op.Error | Op.Isintroduced
 					| Op.Resume | Op.Set_target ->
 						Response.error request "Not implemented"
 			with e ->
-				Lwt_io.printf "Caught: %s\n" (Printexc.to_string e);
+				error "Caught: %s" (Printexc.to_string e);
 				Response.error request (Printexc.to_string e) in
 		lwt () = PS.send channel reply in
 		T.destroy t
