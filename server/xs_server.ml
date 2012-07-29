@@ -187,7 +187,30 @@ module Server = functor(T: TRANSPORT) -> struct
 								[ watches ]
 							| _ -> []
 							with _ -> [])
-					| Op.Introduce | Op.Release
+					| Op.Introduce ->
+						Perms.has c.Connection.perm Perms.INTRODUCE;
+						begin match strings data with
+						| domid :: mfn :: port :: _ ->
+							let _ = int_of_string domid in
+							let _ = Nativeint.of_string mfn in
+							let _ = int_of_string port in
+							(* register domain *)
+							(* @introduceDomain *)
+							Response.introduce request
+						| _ ->
+							Response.error request "EINVAL"
+						end
+					| Op.Release ->
+						Perms.has c.Connection.perm Perms.RELEASE;
+						begin match strings data with
+						| domid :: _ ->
+							let _ = int_of_string domid in
+							(* unregister domain *)
+							(* @releaseDomain *)
+							Response.release request
+						| _ ->
+							Response.error request "EINVAL"
+						end
 					| Op.Watchevent | Op.Error | Op.Isintroduced
 					| Op.Resume | Op.Set_target ->
 						Response.error request "Not implemented"

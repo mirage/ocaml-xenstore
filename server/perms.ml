@@ -71,6 +71,8 @@ type permission =
 	| WRITE
 	| CHANGE_ACL
 	| DEBUG
+	| INTRODUCE
+	| RELEASE
 
 let has (t: t) p =
 	if p <> DEBUG || (not(is_dom0 t))

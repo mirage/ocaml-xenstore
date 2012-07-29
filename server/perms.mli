@@ -34,6 +34,8 @@ type permission =
 	| WRITE       (** ability to modify the value associated with a node *)
 	| CHANGE_ACL  (** ability to change the ACL associated with a node *)
 	| DEBUG       (** ability to invoke debug operations *)
+	| INTRODUCE   (** ability to grant access to other domains *)
+	| RELEASE     (** ability to revoke access from other domains *)
 
 exception Permission_denied
 (** Thrown by the [check] function if role does not have a specific permission *)

@@ -344,6 +344,7 @@ module Response = struct
   let getperms request perms = set_data request (data_concat [ ACL.to_string perms ])
   let getdomainpath request x = set_data request (data_concat [ x ])
   let transaction_start request tid = set_data request (data_concat [ Int32.to_string tid ])
+
   let directory request ls = set_data request (data_concat ls)
 
   let error request x = set_data request (data_concat [ x ])
@@ -357,6 +358,8 @@ module Response = struct
   let watch = ack
   let unwatch = ack
   let transaction_end = ack
+  let introduce = ack
+  let release = ack
   let debug request items = set_data request (data_concat items)
 end
 

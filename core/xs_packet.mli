@@ -133,6 +133,8 @@ module Response : sig
   val watch : t -> t
   val unwatch : t -> t
   val transaction_end : t -> t
+  val introduce : t -> t
+  val release : t -> t
   val error : t -> string -> t
   val debug : t -> string list -> t
 end
