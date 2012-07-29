@@ -70,6 +70,11 @@ type permission =
 	| READ
 	| WRITE
 	| CHANGE_ACL
+	| DEBUG
+
+let has (t: t) p =
+	if p <> DEBUG || (not(is_dom0 t))
+	then raise Permission_denied
 
 (* check if owner of the current connection and of the current node are the same *)
 let check_owner (connection:t) (node:Xs_packet.ACL.t) =

@@ -122,6 +122,8 @@ let usage () =
     "   -- list the direct children of <key>";
     bin " wait <expr>";
     "   -- block until the <expr> is true";
+	bin " debug <cmd> [arg]";
+	"   -- execute the given debug command";
     "";
     "Example expressions:";
     "";
@@ -181,6 +183,13 @@ let main () =
 	  Lwt_list.iter_s (fun (k, v) -> write xs k v) items
 	) >> return ()
       end
+    | "debug" :: cmd_args ->
+      lwt client = make () in
+      with_xs client
+	(fun xs ->
+	  lwt results = debug xs cmd_args in
+      Lwt_list.iter_s (fun x -> Lwt_io.write Lwt_io.stdout (x ^ "\n")) results
+        ) >> return ()
     | "wait" :: expr ->
       begin try_lwt
         let expr = String.concat " " expr |> parse_expr in

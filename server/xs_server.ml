@@ -64,6 +64,8 @@ module Server = functor(T: TRANSPORT) -> struct
 	let perm' = ACL.( { owner = 0; other = NONE; acl = [] })
 	let perm = Perms.superuser
 
+	let strings data = String.split '\000' data
+
 	let one_string data =
         let args = String.split ~limit:2 '\000' data in
         match args with
@@ -173,7 +175,18 @@ module Server = functor(T: TRANSPORT) -> struct
 						| _ ->
 							Response.error request "EINVAL"
 						end
-					| Op.Debug
+					| Op.Debug ->
+						Perms.has c.Connection.perm Perms.DEBUG;
+						Response.debug request (
+							try match strings data with
+							| "print" :: msg :: _ ->
+								Logging.xb_op ~tid:0l ~ty:Xs_packet.Op.Debug ~con:"=======>" msg;
+								[]
+							| "watches" :: _ ->
+								let watches = (* Connections.debug cons *) "" in
+								[ watches ]
+							| _ -> []
+							with _ -> [])
 					| Op.Introduce | Op.Release
 					| Op.Watchevent | Op.Error | Op.Isintroduced
 					| Op.Resume | Op.Set_target ->

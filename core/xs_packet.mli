@@ -134,6 +134,7 @@ module Response : sig
   val unwatch : t -> t
   val transaction_end : t -> t
   val error : t -> string -> t
+  val debug : t -> string list -> t
 end
 
 module Request : sig

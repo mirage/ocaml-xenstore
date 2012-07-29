@@ -56,6 +56,9 @@ module Client : functor(T: TRANSPORT) -> sig
   val write : handle -> string -> string -> unit Lwt.t
   (** [write h k v] writes [v] at [k] *)
 
+  val debug : handle -> string list -> string list Lwt.t
+  (** [debug cmd_args] invokes a debug command *)
+
   val watch : handle -> string -> Xs_packet.Token.t -> unit Lwt.t
   (** [watch h path token] registers a manual watch at [path] with [token] *)
 
