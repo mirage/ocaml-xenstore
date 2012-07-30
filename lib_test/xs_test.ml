@@ -30,6 +30,10 @@ let op_ids _ =
       | Some x -> assert (to_int32 x = i')
   done
 
+let example_acl =
+	let open Xs_packet.ACL in
+    { owner = 5; other = READ; acl = [ 2, WRITE; 3, RDWR ] }
+
 let acl_parser _ =
   let open Xs_packet.ACL in
   let ts = [
@@ -89,8 +93,8 @@ let make_example_request op pkt_opt wire_fmt = match pkt_opt with
 	}
 
 let example_request_packets =
-	let open Xs_packet.Op in
-    let open Xs_packet.Request in [
+	let open Xs_packet.Request in
+    let open Xs_packet.Op in [
 		make_example_request Directory (directory "/whatever/whenever" 5l)
 			"\x01\x00\x00\x00\x0f\x00\x00\x00\x05\x00\x00\x00\x13\x00\x00\x00\x2f\x77\x68\x61\x74\x65\x76\x65\x72\x2f\x77\x68\x65\x6e\x65\x76\x65\x72\x00";
 		make_example_request Read (read "/a/b/c" 6l)
@@ -99,8 +103,8 @@ let example_request_packets =
 			"\x03\x00\x00\x00\x0d\x00\x00\x00\x07\x00\x00\x00\x05\x00\x00\x00\x2f\x61\x2f\x62\x00";
 		make_example_request Rm (rm "/" 0l)
 			"\x0d\x00\x00\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x2f\x00";
-		make_example_request Setperms (setperms "/" "someperms" 1l)
-			"\x0e\x00\x00\x00\x0b\x00\x00\x00\x01\x00\x00\x00\x0c\x00\x00\x00\x2f\x00\x73\x6f\x6d\x65\x70\x65\x72\x6d\x73\x00";
+		make_example_request Setperms (setperms "/" example_acl 1l)
+			"\x0e\x00\x00\x00\x0b\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x2f\x00\x72\x35\x00\x77\x32\x00\x62\x33\x00";
 		make_example_request Write (write "/key" "value" 1l)
 			"\x0b\x00\x00\x00\x0a\x00\x00\x00\x01\x00\x00\x00\x0a\x00\x00\x00\x2f\x6b\x65\x79\x00\x76\x61\x6c\x75\x65";
 		make_example_request Mkdir (mkdir "/" 1024l)

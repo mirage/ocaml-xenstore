@@ -29,30 +29,15 @@ exception Transaction_again
 exception Transaction_nested
 
 
-let create_implicit_path t perm path =
-	let dirname = Store.Path.get_parent path in
-	if not (Transaction.path_exists t dirname) then (
-		let rec check_path p =
-			match p with
-				| []      -> []
-				| h :: l  ->
-					if Transaction.path_exists t h then
-						check_path l
-					else
-						p in
-		let ret = check_path (List.tl (Store.Path.get_hierarchy dirname)) in
-		List.iter (fun s -> Transaction.mkdir ~with_watch:false t perm s) ret
-	)
-
 let reply_exn store c request =
 	let connection_path = Store.Path.getdomainpath c.Connection.domid in
 	let resolve data = Store.Path.create data connection_path in
 	let tid = get_tid request in
 	let t = Transaction.make tid store in
-	let open Request.Parser in
+	let open Request in
 	match parse request with
 	| None ->
-		error "Failed to parse request: got %s" (hexify (Xs_packet.to_string request));
+ 		error "Failed to parse request: got %s" (hexify (Xs_packet.to_string request));
 		raise Parse_failure
 	| Some (Read path) ->
 		let path = resolve path in
@@ -76,12 +61,12 @@ let reply_exn store c request =
 		Response.transaction_start request tid
 	| Some (Write(path, value)) ->
 		let path = resolve path in
-		create_implicit_path t c.Connection.perm path;
+		Transaction.mkdir_p t c.Connection.perm path;
 		Transaction.write t c.Connection.perm path value;
 		Response.write request
 	| Some (Mkdir path) ->
 		let path = resolve path in
-		create_implicit_path t c.Connection.perm path;
+		Transaction.mkdir_p t c.Connection.perm path;
 		begin
 			try
 				Transaction.mkdir t c.Connection.perm path

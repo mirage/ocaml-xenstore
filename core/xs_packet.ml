@@ -373,202 +373,217 @@ end
 
 module Request = struct
 
-	module Parser = struct
-		type payload =
-		| Read of string
-		| Directory of string
-		| Getperms of string
-		| Getdomainpath of int
-		| Transaction_start
-		| Write of string * string
-		| Mkdir of string
-		| Rm of string
-		| Setperms of string * ACL.t
-		| Watch of string * string
-		| Unwatch of string * string
-		| Transaction_end of bool
-		| Debug of string list
-		| Introduce of int * Nativeint.t * int
-		| Resume of int
-		| Release of int
-		| Set_target of int * int
-		| Restrict of int
-		| Isintroduced of int
-		| Error of string
-		| Watchevent of string
+	type payload =
+	| Read of string
+	| Directory of string
+	| Getperms of string
+	| Getdomainpath of int
+	| Transaction_start
+	| Write of string * string
+	| Mkdir of string
+	| Rm of string
+	| Setperms of string * ACL.t
+	| Watch of string * string
+	| Unwatch of string * string
+	| Transaction_end of bool
+	| Debug of string list
+	| Introduce of int * Nativeint.t * int
+	| Resume of int
+	| Release of int
+	| Set_target of int * int
+	| Restrict of int
+	| Isintroduced of int
+	| Error of string
+	| Watchevent of string
 
-		exception Parse_failure
+	exception Parse_failure
 
-		let strings data = split_string '\000' data
+	let strings data = split_string '\000' data
 
-		let one_string data =
-			let args = split_string ~limit:2 '\000' data in
-			match args with
-			| x :: [] -> x
-			| _       ->
+	let one_string data =
+		let args = split_string ~limit:2 '\000' data in
+		match args with
+		| x :: [] -> x
+		| _       ->
+			raise Parse_failure
+
+	let two_strings data =
+		let args = split_string ~limit:2 '\000' data in
+		match args with
+		| a :: b :: [] -> a, b
+		| _            ->
+			raise Parse_failure
+
+	let acl x = match ACL.of_string x with
+		| Some x -> x
+		| None ->
+			raise Parse_failure
+
+	let domid s =
+		let v = ref 0 in
+		let is_digit c = c >= '0' && c <= '9' in
+		let len = String.length s in
+		let i = ref 0 in
+		while !i < len && not (is_digit s.[!i]) do incr i done;
+		while !i < len && is_digit s.[!i]
+		do
+			let x = (Char.code s.[!i]) - (Char.code '0') in
+			v := !v * 10 + x;
+			incr i
+		done;
+		!v
+
+	let bool = function
+		| "F" -> false
+		| "T" -> true
+		| data ->
+			raise Parse_failure
+
+	let parse_exn request =
+		let data = get_data request in
+		match get_ty request with
+		| Op.Read -> Read (data |> one_string)
+		| Op.Directory -> Directory (data |> one_string)
+		| Op.Getperms -> Getperms (data |> one_string)
+		| Op.Getdomainpath -> Getdomainpath (data |> one_string |> domid)
+		| Op.Transaction_start -> Transaction_start
+		| Op.Write ->
+			let path, value = two_strings data in
+			Write (path, value)
+		| Op.Mkdir -> Mkdir (data |> one_string)
+		| Op.Rm -> Rm (data |> one_string)
+		| Op.Setperms ->
+			let path, perms = two_strings data in
+			let perms = acl perms in
+			Setperms(path, perms)
+		| Op.Watch ->
+			let path, token = two_strings data in
+			Watch(path, token)
+		| Op.Unwatch ->
+			let path, token = two_strings data in
+			Unwatch(path, token)
+		| Op.Transaction_end -> Transaction_end(data |> one_string |> bool)
+		| Op.Debug -> Debug (strings data)
+		| Op.Introduce ->
+			begin match strings data with
+			| d :: mfn :: port :: _ ->
+				let d = domid d in
+				let mfn = Nativeint.of_string mfn in
+				let port = int_of_string port in
+				Introduce (d, mfn, port)
+			| _ ->
 				raise Parse_failure
+			end
+		| Op.Resume -> Resume (data |> one_string |> domid)
+		| Op.Release -> Release (data |> one_string |> domid)
+		| Op.Set_target ->
+			let mine, yours = two_strings data in
+			let mine = domid mine and yours = domid yours in
+			Set_target(mine, yours)
+		| Op.Restrict -> Restrict (data |> one_string |> domid)
+		| Op.Isintroduced -> Isintroduced (data |> one_string |> domid)
+		| Op.Error -> Error(data |> one_string)
+		| Op.Watchevent -> Watchevent(data |> one_string)
 
-		let two_strings data =
-			let args = split_string ~limit:2 '\000' data in
-			match args with
-			| a :: b :: [] -> a, b
-			| _            ->
-				raise Parse_failure
+	let parse request =
+		try
+			Some (parse_exn request)
+		with _ -> None
 
-		let acl x = match ACL.of_string x with
-			| Some x -> x
-			| None ->
-				raise Parse_failure
-
-		let domid s =
-			let v = ref 0 in
-			let is_digit c = c >= '0' && c <= '9' in
-			let len = String.length s in
-			let i = ref 0 in
-			while !i < len && not (is_digit s.[!i]) do incr i done;
-			while !i < len && is_digit s.[!i]
-			do
-				let x = (Char.code s.[!i]) - (Char.code '0') in
-				v := !v * 10 + x;
-				incr i
-			done;
-			!v
-
-		let bool = function
-			| "F" -> false
-			| "T" -> true
-			| data ->
-				raise Parse_failure
-
-		let parse_exn request =
-			let data = get_data request in
-			match get_ty request with
-			| Op.Read -> Read (data |> one_string)
-			| Op.Directory -> Directory (data |> one_string)
-			| Op.Getperms -> Getperms (data |> one_string)
-			| Op.Getdomainpath -> Getdomainpath (data |> one_string |> domid)
-			| Op.Transaction_start -> Transaction_start
-			| Op.Write ->
-				let path, value = two_strings data in
-				Write (path, value)
-			| Op.Mkdir -> Mkdir (data |> one_string)
-			| Op.Rm -> Rm (data |> one_string)
-			| Op.Setperms ->
-				let path, perms = two_strings data in
-				let perms = acl perms in
-				Setperms(path, perms)
-			| Op.Watch ->
-				let path, token = two_strings data in
-				Watch(path, token)
-			| Op.Unwatch ->
-				let path, token = two_strings data in
-				Unwatch(path, token)
-			| Op.Transaction_end -> Transaction_end(data |> one_string |> bool)
-			| Op.Debug -> Debug (strings data)
-			| Op.Introduce ->
-				begin match strings data with
-				| d :: mfn :: port :: _ ->
-					let d = domid d in
-					let mfn = Nativeint.of_string mfn in
-					let port = int_of_string port in
-					Introduce (d, mfn, port)
-				| _ ->
-					raise Parse_failure
-				end
-			| Op.Resume -> Resume (data |> one_string |> domid)
-			| Op.Release -> Release (data |> one_string |> domid)
-			| Op.Set_target ->
-				let mine, yours = two_strings data in
-				let mine = domid mine and yours = domid yours in
-				Set_target(mine, yours)
-			| Op.Restrict -> Restrict (data |> one_string |> domid)
-			| Op.Isintroduced -> Isintroduced (data |> one_string |> domid)
-			| Op.Error -> Error(data |> one_string)
-			| Op.Watchevent -> Watchevent(data |> one_string)
-
-		let parse request =
-			try
-				Some (parse_exn request)
-			with _ -> None
-	end
-
+	let print x tid = match x with
+		| Directory path -> with_path Op.Directory tid path
+		| Read path -> with_path Op.Read tid path
+		| Getperms path -> with_path Op.Getperms tid path
+		| Debug commands -> create 0l (next_rid ()) Op.Debug (data_concat commands)
+		| Watch (path, data) ->
+			let data = data_concat [ path; data; ] in
+			create 0l (next_rid ()) Op.Watch data
+		| Unwatch (path, data) ->
+			let data = data_concat [ path; data; ] in
+			create 0l (next_rid ()) Op.Unwatch data
+		| Transaction_start ->
+			create 0l (next_rid ()) Op.Transaction_start (data_concat [])
+		| Transaction_end commit ->
+			let data = data_concat [ (if commit then "T" else "F"); ] in
+			create tid (next_rid ()) Op.Transaction_end data
+		| Introduce(domid, mfn, port) ->
+			let data = data_concat [ Printf.sprintf "%u" domid;
+									 Printf.sprintf "%nu" mfn;
+									 string_of_int port; ] in
+			create 0l (next_rid ()) Op.Introduce data
+		| Release domid ->
+			let data = data_concat [ Printf.sprintf "%u" domid; ] in
+			create 0l (next_rid ()) Op.Release data
+		| Resume domid ->
+			let data = data_concat [ Printf.sprintf "%u" domid; ] in
+			create 0l (next_rid ()) Op.Resume data
+		| Getdomainpath domid ->
+			let data = data_concat [ Printf.sprintf "%u" domid; ] in
+			create 0l (next_rid ()) Op.Getdomainpath data
+		| Write(path, value) ->
+			let data = path ^ "\000" ^ value (* no NULL at the end *) in
+			create tid (next_rid ()) Op.Write data
+		| Mkdir path -> with_path Op.Mkdir tid path
+		| Rm path -> with_path Op.Rm tid path
+		| Setperms (path, perms) ->
+			let data = data_concat [ path; ACL.to_string perms ] in
+			create tid (next_rid ()) Op.Setperms data
+		| Set_target (mine, yours) ->
+			let data = data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours; ] in
+			create 0l (next_rid ()) Op.Set_target data
+		| Restrict domid ->
+			let data = data_concat [ Printf.sprintf "%u" domid; ] in
+			create 0l (next_rid ()) Op.Restrict data
+		| Isintroduced domid ->
+			let data = data_concat [ Printf.sprintf "%u" domid; ] in
+			create 0l (next_rid ()) Op.Isintroduced data
 
   let directory path tid =
-    if is_valid_path path then Some (with_path Op.Directory tid path) else None
+    if is_valid_path path then Some (print (Directory path) tid) else None
 
   let read path tid =
-    if is_valid_path path then Some (with_path Op.Read tid path) else None
+    if is_valid_path path then Some (print (Read path) tid) else None
 
   let getperms path tid =
-    if is_valid_path path then Some (with_path Op.Getperms tid path) else None
+    if is_valid_path path then Some (print (Getperms path) tid) else None
 
-  let debug commands =
-    Some(create 0l (next_rid ()) Op.Debug (data_concat commands))
+  let debug commands = Some (print (Debug commands) 0l)
 
   let watch path data =
-    if is_valid_watch_path path
-    then Some (
-      let data = data_concat [ path; data; ] in
-      create 0l (next_rid ()) Op.Watch data
-    ) else None
+    if is_valid_watch_path path then Some (print (Watch (path, data)) 0l) else None
 
   let unwatch path data =
-    if is_valid_watch_path path
-    then Some (
-      let data = data_concat [ path; data; ] in
-      create 0l (next_rid ()) Op.Unwatch data
-    ) else None
+    if is_valid_watch_path path then Some (print (Unwatch (path, data)) 0l) else None
 
-  let transaction_start () =
-    Some(create 0l (next_rid ()) Op.Transaction_start (data_concat []))
+  let transaction_start () = Some (print (Transaction_start) 0l)
 
-  let transaction_end commit tid =
-    let data = data_concat [ (if commit then "T" else "F"); ] in
-    Some(create tid (next_rid ()) Op.Transaction_end data)
+  let transaction_end commit tid = Some (print (Transaction_end commit) tid)
 
-  let introduce domid mfn port =
-    let data = data_concat [ Printf.sprintf "%u" domid;
-	                     Printf.sprintf "%nu" mfn;
-	                     string_of_int port; ] in
-    Some(create 0l (next_rid ()) Op.Introduce data)
+  let introduce domid mfn port = Some (print (Introduce (domid, mfn, port)) 0l)
 
-  let release domid =
-    let data = data_concat [ Printf.sprintf "%u" domid; ] in
-    Some(create 0l (next_rid ()) Op.Release data)
+  let release domid = Some (print (Release domid) 0l)
 
-  let resume domid =
-    let data = data_concat [ Printf.sprintf "%u" domid; ] in
-    Some(create 0l (next_rid ()) Op.Resume data)
+  let resume domid = Some (print (Resume domid) 0l)
 
-  let getdomainpath domid =
-    let data = data_concat [ Printf.sprintf "%u" domid; ] in
-    Some(create 0l (next_rid ()) Op.Getdomainpath data)
+  let getdomainpath domid = Some (print (Getdomainpath domid) 0l)
 
   let write path value tid =
-    let data = path ^ "\000" ^ value (* no NULL at the end *) in
-    if is_valid_path path then Some(create tid (next_rid ()) Op.Write data) else None
+	  if is_valid_path path then Some (print (Write(path, value)) tid) else None
 
   let mkdir path tid =
-    if is_valid_path path then Some(with_path Op.Mkdir tid path) else None
+      if is_valid_path path then Some (print (Mkdir path) tid) else None
 
   let rm path tid =
-    if is_valid_path path then Some(with_path Op.Rm tid path) else None
+      if is_valid_path path then Some (print (Rm path) tid) else None
 
   let setperms path perms tid =
-    let data = data_concat [ path; perms ] in
-    if is_valid_path path then Some(create tid (next_rid ()) Op.Setperms data) else None
+	  if is_valid_path path then Some (print (Setperms (path, perms)) tid) else None
 
-  let set_target mine yours =
-	  let data = data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours; ] in
-      Some(create 0l (next_rid ()) Op.Set_target data)
+  let set_target mine yours = Some (print (Set_target(mine, yours)) 0l)
 
-  let restrict domid =
-	  let data = data_concat [ Printf.sprintf "%u" domid; ] in
-	  Some(create 0l (next_rid ()) Op.Restrict data)
+  let restrict domid = Some (print (Restrict domid) 0l)
 
-  let isintroduced domid =
-	  let data = data_concat [ Printf.sprintf "%u" domid; ] in
-	  Some(create 0l (next_rid ()) Op.Isintroduced data)
+  let isintroduced domid = Some (print (Isintroduced domid) 0l)
 end
 
 module Unmarshal = struct

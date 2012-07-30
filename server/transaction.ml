@@ -113,6 +113,21 @@ let mkdir ?(with_watch=true) t perm path =
 	if with_watch then
 		add_wop t Xs_packet.Op.Mkdir path
 
+let mkdir_p t perm path =
+	let dirname = Store.Path.get_parent path in
+	if not (path_exists t dirname) then (
+		let rec check_path p =
+			match p with
+				| []      -> []
+				| h :: l  ->
+					if path_exists t h then
+						check_path l
+					else
+						p in
+		let ret = check_path (List.tl (Store.Path.get_hierarchy dirname)) in
+		List.iter (fun s -> mkdir ~with_watch:false t perm s) ret
+	)
+
 let setperms t perm path perms =
 	Store.setperms t.store perm path perms;
 	set_write_lowpath t path;
