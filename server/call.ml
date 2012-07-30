@@ -182,6 +182,17 @@ let reply_exn store c request =
 			error "parse failure: expected domid::mfn::port: got %s" (hexify data);
 			raise Parse_failure
 		end
+	| Op.Resume ->
+		Perms.has c.Connection.perm Perms.RESUME;
+		begin match strings data with
+		| domid :: _ ->
+			let _ = int_of_string domid in
+			(* register domain *)
+			Response.resume request
+		| _ ->
+			error "parse failure: expected domid: got %s" (hexify data);
+			raise Parse_failure
+		end
 	| Op.Release ->
 		Perms.has c.Connection.perm Perms.RELEASE;
 		begin match strings data with
@@ -223,12 +234,22 @@ let reply_exn store c request =
 			error "parse failure: expected domid: got %s" (hexify data);
 			raise Parse_failure
 		end
+	| Op.Isintroduced ->
+		Perms.has c.Connection.perm Perms.ISINTRODUCED;
+		begin match strings data with
+		| domid :: [] ->
+			let _ = c_int_of_string domid in
+			Response.isintroduced request false
+		| _ ->
+			error "parse failure: expected domid: got %s" (hexify data);
+			raise Parse_failure
+		end
 	| Op.Error ->
 		error "client sent us an error: %s" (hexify data);
 		raise Parse_failure
-	| Op.Watchevent | Op.Isintroduced
-	| Op.Resume ->
-		Response.error request "Not implemented"
+	| Op.Watchevent ->
+		error "client sent us a watch event: %s" (hexify data);
+		raise Parse_failure
 
 let reply store c request =
 	try

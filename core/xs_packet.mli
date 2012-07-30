@@ -140,6 +140,8 @@ module Response : sig
   val debug : t -> string list -> t
   val set_target : t -> t
   val restrict : t -> t
+  val resume : t -> t
+  val isintroduced : t -> bool -> t
 end
 
 module Request : sig
@@ -162,6 +164,7 @@ module Request : sig
   val debug : string list -> t option
   val set_target : int -> int -> t option
   val restrict : int -> t option
+  val isintroduced : int -> t option
 end
 
 module Unmarshal : sig

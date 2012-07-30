@@ -367,6 +367,8 @@ module Response = struct
   let debug request items = set_data request (data_concat items)
   let set_target = ack
   let restrict = ack
+  let resume = ack
+  let isintroduced request b = set_data request (data_concat [ if b then "T" else "F" ])
 end
 
 module Request = struct
@@ -443,6 +445,10 @@ module Request = struct
   let restrict domid =
 	  let data = data_concat [ Printf.sprintf "%u" domid; ] in
 	  Some(create 0l (next_rid ()) Op.Restrict data)
+
+  let isintroduced domid =
+	  let data = data_concat [ Printf.sprintf "%u" domid; ] in
+	  Some(create 0l (next_rid ()) Op.Isintroduced data)
 end
 
 module Unmarshal = struct

@@ -30,14 +30,16 @@ val set_target: t -> int -> t
 (** [set_target role domid] needs rationalising *)
 
 type permission =
-	| READ        (** ability to read the value associated with a node *)
-	| WRITE       (** ability to modify the value associated with a node *)
-	| CHANGE_ACL  (** ability to change the ACL associated with a node *)
-	| DEBUG       (** ability to invoke debug operations *)
-	| INTRODUCE   (** ability to grant access to other domains *)
-	| RELEASE     (** ability to revoke access from other domains *)
-	| SET_TARGET  (** ability to allow one domain to impersonate a specific other *)
-	| RESTRICT    (** ability to imperonate a specific other domain *)
+	| READ         (** ability to read the value associated with a node *)
+	| WRITE        (** ability to modify the value associated with a node *)
+	| CHANGE_ACL   (** ability to change the ACL associated with a node *)
+	| DEBUG        (** ability to invoke debug operations *)
+	| INTRODUCE    (** ability to grant access to other domains *)
+	| ISINTRODUCED (** ability to query whether a domain has been introduced *)
+	| RESUME       (** ability to restore access to previously shutdown domains *)
+	| RELEASE      (** ability to revoke access from other domains *)
+	| SET_TARGET   (** ability to allow one domain to impersonate a specific other *)
+	| RESTRICT     (** ability to imperonate a specific other domain *)
 
 exception Permission_denied
 (** Thrown by the [check] function if role does not have a specific permission *)

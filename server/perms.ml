@@ -74,6 +74,8 @@ type permission =
 	| CHANGE_ACL
 	| DEBUG
 	| INTRODUCE
+	| ISINTRODUCED
+	| RESUME
 	| RELEASE
 	| SET_TARGET
 	| RESTRICT
