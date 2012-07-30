@@ -373,6 +373,126 @@ end
 
 module Request = struct
 
+	module Parser = struct
+		type payload =
+		| Read of string
+		| Directory of string
+		| Getperms of string
+		| Getdomainpath of int
+		| Transaction_start
+		| Write of string * string
+		| Mkdir of string
+		| Rm of string
+		| Setperms of string * ACL.t
+		| Watch of string * string
+		| Unwatch of string * string
+		| Transaction_end of bool
+		| Debug of string list
+		| Introduce of int * Nativeint.t * int
+		| Resume of int
+		| Release of int
+		| Set_target of int * int
+		| Restrict of int
+		| Isintroduced of int
+		| Error of string
+		| Watchevent of string
+
+		exception Parse_failure
+
+		let strings data = split_string '\000' data
+
+		let one_string data =
+			let args = split_string ~limit:2 '\000' data in
+			match args with
+			| x :: [] -> x
+			| _       ->
+				raise Parse_failure
+
+		let two_strings data =
+			let args = split_string ~limit:2 '\000' data in
+			match args with
+			| a :: b :: [] -> a, b
+			| _            ->
+				raise Parse_failure
+
+		let acl x = match ACL.of_string x with
+			| Some x -> x
+			| None ->
+				raise Parse_failure
+
+		let domid s =
+			let v = ref 0 in
+			let is_digit c = c >= '0' && c <= '9' in
+			let len = String.length s in
+			let i = ref 0 in
+			while !i < len && not (is_digit s.[!i]) do incr i done;
+			while !i < len && is_digit s.[!i]
+			do
+				let x = (Char.code s.[!i]) - (Char.code '0') in
+				v := !v * 10 + x;
+				incr i
+			done;
+			!v
+
+		let bool = function
+			| "F" -> false
+			| "T" -> true
+			| data ->
+				raise Parse_failure
+
+		let parse_exn request =
+			let data = get_data request in
+			match get_ty request with
+			| Op.Read -> Read (data |> one_string)
+			| Op.Directory -> Directory (data |> one_string)
+			| Op.Getperms -> Getperms (data |> one_string)
+			| Op.Getdomainpath -> Getdomainpath (data |> one_string |> domid)
+			| Op.Transaction_start -> Transaction_start
+			| Op.Write ->
+				let path, value = two_strings data in
+				Write (path, value)
+			| Op.Mkdir -> Mkdir (data |> one_string)
+			| Op.Rm -> Rm (data |> one_string)
+			| Op.Setperms ->
+				let path, perms = two_strings data in
+				let perms = acl perms in
+				Setperms(path, perms)
+			| Op.Watch ->
+				let path, token = two_strings data in
+				Watch(path, token)
+			| Op.Unwatch ->
+				let path, token = two_strings data in
+				Unwatch(path, token)
+			| Op.Transaction_end -> Transaction_end(data |> one_string |> bool)
+			| Op.Debug -> Debug (strings data)
+			| Op.Introduce ->
+				begin match strings data with
+				| d :: mfn :: port :: _ ->
+					let d = domid d in
+					let mfn = Nativeint.of_string mfn in
+					let port = int_of_string port in
+					Introduce (d, mfn, port)
+				| _ ->
+					raise Parse_failure
+				end
+			| Op.Resume -> Resume (data |> one_string |> domid)
+			| Op.Release -> Release (data |> one_string |> domid)
+			| Op.Set_target ->
+				let mine, yours = two_strings data in
+				let mine = domid mine and yours = domid yours in
+				Set_target(mine, yours)
+			| Op.Restrict -> Restrict (data |> one_string |> domid)
+			| Op.Isintroduced -> Isintroduced (data |> one_string |> domid)
+			| Op.Error -> Error(data |> one_string)
+			| Op.Watchevent -> Watchevent(data |> one_string)
+
+		let parse request =
+			try
+				Some (parse_exn request)
+			with _ -> None
+	end
+
+
   let directory path tid =
     if is_valid_path path then Some (with_path Op.Directory tid path) else None
 

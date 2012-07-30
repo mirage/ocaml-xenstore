@@ -165,6 +165,33 @@ module Request : sig
   val set_target : int -> int -> t option
   val restrict : int -> t option
   val isintroduced : int -> t option
+
+  module Parser : sig
+	  type payload =
+	  | Read of string
+	  | Directory of string
+	  | Getperms of string
+	  | Getdomainpath of int
+	  | Transaction_start
+	  | Write of string * string
+	  | Mkdir of string
+	  | Rm of string
+	  | Setperms of string * ACL.t
+	  | Watch of string * string
+	  | Unwatch of string * string
+	  | Transaction_end of bool
+	  | Debug of string list
+	  | Introduce of int * Nativeint.t * int
+	  | Resume of int
+	  | Release of int
+	  | Set_target of int * int
+	  | Restrict of int
+	  | Isintroduced of int
+	  | Error of string
+	  | Watchevent of string
+
+	  val parse: t -> payload option
+  end
 end
 
 module Unmarshal : sig
