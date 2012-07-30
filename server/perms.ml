@@ -15,7 +15,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-let info = Logging.info "perms"
+let info fmt = Logging.info "perms" fmt
 
 open Junk
 
@@ -57,7 +57,9 @@ let is_dom0 (connection:t) =
 
 let restrict (connection:t) domid =
 	match connection.target, connection.main with
-	| None, (0, perms) -> { connection with main = (domid, perms) }
+	| None, (0, perms) ->
+		info "restricting connection from domid %d to domid %d" 0 domid;
+		{ connection with main = (domid, perms) }
 	| _                -> raise Permission_denied
 
 let elt_to_string (i,p) =
@@ -73,10 +75,11 @@ type permission =
 	| DEBUG
 	| INTRODUCE
 	| RELEASE
+	| SET_TARGET
+	| RESTRICT
 
 let has (t: t) p =
-	if p <> DEBUG || (not(is_dom0 t))
-	then raise Permission_denied
+	if not(is_dom0 t) then raise Permission_denied
 
 (* check if owner of the current connection and of the current node are the same *)
 let check_owner (connection:t) (node:Xs_packet.ACL.t) =

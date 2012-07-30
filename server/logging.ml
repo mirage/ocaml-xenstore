@@ -139,7 +139,7 @@ let string_of_access_type = function
 	| Mkdir             -> "mkdir    "
 	| Rm                -> "rm       "
 	| Setperms          -> "setperms "
-(*	| Restrict          -> "restrict "*)
+	| Restrict          -> "restrict "
 	| Set_target        -> "settarget"
 
 	| Error             -> "error    "

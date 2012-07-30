@@ -36,6 +36,8 @@ type permission =
 	| DEBUG       (** ability to invoke debug operations *)
 	| INTRODUCE   (** ability to grant access to other domains *)
 	| RELEASE     (** ability to revoke access from other domains *)
+	| SET_TARGET  (** ability to allow one domain to impersonate a specific other *)
+	| RESTRICT    (** ability to imperonate a specific other domain *)
 
 exception Permission_denied
 (** Thrown by the [check] function if role does not have a specific permission *)

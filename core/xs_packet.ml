@@ -24,6 +24,7 @@ module Op = struct
     | Getdomainpath | Write | Mkdir | Rm
     | Setperms | Watchevent | Error | Isintroduced
     | Resume | Set_target
+	| Restrict
 
 (* The index of the value in the array is the integer representation used
    by the wire protocol. Every element of t exists exactly once in the array. *)
@@ -33,7 +34,9 @@ let on_the_wire =
      Transaction_end; Introduce; Release;
      Getdomainpath; Write; Mkdir; Rm;
      Setperms; Watchevent; Error; Isintroduced;
-     Resume; Set_target |]
+     Resume; Set_target;
+	 Restrict
+  |]
 
 let of_int32 i =
   let i = Int32.to_int i in
@@ -67,6 +70,7 @@ let to_string = function
   | Isintroduced      -> "IS_INTRODUCED"
   | Resume            -> "RESUME"
   | Set_target        -> "SET_TARGET"
+  | Restrict          -> "RESTRICT"
 end
 
 let rec split_string ?limit:(limit=(-1)) c s =
@@ -361,6 +365,8 @@ module Response = struct
   let introduce = ack
   let release = ack
   let debug request items = set_data request (data_concat items)
+  let set_target = ack
+  let restrict = ack
 end
 
 module Request = struct
@@ -429,6 +435,14 @@ module Request = struct
   let setperms path perms tid =
     let data = data_concat [ path; perms ] in
     if is_valid_path path then Some(create tid (next_rid ()) Op.Setperms data) else None
+
+  let set_target mine yours =
+	  let data = data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours; ] in
+      Some(create 0l (next_rid ()) Op.Set_target data)
+
+  let restrict domid =
+	  let data = data_concat [ Printf.sprintf "%u" domid; ] in
+	  Some(create 0l (next_rid ()) Op.Restrict data)
 end
 
 module Unmarshal = struct

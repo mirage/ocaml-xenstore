@@ -22,6 +22,7 @@ module Op : sig
     | Getdomainpath | Write | Mkdir | Rm
     | Setperms | Watchevent | Error | Isintroduced
     | Resume | Set_target
+	| Restrict
   (** The type of xenstore operation *)
 
   val to_string: t -> string
@@ -137,6 +138,8 @@ module Response : sig
   val release : t -> t
   val error : t -> string -> t
   val debug : t -> string list -> t
+  val set_target : t -> t
+  val restrict : t -> t
 end
 
 module Request : sig
@@ -157,6 +160,8 @@ module Request : sig
   val watch : string -> Token.t -> t option
   val unwatch : string -> Token.t -> t option
   val debug : string list -> t option
+  val set_target : int -> int -> t option
+  val restrict : int -> t option
 end
 
 module Unmarshal : sig

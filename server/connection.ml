@@ -37,6 +37,8 @@ and t = {
 	mutable perm: Perms.t;
 }
 
+let domains : (int, t) Hashtbl.t = Hashtbl.create 128
+
 let watch_create ~con ~path ~token = { 
 	con = con; 
 	token = token; 
@@ -66,6 +68,7 @@ let create (* xbcon *) dom =
 	}
 	in 
 	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
+	Hashtbl.replace domains dom con;
 	con
 
 (*
@@ -73,19 +76,14 @@ let get_fd con = Xenbus.Xb.get_fd con.xb
 *)
 let close con =
 	Logging.end_connection ~tid:Transaction.none ~con:con.domstr;
+	Hashtbl.remove domains con.domid;
 	()
 (*
 	Xenbus.Xb.close con.xb
 *)
 
-let get_perm con =
-	con.perm
-
 let restrict con domid =
 	con.perm <- Perms.restrict con.perm domid
-
-let set_target con target_domid =
-	con.perm <- Perms.set_target (get_perm con) target_domid
 
 (*
 let send_reply con tid rid ty data =

@@ -210,6 +210,7 @@ module Client = functor(T: TRANSPORT) -> struct
   let read h path = rpc "read" (Handle.accessed_path h path) (Request.read path) Unmarshal.string
   let write h path data = rpc "write" (Handle.accessed_path h path) (Request.write path data) Unmarshal.ok
   let debug h cmd_args = rpc "debug" h (fun _ -> Request.debug cmd_args) Unmarshal.list
+  let restrict h domid = rpc "restrict" h (fun _ -> Request.restrict domid) Unmarshal.ok
   let watch h path token = rpc "watch" (Handle.watch h path) (fun _ -> Request.watch path token) Unmarshal.ok
   let unwatch h path token = rpc "unwatch" (Handle.watch h path) (fun _ -> Request.unwatch path token) Unmarshal.ok
 

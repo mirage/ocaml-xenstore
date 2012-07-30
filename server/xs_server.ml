@@ -49,9 +49,11 @@ module Server = functor(T: TRANSPORT) -> struct
 		let domid = T.domain_of t in
 		let c = Connection.create domid in
 		let channel = PS.make t in
-		lwt request = PS.recv channel in
-		let reply = Call.reply store c request in
-		lwt () = PS.send channel reply in
+		while_lwt true do
+			lwt request = PS.recv channel in
+			let reply = Call.reply store c request in
+			PS.send channel reply
+		done >>
 		T.destroy t
 
 	let serve_forever () =

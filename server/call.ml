@@ -194,11 +194,40 @@ let reply_exn store c request =
 			error "parse failure: expected domid: got %s" (hexify data);
 			raise Parse_failure
 		end
+	| Op.Set_target ->
+		Perms.has c.Connection.perm Perms.SET_TARGET;
+		begin match strings data with
+		|  mine :: yours :: [] ->
+			let mine = c_int_of_string mine in
+			let yours = c_int_of_string yours in
+			if Hashtbl.mem Connection.domains mine then begin
+				let c = Hashtbl.find Connection.domains mine in
+				c.Connection.perm <- Perms.set_target c.Connection.perm yours;
+				Response.set_target request
+			end else begin
+				error "set_target %d -> %d; domid %d is not connected" mine yours mine;
+				Response.error request "EINVAL"
+			end
+		| _ ->
+			error "parse failure: expected domid::domid: got %s" (hexify data);
+			raise Parse_failure
+		end
+	| Op.Restrict ->
+		Perms.has c.Connection.perm Perms.RESTRICT;
+		begin match strings data with
+		| domid :: [] ->
+			let domid = c_int_of_string domid in
+			c.Connection.perm <- Perms.restrict c.Connection.perm domid;
+			Response.restrict request
+		| _ ->
+			error "parse failure: expected domid: got %s" (hexify data);
+			raise Parse_failure
+		end
 	| Op.Error ->
 		error "client sent us an error: %s" (hexify data);
 		raise Parse_failure
 	| Op.Watchevent | Op.Isintroduced
-	| Op.Resume | Op.Set_target ->
+	| Op.Resume ->
 		Response.error request "Not implemented"
 
 let reply store c request =
