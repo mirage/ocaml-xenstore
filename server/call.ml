@@ -24,17 +24,27 @@ let error fmt = Logging.error "call" fmt
 
 let strings data = String.split '\000' data
 
+exception Parse_failure
+
+exception Transaction_again
+
+exception Transaction_nested
+
 let one_string data =
     let args = String.split ~limit:2 '\000' data in
     match args with
 	| x :: [] -> x
-	| _       -> failwith (Printf.sprintf "one_string parse failure: [%s](%d)" data (String.length data))
+	| _       ->
+		error "parse failure: expected one string: got %s" (hexify data);
+		raise Parse_failure
 
 let two_strings data =
     let args = String.split ~limit:2 '\000' data in
 	match args with
 	| a :: b :: [] -> a, b
-	| _            -> failwith (Printf.sprintf "two_strings parse failure: [%s](%d)" data (String.length data))
+	| _            ->
+		error "parse failure: expected two strings: got %s" (hexify data);
+		raise Parse_failure
 
 
 let c_int_of_string s =
@@ -66,7 +76,6 @@ let create_implicit_path t perm path =
 		List.iter (fun s -> Transaction.mkdir ~with_watch:false t perm s) ret
 	)
 
-
 let reply_exn store c request =
 	let connection_path = Store.Path.getdomainpath c.Connection.domid in
 	let resolve data = Store.Path.create data connection_path in
@@ -89,7 +98,10 @@ let reply_exn store c request =
 	| Op.Getdomainpath ->
 		(Response.getdomainpath request ++ Store.Path.getdomainpath ++ c_int_of_string ++ one_string) data
 	| Op.Transaction_start ->
-		Response.transaction_start request 1l
+        if tid <> Transaction.none then raise Transaction_nested;
+        let store = Transaction.get_store t in
+		let tid = Connection.start_transaction c store in
+		Response.transaction_start request tid
 	| Op.Write ->
 		let path, value = two_strings data in
 		let path = resolve path in
@@ -121,7 +133,8 @@ let reply_exn store c request =
 			Transaction.setperms t c.Connection.perm path x;
 			Response.setperms request
 		| None ->
-			Response.error request "failed to parse perms"
+			error "parse failure: expected ACL: got %s" (hexify perms);
+			raise Parse_failure
 		end
 	| Op.Watch ->
 		Response.watch request
@@ -138,9 +151,10 @@ let reply_exn store c request =
 			if Transaction.commit ~con:c.Connection.domstr t then begin
 				(* process_watch (List.rev (Transaction.get_ops t)) cons*)
 				Response.transaction_end request
-			end else Response.error request "EAGAIN"
+			end else raise Transaction_again
 		| _ ->
-			Response.error request "EINVAL"
+			error "parse failure: expected T or F: got %s" (hexify data);
+			raise Parse_failure
 		end
 	| Op.Debug ->
 		Perms.has c.Connection.perm Perms.DEBUG;
@@ -165,7 +179,8 @@ let reply_exn store c request =
 			(* @introduceDomain *)
 			Response.introduce request
 		| _ ->
-			Response.error request "EINVAL"
+			error "parse failure: expected domid::mfn::port: got %s" (hexify data);
+			raise Parse_failure
 		end
 	| Op.Release ->
 		Perms.has c.Connection.perm Perms.RELEASE;
@@ -176,7 +191,8 @@ let reply_exn store c request =
 			(* @releaseDomain *)
 			Response.release request
 		| _ ->
-			Response.error request "EINVAL"
+			error "parse failure: expected domid: got %s" (hexify data);
+			raise Parse_failure
 		end
 	| Op.Watchevent | Op.Error | Op.Isintroduced
 	| Op.Resume | Op.Set_target ->
@@ -186,5 +202,23 @@ let reply store c request =
 	try
 		reply_exn store c request
 	with e ->
-		error "Caught: %s" (Printexc.to_string e);
-		Response.error request (Printexc.to_string e)
+		let reply code =
+			error "Caught: %s; returning %s" (Printexc.to_string e) code;
+			Response.error request code in
+		begin match e with
+		| Store.Path.Invalid_path          -> reply "EINVAL"
+		| Store.Path.Already_exist         -> reply "EEXIST"
+		| Store.Path.Doesnt_exist          -> reply "ENOENT"
+		| Store.Path.Lookup_Doesnt_exist s -> reply "ENOENT"
+		| Perms.Permission_denied          -> reply "EACCES"
+		| Not_found                        -> reply "ENOENT"
+		| Parse_failure                    -> reply "EINVAL"
+		| Invalid_argument i               -> reply "EINVAL"
+		| Transaction_again                -> reply "EAGAIN"
+		| Transaction_nested               -> reply "EBUSY"
+		| Quota.Limit_reached              -> reply "EQUOTA"
+		| Quota.Data_too_big               -> reply "E2BIG"
+		| Quota.Transaction_opened         -> reply "EQUOTA"
+		| (Failure "int_of_string")        -> reply "EINVAL"
+		| _                                -> reply "EIO"
+		end
