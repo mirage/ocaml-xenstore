@@ -18,8 +18,8 @@ open Xs_packet
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
 
-let debug = Logging.debug "xs_server"
-let error = Logging.error "xs_server"
+let debug fmt = Logging.debug "xs_server" fmt
+let error fmt = Logging.error "xs_server" fmt
 
 let store =
 	let store = Store.create () in
