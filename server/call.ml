@@ -194,7 +194,10 @@ let reply_exn store c request =
 			error "parse failure: expected domid: got %s" (hexify data);
 			raise Parse_failure
 		end
-	| Op.Watchevent | Op.Error | Op.Isintroduced
+	| Op.Error ->
+		error "client sent us an error: %s" (hexify data);
+		raise Parse_failure
+	| Op.Watchevent | Op.Isintroduced
 	| Op.Resume | Op.Set_target ->
 		Response.error request "Not implemented"
 
