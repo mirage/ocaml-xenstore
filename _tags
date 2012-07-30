@@ -1,10 +1,16 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0c5d132eb006d9545044eadf7856a43f)
+# DO NOT EDIT (digest: 525fb71f7a34434cfa05ba75f3e6be2f)
 # Library xenstore
 "core": include
 <core/*.ml{,i}>: pkg_lwt
 <core/*.ml{,i}>: pkg_bitstring.syntax
 <core/*.ml{,i}>: pkg_bitstring
+# Library xenstore_server
+"server": include
+<server/*.ml{,i}>: use_xenstore
+<server/*.ml{,i}>: pkg_lwt
+<server/*.ml{,i}>: pkg_bitstring.syntax
+<server/*.ml{,i}>: pkg_bitstring
 # Library xenstore_unix
 "unix": include
 <unix/*.ml{,i}>: pkg_lwt
@@ -14,6 +20,22 @@
 <client/*.ml{,i}>: pkg_lwt
 <client/*.ml{,i}>: pkg_bitstring.syntax
 <client/*.ml{,i}>: pkg_bitstring
+# Executable server_test
+<server_test/server_test.{native,byte}>: use_xenstore_server
+<server_test/server_test.{native,byte}>: use_xenstore
+<server_test/server_test.{native,byte}>: pkg_oUnit
+<server_test/server_test.{native,byte}>: pkg_lwt.unix
+<server_test/server_test.{native,byte}>: pkg_lwt
+<server_test/server_test.{native,byte}>: pkg_bitstring.syntax
+<server_test/server_test.{native,byte}>: pkg_bitstring
+<server_test/*.ml{,i}>: use_xenstore_server
+<server_test/*.ml{,i}>: use_xenstore
+<server_test/*.ml{,i}>: pkg_oUnit
+<server_test/*.ml{,i}>: pkg_lwt.unix
+<server_test/*.ml{,i}>: pkg_lwt
+<server_test/*.ml{,i}>: pkg_bitstring.syntax
+<server_test/*.ml{,i}>: pkg_bitstring
+<server_test/server_test.{native,byte}>: custom
 # Executable server_unix
 <server_unix/server_unix.{native,byte}>: use_xenstore
 <server_unix/server_unix.{native,byte}>: pkg_lwt.unix
@@ -56,12 +78,6 @@
 <lib_test/*.ml{,i}>: pkg_bitstring.syntax
 <lib_test/*.ml{,i}>: pkg_bitstring
 <lib_test/xs_test.{native,byte}>: custom
-# Library xenstore_server
-"server": include
-<server/*.ml{,i}>: use_xenstore
-<server/*.ml{,i}>: pkg_lwt
-<server/*.ml{,i}>: pkg_bitstring.syntax
-<server/*.ml{,i}>: pkg_bitstring
 # OASIS_STOP
 true: annot
 <*/*>: syntax_camlp4o

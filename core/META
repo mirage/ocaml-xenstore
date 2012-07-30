@@ -1,11 +1,20 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4700bafbe6062ca4efffe2e1e37a9a50)
+# DO NOT EDIT (digest: 708bddf9a24924bcd024c1b588a5ede2)
 version = "0.9-dev"
 description = "Xenstore protocol library"
 requires = "lwt bitstring bitstring.syntax lwt"
 archive(byte) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
 exists_if = "xenstore.cma"
+package "server" (
+ version = "0.9-dev"
+ description = "Xenstore protocol library"
+ requires = "lwt xenstore"
+ archive(byte) = "xenstore_server.cma"
+ archive(native) = "xenstore_server.cmxa"
+ exists_if = "xenstore_server.cma"
+)
+
 package "unix" (
  version = "0.9-dev"
  description = "Xenstore protocol library"
@@ -22,15 +31,6 @@ package "client" (
  archive(byte) = "xenstore_client.cma"
  archive(native) = "xenstore_client.cmxa"
  exists_if = "xenstore_client.cma"
-)
-
-package "server" (
- version = "0.9-dev"
- description = "Xenstore protocol library"
- requires = "lwt xenstore"
- archive(byte) = "xenstore_server.cma"
- archive(native) = "xenstore_server.cmxa"
- exists_if = "xenstore_server.cma"
 )
 # OASIS_STOP
 

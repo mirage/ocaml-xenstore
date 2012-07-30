@@ -43,6 +43,15 @@ Executable xs_test
   Install:            false
   BuildDepends:       lwt, lwt.unix, bitstring, xenstore, oUnit
 
+Executable server_test
+  Path:               server_test
+  MainIs:             server_test.ml
+  Build$:             flag(tests)
+  Custom:             true
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.server, oUnit
+
 Executable server_unix
   Path:               server_unix
   MainIs:             server_unix.ml
@@ -67,3 +76,8 @@ Test xs_test
   Run$:               flag(tests)
   Command:            $xs_test
   WorkingDirectory:   lib_test
+
+Test server_test
+  Run$:               flag(tests)
+  Command:            $server_test
+  WorkingDirectory:   server_test
