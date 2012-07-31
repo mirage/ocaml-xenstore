@@ -61,6 +61,50 @@ let test_implicit_create () =
 		domU, Read "/a", Err "EACCES";
 	]
 
+let test_directory_order () =
+	(* Create nodes in a particular order and check 'directory'
+	   preserves the ordering *)
+	()
+
+let test_setperms_getperms () =
+	(* Check that getperms(setperms(x)) = x *)
+	()
+
+let test_setperms_owner () =
+	(* Check that only the owner of a node can setperms even
+	   if another domain has read/write access *)
+	()
+
+let test_restrict () =
+	(* Check that only dom0 can restrict to another domain
+	   and that it loses access to dom0-only nodes. *)
+	()
+
+let test_set_target () =
+	(* Check that dom0 can grant dom1 access to dom2's nodes,
+	   without which it wouldn't have access. *)
+	()
+
+let test_transactions_are_isolated () =
+	(* Check that other connections cannot see the nodes created
+	   within an uncommitted transaction *)
+	()
+
+let test_independent_transactions_coalesce () =
+	(* Check that two parallel, unrelated transactions can be
+	   coalesced properly *)
+	()
+
+let test_device_create_coalesce () =
+	(* Check that two parallel, device-creating transactions can coalesce *)
+	()
+
+let test_transaction_watches () =
+	(* Check that watches only appear on transaction commit *)
+	()
+
+
+
 let _ =
   let verbose = ref false in
   Arg.parse [
