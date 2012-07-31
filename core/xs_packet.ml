@@ -351,7 +351,9 @@ module Response = struct
 
   let directory request ls = set_data request (data_concat ls)
 
-  let error request x = set_data request (data_concat [ x ])
+  let error request x =
+	  let reply = { request with ty = Op.Error } in
+	  set_data reply (data_concat [ x ])
 
   let ack request = set_data request "OK\000"
 
