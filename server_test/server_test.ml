@@ -35,8 +35,8 @@ let check_result reply =
 		else if data <> which
 		then failwith (Printf.sprintf "Expected %s got %s" which data)
 
-let run store c (payloads: (result * Xs_packet.Request.payload) list) =
-	let one (expected_result, payload) =
+let run store (payloads: (Connection.t * Xs_packet.Request.payload * result) list) =
+	let one (c, payload, expected_result) =
 		let request = Xs_packet.Request.print payload 0l in
 		let reply = Call.reply store c request in
 		check_result reply expected_result in
@@ -44,13 +44,21 @@ let run store c (payloads: (result * Xs_packet.Request.payload) list) =
 
 let test_implicit_create () =
 	(* Write a path and check the parent nodes can be read *)
-	let c = Connection.create 1 in
+	let dom0 = Connection.create 0 in
+	let domU = Connection.create 1 in
 	let store = empty_store () in
 	let open Xs_packet.Request in
-	run store c [
-		Err "ENOENT", Read("/local");
-		OK, Write("/local/domain", "hello");
-		OK, Read("/local");
+	run store [
+		(* If a node doesn't exist, everyone gets ENOENT: *)
+		dom0, Read "/a", Err "ENOENT";
+		domU, Read "/a", Err "ENOENT";
+		(* If dom0 makes a node, suddenly domU gets EACCES: *)
+		dom0, Write ("/a/b", "hello"), OK;
+		domU, Read "/a/b", Err "EACCES";
+		(* dom0 can also see the implicit path created: *)
+		dom0, Read "/a", OK;
+		(* domU gets EACCES: *)
+		domU, Read "/a", Err "EACCES";
 	]
 
 let _ =
