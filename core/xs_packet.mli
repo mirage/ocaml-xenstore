@@ -190,6 +190,7 @@ module Request : sig
   | Watchevent of string
 
   val parse: t -> payload option
+  val print: payload -> int32 -> t
 end
 
 module Unmarshal : sig
