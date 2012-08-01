@@ -22,6 +22,8 @@ let empty_store () = Store.create ()
 type result =
 	| OK
 	| Err of string
+	| StringList of (string list -> unit)
+
 let check_result reply =
 	let ty = Xs_packet.get_ty reply in
 	let data = Xs_packet.get_data reply in
@@ -34,6 +36,13 @@ let check_result reply =
 		then failwith (Printf.sprintf "Expected %s got success" which)
 		else if data <> which
 		then failwith (Printf.sprintf "Expected %s got %s" which data)
+	| StringList f ->
+		if ty = Xs_packet.Op.Error
+		then failwith (Printf.sprintf "Error: %s" data)
+		else begin match Xs_packet.Unmarshal.list reply with
+		| Some x -> f x
+		| None -> failwith "Failed to unmarshal string list"
+		end
 
 let run store (payloads: (Connection.t * Xs_packet.Request.payload * result) list) =
 	let one (c, payload, expected_result) =
@@ -64,7 +73,15 @@ let test_implicit_create () =
 let test_directory_order () =
 	(* Create nodes in a particular order and check 'directory'
 	   preserves the ordering *)
-	()
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, Write ("/a/1", ""), OK;
+		dom0, Write ("/a/2/foo", ""), OK;
+		dom0, Write ("/a/3", ""), OK;
+		dom0, Directory "/a", StringList (fun x -> assert_equal ~msg:"directory /a" ~printer:(String.concat ", ") ["1"; "2"; "3"] x);
+	]
 
 let test_setperms_getperms () =
 	(* Check that getperms(setperms(x)) = x *)
@@ -115,5 +132,6 @@ let _ =
   let suite = "xenstore" >:::
     [
 		"test_implicit_create" >:: test_implicit_create;
+		"test_directory_order" >:: test_directory_order;
 	] in
   run_test_tt ~verbose:!verbose suite
