@@ -145,7 +145,18 @@ let test_restrict () =
 let test_set_target () =
 	(* Check that dom0 can grant dom1 access to dom2's nodes,
 	   without which it wouldn't have access. *)
-	()
+	let dom0 = Connection.create 0 in
+	let dom3 = Connection.create 3 in
+	let dom7 = Connection.create 7 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, Write("/foo", "bar"), OK;
+		dom0, Setperms("/foo", example_acl), OK;
+		dom7, Write("/foo", "bar"), Err "EACCES";
+		dom0, Set_target(7, 5), OK;
+		dom7, Write("/foo", "bar"), OK;
+	]
 
 let test_transactions_are_isolated () =
 	(* Check that other connections cannot see the nodes created
@@ -181,5 +192,6 @@ let _ =
 		"getperms(setperms)" >:: test_setperms_getperms;
 		"test_setperms_owner" >:: test_setperms_owner;
 		"test_restrict" >:: test_restrict;
+		"test_set_target" >:: test_set_target;
 	] in
   run_test_tt ~verbose:!verbose suite
