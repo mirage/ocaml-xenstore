@@ -344,12 +344,12 @@ let set_data pkt (data: string) =
 
 module Response = struct
 
-  let read request x = set_data request (data_concat [ x ])
+  let read request x = set_data request x
   let getperms request perms = set_data request (data_concat [ ACL.to_string perms ])
   let getdomainpath request x = set_data request (data_concat [ x ])
   let transaction_start request tid = set_data request (data_concat [ Int32.to_string tid ])
 
-  let directory request ls = set_data request (data_concat ls)
+  let directory request ls = set_data request (if ls = [] then "" else data_concat ls)
 
   let error request x =
 	  let reply = { request with ty = Op.Error } in
@@ -413,6 +413,7 @@ module Request = struct
 		let args = split_string ~limit:2 '\000' data in
 		match args with
 		| a :: b :: [] -> a, b
+		| a :: [] -> a, "" (* terminating NULL removed by get_data *)
 		| _            ->
 			raise Parse_failure
 
