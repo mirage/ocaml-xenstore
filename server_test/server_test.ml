@@ -109,7 +109,21 @@ let test_setperms_getperms () =
 let test_setperms_owner () =
 	(* Check that only the owner of a node can setperms even
 	   if another domain has read/write access *)
-	()
+	let dom0 = Connection.create 0 in
+	let dom2 = Connection.create 2 in
+	let dom5 = Connection.create 5 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, Write ("/foo", ""), OK;
+		dom0, Setperms("/foo", example_acl), OK;
+		(* owned by dom5, so dom2 can't setperms *)
+		dom2, Setperms("/foo", { example_acl with Xs_packet.ACL.owner = 2 }), Err "EACCES";
+		(* dom5 sets the owner to dom2 *)
+		dom5, Setperms("/foo", { example_acl with Xs_packet.ACL.owner = 2 }), OK;
+		(* dom2 sets the owner back to dom5 *)
+		dom2, Setperms("/foo", { example_acl with Xs_packet.ACL.owner = 5 }), OK;
+	]
 
 let test_restrict () =
 	(* Check that only dom0 can restrict to another domain
@@ -153,5 +167,6 @@ let _ =
 		"test_implicit_create" >:: test_implicit_create;
 		"test_directory_order" >:: test_directory_order;
 		"getperms(setperms)" >:: test_setperms_getperms;
+		"test_setperms_owner" >:: test_setperms_owner;
 	] in
   run_test_tt ~verbose:!verbose suite
