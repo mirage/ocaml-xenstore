@@ -58,7 +58,7 @@ Executable server_unix
   Custom:             true
   CompiledObject:     best
   Install:            true
-  BuildDepends:       lwt, lwt.unix, bitstring, xenstore
+  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.server, xenstore.unix
 
 Executable xs
   Path:               cli
