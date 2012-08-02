@@ -34,6 +34,9 @@ let reply_exn store c request =
 	let resolve data = Store.Path.create data connection_path in
 	let tid = get_tid request in
 	let t = Transaction.make tid store in
+
+	Logging.xb_op ~ty:(get_ty request) ~tid ~con:c.Connection.domstr (get_data request);
+
 	let open Request in
 	match parse request with
 	| None ->
@@ -152,26 +155,30 @@ let reply_exn store c request =
 		raise Parse_failure
 
 let reply store c request =
-	try
-		reply_exn store c request
-	with e ->
-		let reply code =
-			error "Caught: %s; returning %s" (Printexc.to_string e) code;
-			Response.error request code in
-		begin match e with
-		| Store.Path.Invalid_path          -> reply "EINVAL"
-		| Store.Path.Already_exist         -> reply "EEXIST"
-		| Store.Path.Doesnt_exist          -> reply "ENOENT"
-		| Store.Path.Lookup_Doesnt_exist s -> reply "ENOENT"
-		| Perms.Permission_denied          -> reply "EACCES"
-		| Not_found                        -> reply "ENOENT"
-		| Parse_failure                    -> reply "EINVAL"
-		| Invalid_argument i               -> reply "EINVAL"
-		| Transaction_again                -> reply "EAGAIN"
-		| Transaction_nested               -> reply "EBUSY"
-		| Quota.Limit_reached              -> reply "EQUOTA"
-		| Quota.Data_too_big               -> reply "E2BIG"
-		| Quota.Transaction_opened         -> reply "EQUOTA"
-		| (Failure "int_of_string")        -> reply "EINVAL"
-		| _                                -> reply "EIO"
-		end
+	let reply =
+		try
+			reply_exn store c request
+		with e ->
+			let reply code =
+				error "Caught: %s; returning %s" (Printexc.to_string e) code;
+				Response.error request code in
+			begin match e with
+				| Store.Path.Invalid_path          -> reply "EINVAL"
+				| Store.Path.Already_exist         -> reply "EEXIST"
+				| Store.Path.Doesnt_exist          -> reply "ENOENT"
+				| Store.Path.Lookup_Doesnt_exist s -> reply "ENOENT"
+				| Perms.Permission_denied          -> reply "EACCES"
+				| Not_found                        -> reply "ENOENT"
+				| Parse_failure                    -> reply "EINVAL"
+				| Invalid_argument i               -> reply "EINVAL"
+				| Transaction_again                -> reply "EAGAIN"
+				| Transaction_nested               -> reply "EBUSY"
+				| Quota.Limit_reached              -> reply "EQUOTA"
+				| Quota.Data_too_big               -> reply "E2BIG"
+				| Quota.Transaction_opened         -> reply "EQUOTA"
+				| (Failure "int_of_string")        -> reply "EINVAL"
+				| _                                -> reply "EIO"
+			end in
+    Logging.xb_answer ~ty:(get_ty reply) ~tid:(get_tid reply) ~con:c.Connection.domstr (get_data reply);
+	reply
+
