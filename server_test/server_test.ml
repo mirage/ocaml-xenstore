@@ -23,6 +23,7 @@ type result =
 	| OK
 	| Err of string
 	| StringList of (string list -> unit)
+	| Perms of (Xs_packet.ACL.t -> unit)
 
 let check_result reply =
 	let ty = Xs_packet.get_ty reply in
@@ -42,6 +43,13 @@ let check_result reply =
 		else begin match Xs_packet.Unmarshal.list reply with
 		| Some x -> f x
 		| None -> failwith "Failed to unmarshal string list"
+		end
+	| Perms f ->
+		if ty = Xs_packet.Op.Error
+		then failwith (Printf.sprintf "Error: %s" data)
+		else begin match Xs_packet.Unmarshal.acl reply with
+		| Some x -> f x
+		| None -> failwith "Failed to unmarshal ACLs"
 		end
 
 let run store (payloads: (Connection.t * Xs_packet.Request.payload * result) list) =
@@ -83,9 +91,20 @@ let test_directory_order () =
 		dom0, Directory "/a", StringList (fun x -> assert_equal ~msg:"directory /a" ~printer:(String.concat ", ") ["1"; "2"; "3"] x);
 	]
 
+let example_acl =
+	let open Xs_packet.ACL in
+    { owner = 5; other = READ; acl = [ 2, WRITE; 3, RDWR ] }
+
 let test_setperms_getperms () =
 	(* Check that getperms(setperms(x)) = x *)
-	()
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, Write ("/foo", ""), OK;
+		dom0, Setperms("/foo", example_acl), OK;
+		dom0, Getperms "/foo", Perms (fun x -> assert_equal ~msg:"perms /foo" ~printer:Xs_packet.ACL.to_string x example_acl);
+	]
 
 let test_setperms_owner () =
 	(* Check that only the owner of a node can setperms even
@@ -133,5 +152,6 @@ let _ =
     [
 		"test_implicit_create" >:: test_implicit_create;
 		"test_directory_order" >:: test_directory_order;
+		"getperms(setperms)" >:: test_setperms_getperms;
 	] in
   run_test_tt ~verbose:!verbose suite
