@@ -128,7 +128,19 @@ let test_setperms_owner () =
 let test_restrict () =
 	(* Check that only dom0 can restrict to another domain
 	   and that it loses access to dom0-only nodes. *)
-	()
+	let dom0 = Connection.create 0 in
+	let dom3 = Connection.create 3 in
+	let dom7 = Connection.create 7 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, Write("/foo", "bar"), OK;
+		dom0, Setperms("/foo", example_acl), OK;
+		dom3, Write("/foo", "bar"), OK;
+		dom7, Write("/foo", "bar"), Err "EACCES";
+		dom0, Restrict 7, OK;
+		dom0, Write("/foo", "bar"), Err "EACCES";
+	]
 
 let test_set_target () =
 	(* Check that dom0 can grant dom1 access to dom2's nodes,
@@ -168,5 +180,6 @@ let _ =
 		"test_directory_order" >:: test_directory_order;
 		"getperms(setperms)" >:: test_setperms_getperms;
 		"test_setperms_owner" >:: test_setperms_owner;
+		"test_restrict" >:: test_restrict;
 	] in
   run_test_tt ~verbose:!verbose suite
