@@ -14,6 +14,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+let debug fmt = Logging.debug "store" fmt
+
 open Junk
 
 module Node = struct
@@ -122,7 +124,7 @@ let of_string s =
 
 let path_complete path connection_path =
 	if String.get path 0 <> '/' then
-		connection_path ^ path
+		connection_path ^ "/" ^ path
 	else
 		path
 
@@ -238,7 +240,9 @@ type t =
 }
 
 let get_root store = store.root
-let set_root store root = store.root <- root
+let set_root store root =
+	debug "Updating root of store";
+	store.root <- root
 
 let get_quota store = store.quota
 let set_quota store quota = store.quota <- quota
