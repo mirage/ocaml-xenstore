@@ -33,7 +33,10 @@ let reply_exn store c request =
 	let connection_path = Store.Path.getdomainpath c.Connection.domid in
 	let resolve data = Store.Path.create data connection_path in
 	let tid = get_tid request in
-	let t = Transaction.make tid store in
+	let t =
+		if tid = Transaction.none
+		then Transaction.make tid store
+		else Connection.get_transaction c tid in
 
 	Logging.xb_op ~ty:(get_ty request) ~tid ~con:c.Connection.domstr (get_data request);
 

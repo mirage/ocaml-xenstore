@@ -14,6 +14,9 @@
  * GNU Lesser General Public License for more details.
  *)
 
+let debug fmt = Logging.debug "connection" fmt
+let error fmt = Logging.debug "connection" fmt
+
 exception End_of_file
 
 
@@ -191,8 +194,11 @@ let unregister_transaction con tid =
 	Hashtbl.remove con.transactions tid
 
 let get_transaction con tid =
-	Hashtbl.find con.transactions tid
-
+	try
+		Hashtbl.find con.transactions tid
+	with Not_found as e ->
+		error "Failed to find transaction %lu on %s" tid con.domstr;
+		raise e
 (*
 let do_input con = Xenbus.Xb.input con.xb
 let has_input con = Xenbus.Xb.has_in_packet con.xb
