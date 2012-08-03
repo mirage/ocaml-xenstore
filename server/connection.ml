@@ -42,6 +42,8 @@ and t = {
 
 let domains : (int, t) Hashtbl.t = Hashtbl.create 128
 
+let watches : (string, watch list) Trie.t ref = ref (Trie.create ())
+
 let watch_create ~con ~path ~token = { 
 	con = con; 
 	token = token; 
@@ -123,12 +125,22 @@ let is_dom0 con =
 	Perms.Connection.is_dom0 (get_perm con)
 *)
 
+let key_of_str path =
+        if path.[0] = '@'
+        then [path]
+        else "" :: Store.Path.to_string_list (Store.Path.of_string path)
+
+let key_of_path path =
+        "" :: Store.Path.to_string_list path
+
+
 let add_watch con path token =
 (*
 	if !Quota.activate && !Define.maxwatch > 0 &&
 	   not (is_dom0 con) && con.nb_watches > !Define.maxwatch then
 		raise Quota.Limit_reached;
 *)
+
 	let apath = get_watch_path con path in
 	let l = get_watches con apath in
 	if List.exists (fun w -> w.token = token) l then
@@ -136,7 +148,17 @@ let add_watch con path token =
 	let watch = watch_create ~con ~token ~path in
 	Hashtbl.replace con.watches apath (watch :: l);
 	con.nb_watches <- con.nb_watches + 1;
-	apath, watch
+
+	watches :=
+		(let key = key_of_str apath in
+		let ws =
+            if Trie.mem !watches key
+            then Trie.find !watches key
+            else []
+        in
+        Trie.set !watches key (watch :: ws));
+
+	watch
 
 let del_watch con path token =
 	let apath = get_watch_path con path in
@@ -148,6 +170,15 @@ let del_watch con path token =
 	else
 		Hashtbl.remove con.watches apath;
 	con.nb_watches <- con.nb_watches - 1;
+
+	watches :=
+        (let key = key_of_str apath in
+		let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
+        if ws = [] then
+                Trie.unset !watches key
+        else
+                Trie.set !watches key ws);
+
 	apath, w
 
 let list_watches con =
@@ -156,24 +187,39 @@ let list_watches con =
 		con.watches [] in
 	List.concat ll
 
-(*
-let fire_single_watch watch =
-	let data = Utils.join_by_null [watch.path; watch.token; ""] in
-	send_reply watch.con Transaction.none 0 Xs_packet.Op.Watchevent data
+let fire_one path watch =
+	let path = match path with
+		| None -> watch.path
+		| Some path ->
+			if watch.is_relative && path.[0] = '/'
+			then begin
+				let n = String.length watch.base
+		 		and m = String.length path in
+				String.sub path n (m - n)
+			end else
+				path in
+	let open Xs_packet in
+	let packet = Response.watchevent path watch.token in
+	Logging.xb_answer ~tid:(get_tid packet) ~con:watch.con.domstr ~ty:(get_ty packet) (get_data packet)
 
-let fire_watch watch path =
-	let new_path =
-		if watch.is_relative && path.[0] = '/'
-		then begin
-			let n = String.length watch.base
-		 	and m = String.length path in
-			String.sub path n (m - n)
-		end else
-			path
-	in
-	let data = Utils.join_by_null [ new_path; watch.token; "" ] in
-	send_reply watch.con Transaction.none 0 Xs_packet.Op.Watchevent data
-*)
+let fire (op, path) =
+	let key = key_of_path path in
+	let path = Store.Path.to_string path in
+	Hashtbl.iter
+		(fun domid c ->
+			Trie.iter_path
+				(fun _ w -> match w with
+				| None -> ()
+				| Some ws -> List.iter (fire_one (Some path)) ws
+				) !watches key;
+
+			if op = Xs_packet.Op.Rm
+			then Trie.iter
+				(fun _ w -> match w with
+				| None -> ()
+				| Some ws -> List.iter (fire_one None) ws
+				) (Trie.sub !watches key)
+		) domains
 
 let find_next_tid con =
 	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret

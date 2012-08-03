@@ -371,6 +371,7 @@ module Response = struct
   let restrict = ack
   let resume = ack
   let isintroduced request b = set_data request (data_concat [ if b then "T" else "F" ])
+  let watchevent path token = create 0l 0l Op.Watchevent (data_concat [ path; token ])
 end
 
 module Request = struct

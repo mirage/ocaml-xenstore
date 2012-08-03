@@ -40,121 +40,128 @@ let reply_exn store c request =
 	Logging.xb_op ~ty:(get_ty request) ~tid ~con:c.Connection.domstr (get_data request);
 
 	let open Request in
-	match parse request with
-	| None ->
- 		error "Failed to parse request: got %s" (hexify (Xs_packet.to_string request));
-		raise Parse_failure
-	| Some (Read path) ->
-		let path = resolve path in
-		let v = Transaction.read t c.Connection.perm path in
-		Response.read request v
-	| Some (Directory path) ->
-		let path = resolve path in
-		let entries = Transaction.ls t c.Connection.perm path in
-		Response.directory request entries
-	| Some (Getperms path) ->
-		let path = resolve path in
-		let v = Transaction.getperms t c.Connection.perm path in
-		Response.getperms request v
-	| Some (Getdomainpath domid) ->
-		let v = Store.Path.getdomainpath domid in
-		Response.getdomainpath request v
-	| Some (Transaction_start) ->
-        if tid <> Transaction.none then raise Transaction_nested;
-		let tid = Connection.register_transaction c store in
-		let t = Transaction.make tid (Transaction.get_store t) in
-		Response.transaction_start request tid
-	| Some (Write(path, value)) ->
-		let path = resolve path in
-		Transaction.mkdir_p t c.Connection.perm path;
-		Transaction.write t c.Connection.perm path value;
-		Response.write request
-	| Some (Mkdir path) ->
-		let path = resolve path in
-		Transaction.mkdir_p t c.Connection.perm path;
-		begin
-			try
-				Transaction.mkdir t c.Connection.perm path
-			with Store.Path.Already_exist -> ()
-		end;
-		Response.mkdir request
-	| Some (Rm path) ->
-		let path = resolve path in
-		begin
-			try
-				Transaction.rm t c.Connection.perm path
-			with Store.Path.Doesnt_exist -> ()
-		end;
-		Response.rm request
-	| Some (Setperms(path, perms)) ->
-		let path = resolve path in
-		Transaction.setperms t c.Connection.perm path perms;
-		Response.setperms request
-	| Some (Watch(path, token)) ->
-		Response.watch request
-	| Some (Unwatch(path, token)) ->
-		Response.unwatch request
-	| Some (Transaction_end commit) ->
-		Connection.unregister_transaction c tid;
-		if commit then begin
-			Logging.end_transaction ~tid ~con:c.Connection.domstr;
-			if Transaction.commit ~con:c.Connection.domstr t then begin
-				(* process_watch (List.rev (Transaction.get_ops t)) cons*)
+	let reply = match parse request with
+		| None ->
+ 			error "Failed to parse request: got %s" (hexify (Xs_packet.to_string request));
+			raise Parse_failure
+		| Some (Read path) ->
+			let path = resolve path in
+			let v = Transaction.read t c.Connection.perm path in
+			Response.read request v
+		| Some (Directory path) ->
+			let path = resolve path in
+			let entries = Transaction.ls t c.Connection.perm path in
+			Response.directory request entries
+		| Some (Getperms path) ->
+			let path = resolve path in
+			let v = Transaction.getperms t c.Connection.perm path in
+			Response.getperms request v
+		| Some (Getdomainpath domid) ->
+			let v = Store.Path.getdomainpath domid in
+			Response.getdomainpath request v
+		| Some (Transaction_start) ->
+			if tid <> Transaction.none then raise Transaction_nested;
+			let tid = Connection.register_transaction c store in
+			let t = Transaction.make tid (Transaction.get_store t) in
+			Response.transaction_start request tid
+		| Some (Write(path, value)) ->
+			let path = resolve path in
+			Transaction.mkdir_p t c.Connection.perm path;
+			Transaction.write t c.Connection.perm path value;
+			Response.write request
+		| Some (Mkdir path) ->
+			let path = resolve path in
+			Transaction.mkdir_p t c.Connection.perm path;
+			begin
+				try
+					Transaction.mkdir t c.Connection.perm path
+				with Store.Path.Already_exist -> ()
+			end;
+			Response.mkdir request
+		| Some (Rm path) ->
+			let path = resolve path in
+			begin
+				try
+					Transaction.rm t c.Connection.perm path
+				with Store.Path.Doesnt_exist -> ()
+			end;
+			Response.rm request
+		| Some (Setperms(path, perms)) ->
+			let path = resolve path in
+			Transaction.setperms t c.Connection.perm path perms;
+			Response.setperms request
+		| Some (Watch(path, token)) ->
+			let watch = Connection.add_watch c path token in
+			Connection.fire_one None watch;
+			Response.watch request
+		| Some (Unwatch(path, token)) ->
+			Connection.del_watch c path token;
+			Response.unwatch request
+		| Some (Transaction_end commit) ->
+			Connection.unregister_transaction c tid;
+			if commit then begin
+				Logging.end_transaction ~tid ~con:c.Connection.domstr;
+				if Transaction.commit ~con:c.Connection.domstr t then begin
+					Transaction.get_ops t |> List.rev |> List.iter Connection.fire;
+					Response.transaction_end request
+				end else raise Transaction_again
+			end else begin
+				(* Don't log an explicit abort *)
 				Response.transaction_end request
-			end else raise Transaction_again
-		end else begin
-			(* Don't log an explicit abort *)
-			Response.transaction_end request
-		end
-	| Some (Debug cmd) ->
-		Perms.has c.Connection.perm Perms.DEBUG;
-		Response.debug request (
-			try match cmd with
-			| "print" :: msg :: _ ->
-				Logging.xb_op ~tid:0l ~ty:Xs_packet.Op.Debug ~con:"=======>" msg;
-				[]
-			| "watches" :: _ ->
-				let watches = (* Connections.debug cons *) "" in
-				[ watches ]
-			| _ -> []
-			with _ -> [])
-	| Some (Introduce(domid, mfn, port)) ->
-		Perms.has c.Connection.perm Perms.INTRODUCE;
-		(* register domain *)
-		(* @introduceDomain *)
-		Response.introduce request
-	| Some (Resume(domid)) ->
-		Perms.has c.Connection.perm Perms.RESUME;
-		(* register domain *)
-		Response.resume request
-	| Some (Release(domid)) ->
-		Perms.has c.Connection.perm Perms.RELEASE;
-		(* unregister domain *)
-		(* @releaseDomain *)
-		Response.release request
-	| Some (Set_target(mine, yours)) ->
-		Perms.has c.Connection.perm Perms.SET_TARGET;
-		if Hashtbl.mem Connection.domains mine then begin
-			let c = Hashtbl.find Connection.domains mine in
-			c.Connection.perm <- Perms.set_target c.Connection.perm yours;
-			Response.set_target request
-		end else begin
-			error "set_target %d -> %d; domid %d is not connected" mine yours mine;
-			Response.error request "EINVAL"
-		end
-	| Some (Restrict domid) ->
-		Perms.has c.Connection.perm Perms.RESTRICT;
-		c.Connection.perm <- Perms.restrict c.Connection.perm domid;
-		Response.restrict request
-	| Some (Isintroduced domid) ->
-		Perms.has c.Connection.perm Perms.ISINTRODUCED;
-		Response.isintroduced request false
-	| Some (Error msg) ->
-		error "client sent us an error: %s" (hexify msg);
-		raise Parse_failure
-	| Some (Watchevent msg) ->
-		error "client sent us a watch event: %s" (hexify msg);
-		raise Parse_failure
+			end
+		| Some (Debug cmd) ->
+			Perms.has c.Connection.perm Perms.DEBUG;
+			Response.debug request (
+				try match cmd with
+				| "print" :: msg :: _ ->
+					Logging.xb_op ~tid:0l ~ty:Xs_packet.Op.Debug ~con:"=======>" msg;
+					[]
+				| "watches" :: _ ->
+					let watches = (* Connections.debug cons *) "" in
+					[ watches ]
+				| _ -> []
+				with _ -> [])
+		| Some (Introduce(domid, mfn, port)) ->
+			Perms.has c.Connection.perm Perms.INTRODUCE;
+			(* register domain *)
+			Connection.fire (Xs_packet.Op.Write, [ "@introduceDomain" ]);
+			Response.introduce request
+		| Some (Resume(domid)) ->
+			Perms.has c.Connection.perm Perms.RESUME;
+			(* register domain *)
+			Response.resume request
+		| Some (Release(domid)) ->
+			Perms.has c.Connection.perm Perms.RELEASE;
+			(* unregister domain *)
+			Connection.fire (Xs_packet.Op.Write, [ "@releaseDomain" ]);
+			Response.release request
+		| Some (Set_target(mine, yours)) ->
+			Perms.has c.Connection.perm Perms.SET_TARGET;
+			if Hashtbl.mem Connection.domains mine then begin
+				let c = Hashtbl.find Connection.domains mine in
+				c.Connection.perm <- Perms.set_target c.Connection.perm yours;
+				Response.set_target request
+			end else begin
+				error "set_target %d -> %d; domid %d is not connected" mine yours mine;
+				Response.error request "EINVAL"
+			end
+		| Some (Restrict domid) ->
+			Perms.has c.Connection.perm Perms.RESTRICT;
+			c.Connection.perm <- Perms.restrict c.Connection.perm domid;
+			Response.restrict request
+		| Some (Isintroduced domid) ->
+			Perms.has c.Connection.perm Perms.ISINTRODUCED;
+			Response.isintroduced request false
+		| Some (Error msg) ->
+			error "client sent us an error: %s" (hexify msg);
+			raise Parse_failure
+		| Some (Watchevent msg) ->
+			error "client sent us a watch event: %s" (hexify msg);
+			raise Parse_failure in
+	if tid <> Transaction.none
+	then Transaction.get_ops t |> List.rev |> List.iter Connection.fire;
+	reply
+
 
 let reply store c request =
 	let reply =
@@ -181,6 +188,7 @@ let reply store c request =
 				| (Failure "int_of_string")        -> reply "EINVAL"
 				| _                                -> reply "EIO"
 			end in
-    Logging.xb_answer ~ty:(get_ty reply) ~tid:(get_tid reply) ~con:c.Connection.domstr (get_data reply);
+	let tid = get_tid reply in
+    Logging.xb_answer ~ty:(get_ty reply) ~tid ~con:c.Connection.domstr (get_data reply);
 	reply
 

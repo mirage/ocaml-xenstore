@@ -142,6 +142,7 @@ module Response : sig
   val restrict : t -> t
   val resume : t -> t
   val isintroduced : t -> bool -> t
+  val watchevent : string -> string -> t
 end
 
 module Request : sig

@@ -243,9 +243,25 @@ let test_device_create_coalesce () =
 	]
 
 let test_transaction_watches () =
-	(* Check that watches only appear on transaction commit *)
+	(* Check that watches only appear on transaction commit
+	   and not at all in the case of abort *)
 	()
 
+let test_introduce_watches () =
+	(* Check that @introduceDomain watches appear on introduce *)
+	()
+
+let test_release_watches () =
+	(* Check that @releaseDomain watches appear on introduce *)
+	()
+
+let test_recursive_rm_watch () =
+	(* Check that rm generates recursive watches *)
+	()
+
+let test_no_watch_no_error () =
+	(* Check that a write failure doesn't generate a watch *)
+	()
 
 
 let _ =
