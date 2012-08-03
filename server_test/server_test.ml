@@ -204,7 +204,22 @@ let test_transactions_are_isolated () =
 let test_independent_transactions_coalesce () =
 	(* Check that two parallel, unrelated transactions can be
 	   coalesced properly *)
-	()
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+
+	run store [
+		dom0, none, Mkdir "/a/b", OK;
+		dom0, none, Mkdir "/1/2", OK;
+	];
+	let tid_1 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+	let tid_2 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+	run store [
+		dom0, tid_1, Write("/a/b", "foo"), OK;
+		dom0, tid_2, Write("/1/2", "foo"), OK;
+		dom0, tid_1, Transaction_end true, OK;
+		dom0, tid_2, Transaction_end true, OK;
+	]
 
 let test_device_create_coalesce () =
 	(* Check that two parallel, device-creating transactions can coalesce *)
@@ -232,5 +247,6 @@ let _ =
 		"test_restrict" >:: test_restrict;
 		"test_set_target" >:: test_set_target;
 		"transactions_are_isolated" >:: test_transactions_are_isolated;
+		"independent_transactions_coalesce" >:: test_independent_transactions_coalesce;
 	] in
   run_test_tt ~verbose:!verbose suite
