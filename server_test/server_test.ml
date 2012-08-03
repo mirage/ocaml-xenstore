@@ -15,10 +15,44 @@
 open OUnit
 
 let ( |> ) a b = b a
+let ( ++ ) a b x = a (b x)
+let id x = x
 
 let empty_store () = Store.create ()
 
 let none = Transaction.none
+
+let success f reply =
+	match Xs_packet.get_ty reply with
+		| Xs_packet.Op.Error ->
+			failwith (Printf.sprintf "Error: %s" (Xs_packet.get_data reply))
+		| _ -> f reply
+
+let failure f reply =
+	match Xs_packet.get_ty reply with
+		| Xs_packet.Op.Error -> f reply
+		| _ ->
+			failwith (Printf.sprintf "Expected failure, got success: %s" (Junk.hexify(Xs_packet.to_string reply)))
+
+let list f reply = match Xs_packet.Unmarshal.list reply with
+	| Some x -> f x
+	| None -> failwith "Failed to unmarshal string list"
+
+let string f reply = match Xs_packet.Unmarshal.string reply with
+	| Some x -> f x
+	| None -> failwith "Failed to unmarshal string"
+
+let acl f reply = match Xs_packet.Unmarshal.acl reply with
+	| Some x -> f x
+	| None -> failwith "Failed to unmarshal acl"
+
+let int32 f reply = match Xs_packet.Unmarshal.int32 reply with
+	| Some x -> f x
+	| None -> failwith "Failed to unmarshal int32"
+
+let equals expected got =
+	if expected <> got
+	then failwith (Printf.sprintf "Expected %s got %s" expected got)
 
 type result =
 	| OK
@@ -32,41 +66,25 @@ let check_result reply =
 	let data = Xs_packet.get_data reply in
 	function
 	| OK ->
-		if ty = Xs_packet.Op.Error
-		then failwith (Printf.sprintf "Error: %s" data)
+		success ignore reply
 	| Err which ->
-		if ty <> Xs_packet.Op.Error
-		then failwith (Printf.sprintf "Expected %s got success" which)
-		else if data <> which
-		then failwith (Printf.sprintf "Expected %s got %s" which data)
+		(failure ++ string ++ equals) which reply
 	| StringList f ->
-		if ty = Xs_packet.Op.Error
-		then failwith (Printf.sprintf "Error: %s" data)
-		else begin match Xs_packet.Unmarshal.list reply with
-		| Some x -> f x
-		| None -> failwith "Failed to unmarshal string list"
-		end
+		(success ++ list) f reply
 	| Perms f ->
-		if ty = Xs_packet.Op.Error
-		then failwith (Printf.sprintf "Error: %s" data)
-		else begin match Xs_packet.Unmarshal.acl reply with
-		| Some x -> f x
-		| None -> failwith "Failed to unmarshal ACLs"
-		end
+		(success ++ acl) f reply
 	| Tid f ->
-		if ty = Xs_packet.Op.Error
-		then failwith (Printf.sprintf "Error: %s" data)
-		else begin match Xs_packet.Unmarshal.int32 reply with
-		| Some x -> f x
-		| None -> failwith "Failed to unmarshal transaction id"
-		end
+		(success ++ int32) f reply
+
+let rpc store c tid payload =
+	let request = Xs_packet.Request.print payload tid in
+	Call.reply store c request
 
 let run store (payloads: (Connection.t * int32 * Xs_packet.Request.payload * result) list) =
-	let one (c, tid, payload, expected_result) =
-		let request = Xs_packet.Request.print payload tid in
-		let reply = Call.reply store c request in
-		check_result reply expected_result in
-	List.iter one payloads
+	List.iter
+		(fun (c, tid, payload, expected_result) ->
+			check_result (rpc store c tid payload) expected_result
+		) payloads
 
 let test_implicit_create () =
 	(* Write a path and check the parent nodes can be read *)
@@ -173,11 +191,14 @@ let test_transactions_are_isolated () =
 	let dom0 = Connection.create 0 in
 	let store = empty_store () in
 	let open Xs_packet.Request in
-	let tid = ref none in
+
+	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+
 	run store [
-		dom0, none, Transaction_start, Tid(fun x -> tid := x);
-		dom0, !tid, Write("/foo", "bar"), OK;
-		dom0, none, Read "/foo", Err "ENOENT"
+		dom0, tid, Write("/foo", "bar"), OK;
+		dom0, none, Read "/foo", Err "ENOENT";
+		dom0, tid, Transaction_end true, OK;
+		dom0, none, Read "/foo", OK;
 	]
 
 let test_independent_transactions_coalesce () =

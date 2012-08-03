@@ -178,7 +178,7 @@ let fire_watch watch path =
 let find_next_tid con =
 	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret
 
-let start_transaction con store =
+let register_transaction con store =
 (*
 	if !Define.maxtransaction > 0 && not (is_dom0 con)
 	&& Hashtbl.length con.transactions > !Define.maxtransaction then

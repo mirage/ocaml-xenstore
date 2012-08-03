@@ -37,7 +37,6 @@ let reply_exn store c request =
 		if tid = Transaction.none
 		then Transaction.make tid store
 		else Connection.get_transaction c tid in
-
 	Logging.xb_op ~ty:(get_ty request) ~tid ~con:c.Connection.domstr (get_data request);
 
 	let open Request in
@@ -62,8 +61,8 @@ let reply_exn store c request =
 		Response.getdomainpath request v
 	| Some (Transaction_start) ->
         if tid <> Transaction.none then raise Transaction_nested;
-        let store = Transaction.get_store t in
-		let tid = Connection.start_transaction c store in
+		let tid = Connection.register_transaction c store in
+		let t = Transaction.make tid (Transaction.get_store t) in
 		Response.transaction_start request tid
 	| Some (Write(path, value)) ->
 		let path = resolve path in
