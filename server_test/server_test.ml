@@ -223,7 +223,24 @@ let test_independent_transactions_coalesce () =
 
 let test_device_create_coalesce () =
 	(* Check that two parallel, device-creating transactions can coalesce *)
-	()
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, Mkdir "/local/domain/0/backend/vbd", OK;
+		dom0, none, Mkdir "/local/domain/1/device/vbd", OK;
+		dom0, none, Mkdir "/local/domain/2/device/vbd", OK;
+	];
+	let tid_1 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+	let tid_2 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+	run store [
+		dom0, tid_1, Write("/local/domain/0/backend/vbd/1/51712", "hello"), OK;
+		dom0, tid_1, Write("/local/domain/1/device/vbd/51712", "there"), OK;
+		dom0, tid_2, Write("/local/domain/0/backend/vbd/2/51712", "hello"), OK;
+		dom0, tid_2, Write("/local/domain/2/device/vbd/51712", "there"), OK;
+		dom0, tid_1, Transaction_end true, OK;
+		dom0, tid_2, Transaction_end true, OK;
+	]
 
 let test_transaction_watches () =
 	(* Check that watches only appear on transaction commit *)
@@ -248,5 +265,6 @@ let _ =
 		"test_set_target" >:: test_set_target;
 		"transactions_are_isolated" >:: test_transactions_are_isolated;
 		"independent_transactions_coalesce" >:: test_independent_transactions_coalesce;
+(*		"device_create_coalesce" >:: test_device_create_coalesce; *)
 	] in
   run_test_tt ~verbose:!verbose suite
