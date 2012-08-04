@@ -15,6 +15,7 @@
  * GNU Lesser General Public License for more details.
  *)
 let debug fmt = Logging.debug "store" fmt
+let error fmt = Logging.debug "error" fmt
 
 open Junk
 
@@ -93,13 +94,25 @@ exception Doesnt_exist
 
 exception Already_exist
 
+type t =
+| IntroduceDomain
+| ReleaseDomain
+| Absolute of string list
+| Relative of string list
+
 (* represent a path in a store.
  * [] -> "/"
  * [ "local"; "domain"; "1" ] -> "/local/domain/1"
  *)
+(*
 type t = string list
+*)
 
-let getdomainpath domid = Printf.sprintf "/local/domain/%u" domid
+let getdomainpath domid = Absolute [ "local"; "domain"; Printf.sprintf "%u" domid ]
+
+let is_relative = function
+	| Relative _ -> true
+	| _ -> false
 
 let char_is_valid c =
 	(c >= 'a' && c <= 'z') ||
@@ -110,50 +123,74 @@ let char_is_valid c =
 let name_is_valid name =
 	name <> "" && String.fold_left (fun accu c -> accu && char_is_valid c) true name
 
-let is_valid path =
-	List.for_all name_is_valid path
+let is_valid = List.for_all name_is_valid
 
-let of_string s =
-	if s.[0] = '@'
-	then [s]
-	else if s = "/"
-	then []
-	else match String.split '/' s with
-		| "" :: path when is_valid path -> path
-		| _ -> raise Invalid_path
+let introduceDomain = IntroduceDomain
+let releaseDomain = ReleaseDomain
 
-let path_complete path connection_path =
-	if String.get path 0 <> '/' then
-		connection_path ^ "/" ^ path
-	else
-		path
-
-let path_validate path connection_path =
-	if String.length path = 0 || String.length path > 1024 then
+let of_string = function
+	| "@introduceDomain" -> IntroduceDomain
+	| "@releaseDomain"   -> ReleaseDomain
+	| "" ->
+		error "zero-length paths are invalid";
 		raise Invalid_path
-	else
-		let cpath = path_complete path connection_path in
-		if String.get cpath 0 <> '/' then
+	| "/" -> Absolute []
+	| path ->
+		if String.length path > 1024 then begin
+			error "paths larger than 1024 bytes are invalid";
 			raise Invalid_path
-		else
-			cpath
-
-
-let create path connection_path =
-	of_string (path_validate path connection_path)
+		end;
+		begin match String.split '/' path with
+		| "" :: path ->
+			if not(is_valid path) then begin
+				error "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
+				raise Invalid_path
+			end;
+			Absolute path
+		| path ->
+			if not(is_valid path) then begin
+				error "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
+				raise Invalid_path
+			end;
+			Relative path
+		end
 
 let to_string = function
-	| [ special ] when special <> "" && special.[0] = '@' -> special
-	| path -> "/" ^ (String.concat "/" path)
+	| IntroduceDomain -> "@introduceDomain"
+	| ReleaseDomain -> "@releaseDomain"
+	| Absolute path -> "/" ^ (String.concat "/" path)
+	| Relative path -> String.concat "/" path
 
-let to_string_list x = "" :: x
+let create path connection_path = match of_string path, connection_path with
+	| Absolute _ as path, _ -> path
+	| Relative x, Absolute y -> Absolute (y @ x)
+	| _, _ -> raise Invalid_path
 
 let to_key = function
-	| [ special ] as path when special <> "" && special.[0] = '@' -> path
-	| path -> to_string_list path
+	| IntroduceDomain -> [ "@introduceDomain" ]
+	| ReleaseDomain -> [ "@releaseDomain" ]
+	| Absolute p -> "" :: p
+	| Relative p -> "" :: p
 
 let get_parent t =
 	if t = [] then [] else List.rev (List.tl (List.rev t))
+
+let make_relative base t = match base, t with
+	| Absolute base, Absolute a ->
+		(* r should be a prefix of a *)
+		let rec f x y = match x, y with
+			| x :: xs, y :: ys when x = y -> f xs ys
+			| [], y -> Relative y
+			| _, _ -> Absolute a in
+		f base a
+	| _, _ -> t
+
+let list_tl_multi n l =
+	let rec do_tl i x =
+		if i = 0 then x else do_tl (i - 1) (List.tl x)
+		in
+	do_tl n l
+
 
 (* string utils *)
 let get_hierarchy path =
@@ -443,7 +480,7 @@ let setperms store perm path nperms =
 		store.root <- path_setperms store perm path nperms;
 		Quota.del_entry store.quota old_owner;
 		Quota.add_entry store.quota new_owner
-
+(*
 type ops = {
 	store: t;
 	write: Path.t -> string -> unit;
@@ -467,7 +504,7 @@ let get_ops store perms = {
 	getperms = getperms store perms;
 	path_exists = path_exists store;
 }
-
+*)
 let create () = {
 	stat_transaction_coalesce = 0;
 	stat_transaction_abort = 0;

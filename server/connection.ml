@@ -24,9 +24,7 @@ exception End_of_file
 type watch = {
 	con: t;
 	token: string;
-	path: string;
-	base: string;
-	is_relative: bool;
+	path: Store.Path.t;
 }
 
 and t = {
@@ -35,11 +33,12 @@ and t = {
 	domstr: string;
 	transactions: (int32, Transaction.t) Hashtbl.t;
 	mutable next_tid: int32;
-	watches: (string, watch list) Hashtbl.t;
+	watches: (Store.Path.t, watch list) Hashtbl.t;
 	mutable nb_watches: int;
 	mutable stat_nb_ops: int;
 	mutable perm: Perms.t;
 	watch_events: (string * string) Queue.t;
+	domainpath: Store.Path.t;
 }
 
 let domains : (int, t) Hashtbl.t = Hashtbl.create 128
@@ -57,8 +56,6 @@ let watch_create ~con ~path ~token = {
 	con = con; 
 	token = token; 
 	path = path; 
-	base = Store.Path.getdomainpath con.domid;
-	is_relative = path.[0] <> '/' && path.[0] <> '@'
 }
 
 let get_con w = w.con
@@ -98,6 +95,7 @@ let create (* xbcon *) dom =
 		stat_nb_ops = 0;
 		perm = Perms.of_domain dom;
 		watch_events = Queue.create ();
+		domainpath = Store.Path.getdomainpath dom;
 	}
 	in 
 	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
@@ -122,37 +120,15 @@ let send_error con tid rid err = send_reply con tid rid Xs_packet.Op.Error (err 
 let send_ack con tid rid ty = send_reply con tid rid ty "OK\000"
 *)
 
-let get_watch_path con path =
-	if path.[0] = '@' || path.[0] = '/' then
-		path
-	else
-		let rpath = Store.Path.getdomainpath con.domid in
-		rpath ^ path
-
 let get_watches (con: t) path =
 	if Hashtbl.mem con.watches path
 	then Hashtbl.find con.watches path
 	else []
 
-(** True if string 'x' starts with prefix 'prefix' *)
-let startswith prefix x =
-        let x_l = String.length x and prefix_l = String.length prefix in
-        prefix_l <= x_l && String.sub x 0 prefix_l  = prefix
-
-let get_children_watches con path =
-	let path = path ^ "/" in
-	List.concat (Hashtbl.fold (fun p w l ->
-		if startswith path p then w :: l else l) con.watches [])
-
 (*
 let is_dom0 con =
 	Perms.Connection.is_dom0 (get_perm con)
 *)
-
-let key_of_str path =
-        if path.[0] = '@'
-        then [path]
-        else Store.Path.to_string_list (Store.Path.of_string path)
 
 let add_watch con path token =
 (*
@@ -161,16 +137,15 @@ let add_watch con path token =
 		raise Quota.Limit_reached;
 *)
 
-	let apath = get_watch_path con path in
-	let l = get_watches con apath in
+	let l = get_watches con path in
 	if List.exists (fun w -> w.token = token) l then
 		raise Store.Path.Already_exist;
 	let watch = watch_create ~con ~token ~path in
-	Hashtbl.replace con.watches apath (watch :: l);
+	Hashtbl.replace con.watches path (watch :: l);
 	con.nb_watches <- con.nb_watches + 1;
 
 	watches :=
-		(let key = key_of_str apath in
+		(let key = Store.Path.to_key path in
 		let ws =
             if Trie.mem !watches key
             then Trie.find !watches key
@@ -183,25 +158,24 @@ let add_watch con path token =
 	watch
 
 let del_watch con path token =
-	let apath = get_watch_path con path in
-	let ws = Hashtbl.find con.watches apath in
+	let ws = Hashtbl.find con.watches path in
 	let w = List.find (fun w -> w.token = token) ws in
 	let filtered = List.filter (fun e -> e != w) ws in
 	if List.length filtered > 0 then
-		Hashtbl.replace con.watches apath filtered
+		Hashtbl.replace con.watches path filtered
 	else
-		Hashtbl.remove con.watches apath;
+		Hashtbl.remove con.watches path;
 	con.nb_watches <- con.nb_watches - 1;
 
 	watches :=
-        (let key = key_of_str apath in
+        (let key = Store.Path.to_key path in
 		let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
         if ws = [] then
                 Trie.unset !watches key
         else
                 Trie.set !watches key ws);
 
-	apath, w
+	path, w
 
 let list_watches con =
 	let ll = Hashtbl.fold 
@@ -213,13 +187,10 @@ let fire_one path watch =
 	let path = match path with
 		| None -> watch.path
 		| Some path ->
-			if watch.is_relative && path.[0] = '/'
-			then begin
-				let n = String.length watch.base
-		 		and m = String.length path in
-				String.sub path n (m - n)
-			end else
-				path in
+			if Store.Path.is_relative watch.path
+			then Store.Path.make_relative watch.con.domainpath path
+			else path in
+	let path = Store.Path.to_string path in
 	let open Xs_packet in
 	let packet = Response.watchevent path watch.token in
 	Logging.xb_answer ~tid:(get_tid packet) ~con:watch.con.domstr ~ty:(get_ty packet) (get_data packet);
@@ -233,7 +204,7 @@ let fire (op, path') =
 	Trie.iter_path
 		(fun _ w -> match w with
 		| None -> ()
-		| Some ws -> List.iter (fire_one (Some path)) ws
+		| Some ws -> List.iter (fire_one (Some path')) ws
 		) !watches key;
 	
 	if op = Xs_packet.Op.Rm
@@ -313,5 +284,5 @@ let dump con chan =
 *)
 
 let debug con =
-	let watches = List.map (fun (path, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr path token) (list_watches con) in
+	let watches = List.map (fun (path, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Store.Path.to_string path) token) (list_watches con) in
 	String.concat "" watches

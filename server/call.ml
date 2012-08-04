@@ -57,7 +57,7 @@ let reply_exn store c request =
 			let v = Transaction.getperms t c.Connection.perm path in
 			Response.getperms request v
 		| Some (Getdomainpath domid) ->
-			let v = Store.Path.getdomainpath domid in
+			let v = Store.Path.getdomainpath domid |> Store.Path.to_string in
 			Response.getdomainpath request v
 		| Some (Transaction_start) ->
 			if tid <> Transaction.none then raise Transaction_nested;
@@ -93,11 +93,11 @@ let reply_exn store c request =
 			Transaction.setperms t c.Connection.perm path perms;
 			Response.setperms request
 		| Some (Watch(path, token)) ->
-			let watch = Connection.add_watch c path token in
+			let watch = Connection.add_watch c (Store.Path.of_string path) token in
 			Connection.fire_one None watch;
 			Response.watch request
 		| Some (Unwatch(path, token)) ->
-			Connection.del_watch c path token;
+			Connection.del_watch c (Store.Path.of_string path) token;
 			Response.unwatch request
 		| Some (Transaction_end commit) ->
 			Connection.unregister_transaction c tid;
@@ -126,7 +126,7 @@ let reply_exn store c request =
 		| Some (Introduce(domid, mfn, port)) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
 			(* register domain *)
-			Connection.fire (Xs_packet.Op.Write, Store.Path.of_string "@introduceDomain");
+			Connection.fire (Xs_packet.Op.Write, Store.Path.introduceDomain);
 			Response.introduce request
 		| Some (Resume(domid)) ->
 			Perms.has c.Connection.perm Perms.RESUME;
@@ -135,7 +135,7 @@ let reply_exn store c request =
 		| Some (Release(domid)) ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
-			Connection.fire (Xs_packet.Op.Write, Store.Path.of_string "@releaseDomain");
+			Connection.fire (Xs_packet.Op.Write, Store.Path.releaseDomain);
 			Response.release request
 		| Some (Set_target(mine, yours)) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;

@@ -43,15 +43,16 @@ exception Already_exist
 
 type t
 
-val getdomainpath: int -> string
+val introduceDomain: t
+val releaseDomain: t
+
+val getdomainpath: int -> t
 
 val of_string: string -> t
 
-val create: string -> string -> t
+val create: string -> t -> t
 
 val to_string: t -> string
-
-val to_string_list: t -> string list
 
 val to_key: t -> string list
 
@@ -62,6 +63,10 @@ val get_node: Node.t -> t -> Node.t option
 val get_common_prefix: t -> t -> t
 
 val get_parent: t -> t
+
+val make_relative: t -> t -> t
+
+val is_relative: t -> bool
 
 end
 
