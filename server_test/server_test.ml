@@ -242,6 +242,33 @@ let test_device_create_coalesce () =
 		dom0, tid_2, Transaction_end true, OK;
 	]
 
+let string_of_watch_events watch_events =
+	String.concat "; " (List.map (fun (k, v) -> k ^ ", " ^ v) watch_events)
+
+let assert_watches c expected =
+	let got = List.rev (Queue.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
+	assert_equal ~msg:"watches" ~printer:string_of_watch_events expected got
+
+let test_simple_watches () =
+	(* Check that writes generate watches and reads do not *)
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, Mkdir "/a", OK;
+	];
+	assert_watches dom0 [];
+	run store [
+		dom0, none, Watch ("/a", "token"), OK;
+	];
+	assert_watches dom0 [ ("/a", "token") ];
+	Queue.clear dom0.Connection.watch_events;
+	assert_watches dom0 [];
+	run store [
+		dom0, none, Write("/a", "foo"), OK;
+	];
+	assert_watches dom0 [ ("/a", "token") ]
+
 let test_transaction_watches () =
 	(* Check that watches only appear on transaction commit
 	   and not at all in the case of abort *)
@@ -273,6 +300,7 @@ let _ =
 
   let suite = "xenstore" >:::
     [
+
 		"test_implicit_create" >:: test_implicit_create;
 		"test_directory_order" >:: test_directory_order;
 		"getperms(setperms)" >:: test_setperms_getperms;
@@ -282,5 +310,6 @@ let _ =
 		"transactions_are_isolated" >:: test_transactions_are_isolated;
 		"independent_transactions_coalesce" >:: test_independent_transactions_coalesce;
 (*		"device_create_coalesce" >:: test_device_create_coalesce; *)
+		"test_simple_watches" >:: test_simple_watches;
 	] in
   run_test_tt ~verbose:!verbose suite

@@ -15,6 +15,7 @@
  *)
 
 let debug fmt = Logging.debug "connection" fmt
+let info  fmt = Logging.info  "connection" fmt
 let error fmt = Logging.debug "connection" fmt
 
 exception End_of_file
@@ -38,6 +39,7 @@ and t = {
 	mutable nb_watches: int;
 	mutable stat_nb_ops: int;
 	mutable perm: Perms.t;
+	watch_events: (string * string) Queue.t;
 }
 
 let domains : (int, t) Hashtbl.t = Hashtbl.create 128
@@ -59,7 +61,25 @@ let number_of_transactions con =
 
 let anon_id_next = ref 1
 
+let destroy domid =
+	try
+		let c = Hashtbl.find domains domid in
+		Logging.end_connection ~tid:Transaction.none ~con:c.domstr;
+		watches := Trie.map
+			(fun watches ->
+				match List.filter (fun w -> w.con != c) watches with
+				| [] -> None
+				| ws -> Some ws
+			) !watches;
+		Hashtbl.remove domains domid
+	with Not_found ->
+		error "Failed to remove connection for domid: %d" domid
+
 let create (* xbcon *) dom =
+	if Hashtbl.mem domains dom then begin
+		info "Connection.create: found existing connection for %d: closing" dom;
+		destroy dom
+	end;
 	let con = 
 	{
 		domid = dom;
@@ -70,6 +90,7 @@ let create (* xbcon *) dom =
 		nb_watches = 0;
 		stat_nb_ops = 0;
 		perm = Perms.of_domain dom;
+		watch_events = Queue.create ();
 	}
 	in 
 	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
@@ -79,10 +100,6 @@ let create (* xbcon *) dom =
 (*
 let get_fd con = Xenbus.Xb.get_fd con.xb
 *)
-let close con =
-	Logging.end_connection ~tid:Transaction.none ~con:con.domstr;
-	Hashtbl.remove domains con.domid;
-	()
 (*
 	Xenbus.Xb.close con.xb
 *)
@@ -200,26 +217,26 @@ let fire_one path watch =
 				path in
 	let open Xs_packet in
 	let packet = Response.watchevent path watch.token in
-	Logging.xb_answer ~tid:(get_tid packet) ~con:watch.con.domstr ~ty:(get_ty packet) (get_data packet)
+	Logging.xb_answer ~tid:(get_tid packet) ~con:watch.con.domstr ~ty:(get_ty packet) (get_data packet);
+	Printf.fprintf stderr "Adding %s, %s to %s\n%!" path watch.token watch.con.domstr;
+	Queue.add (path, watch.token) watch.con.watch_events
 
 let fire (op, path) =
 	let key = key_of_path path in
 	let path = Store.Path.to_string path in
-	Hashtbl.iter
-		(fun domid c ->
-			Trie.iter_path
-				(fun _ w -> match w with
-				| None -> ()
-				| Some ws -> List.iter (fire_one (Some path)) ws
-				) !watches key;
-
-			if op = Xs_packet.Op.Rm
-			then Trie.iter
-				(fun _ w -> match w with
-				| None -> ()
-				| Some ws -> List.iter (fire_one None) ws
-				) (Trie.sub !watches key)
-		) domains
+	Printf.fprintf stderr "Looking for watches on: %s\n%!" path;
+	Trie.iter_path
+		(fun _ w -> match w with
+		| None -> ()
+		| Some ws -> List.iter (fire_one (Some path)) ws
+		) !watches key;
+	
+	if op = Xs_packet.Op.Rm
+	then Trie.iter
+		(fun _ w -> match w with
+		| None -> ()
+		| Some ws -> List.iter (fire_one None) ws
+		) (Trie.sub !watches key)
 
 let find_next_tid con =
 	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret

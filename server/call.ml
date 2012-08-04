@@ -65,9 +65,11 @@ let reply_exn store c request =
 			let t = Transaction.make tid (Transaction.get_store t) in
 			Response.transaction_start request tid
 		| Some (Write(path, value)) ->
+			Printf.fprintf stderr "Write %s <- %s\n%!" path value;
 			let path = resolve path in
 			Transaction.mkdir_p t c.Connection.perm path;
 			Transaction.write t c.Connection.perm path value;
+			Printf.fprintf stderr "tid = %lu len(wops) = %d\n%!" tid (List.length t.Transaction.ops);
 			Response.write request
 		| Some (Mkdir path) ->
 			let path = resolve path in
@@ -158,7 +160,7 @@ let reply_exn store c request =
 		| Some (Watchevent msg) ->
 			error "client sent us a watch event: %s" (hexify msg);
 			raise Parse_failure in
-	if tid <> Transaction.none
+	if tid = Transaction.none
 	then Transaction.get_ops t |> List.rev |> List.iter Connection.fire;
 	reply
 
