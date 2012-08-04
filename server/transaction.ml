@@ -30,7 +30,7 @@ let check_parents_perms_identical root1 root2 path =
 		and n2 = Store.Path.get_node root2 path in
 		match n1, n2 with
 		| Some n1, Some n2 ->
-			(Store.Node.get_perms n1) <> (Store.Node.get_perms n2) || acc
+			n1.Store.Node.perms <> n2.Store.Node.perms || acc
 		| _ ->
 			true || acc
 	) false hierarch in
@@ -83,7 +83,7 @@ type t = {
 }
 
 let make id store =
-	let ty = if id = none then No else Full(id, Store.get_root store, store) in
+	let ty = if id = none then No else Full(id, store.Store.root, store) in
 	{
 		ty = ty;
 		store = if id = none then store else Store.copy store;
@@ -167,8 +167,8 @@ let commit ~con t =
 		let commit_partial oldroot cstore store =
 			(* get the lowest path of the query and verify that it hasn't
 			   been modified by others transactions. *)
-			if can_coalesce oldroot (Store.get_root cstore) t.read_lowpath
-			&& can_coalesce oldroot (Store.get_root cstore) t.write_lowpath then (
+			if can_coalesce oldroot cstore.Store.root t.read_lowpath
+			&& can_coalesce oldroot cstore.Store.root t.write_lowpath then (
 				maybe (fun p ->
 					let n = Store.get_node store p in
 
@@ -181,22 +181,22 @@ let commit ~con t =
 					Logging.read_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p)
 					) t.read_lowpath;
 				has_coalesced := true;
-				Store.incr_transaction_coalesce cstore;
+				cstore.Store.stat_transaction_coalesce <- cstore.Store.stat_transaction_coalesce + 1;
 				true
 			) else (
 				(* cannot do anything simple, just discard the queries,
 				   and the client need to redo it later *)
-				Store.incr_transaction_abort cstore;
+				cstore.Store.stat_transaction_abort <- cstore.Store.stat_transaction_abort + 1;
 				false
 			)
 			in
 		let try_commit oldroot cstore store =
-			if oldroot == Store.get_root cstore then (
+			if oldroot == cstore.Store.root then (
 				(* move the new root to the current store, if the oldroot
 				   has not been modified *)
 				if has_write_ops then (
-					Store.set_root cstore (Store.get_root store);
-					Store.set_quota cstore (Store.get_quota store)
+					Store.set_root cstore store.Store.root;
+					Store.set_quota cstore store.Store.quota
 				);
 				true
 			) else

@@ -114,6 +114,7 @@ let is_valid path =
 	List.for_all name_is_valid path
 
 let of_string s =
+	assert (s.[0] <> '@');
 	if s.[0] = '@'
 	then [s]
 	else if s = "/"
@@ -145,13 +146,20 @@ let create path connection_path =
 let to_string t =
 	"/" ^ (String.concat "/" t)
 
-let to_string_list x = x
+let to_string_list x = "" :: x
 
 let get_parent t =
 	if t = [] then [] else List.rev (List.tl (List.rev t))
 
+(* string utils *)
 let get_hierarchy path =
-	get_hierarchy path
+	let l = List.length path in
+	let revpath = List.rev path in
+	let rec sub i =
+		let x = List.rev (list_tl_multi (l - i) revpath) in
+		if i = l then [ x ] else x :: sub (i + 1)
+		in
+	sub 0
 
 let get_common_prefix p1 p2 =
 	let rec compare l1 l2 =

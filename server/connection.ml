@@ -46,6 +46,13 @@ let domains : (int, t) Hashtbl.t = Hashtbl.create 128
 
 let watches : (string, watch list) Trie.t ref = ref (Trie.create ())
 
+let list_of_watches () =
+	Trie.fold (fun path v_opt acc ->
+		match v_opt with
+		| None -> Printf.sprintf "%s <- None" path :: acc
+		| Some vs -> Printf.sprintf "%s <- %s" path (String.concat ", " (List.map (fun v -> v.con.domstr) vs)) :: acc
+	) !watches []
+
 let watch_create ~con ~path ~token = { 
 	con = con; 
 	token = token; 
@@ -145,11 +152,15 @@ let is_dom0 con =
 let key_of_str path =
         if path.[0] = '@'
         then [path]
-        else "" :: Store.Path.to_string_list (Store.Path.of_string path)
+        else Store.Path.to_string_list (Store.Path.of_string path)
 
-let key_of_path path =
-        "" :: Store.Path.to_string_list path
+let key_of_path = function
+	| [ special ] as path when special <> "" && special.[0] = '@' -> path
+	| path -> Store.Path.to_string_list path
 
+let string_of_path = function
+	| [ special ] when special <> "" && special.[0] = '@' -> special
+	| path -> Store.Path.to_string path
 
 let add_watch con path token =
 (*
@@ -174,6 +185,8 @@ let add_watch con path token =
             else []
         in
         Trie.set !watches key (watch :: ws));
+	Printf.fprintf stderr "Watches:\n";
+	List.iter (Printf.fprintf stderr "%s\n%!") (list_of_watches ());
 
 	watch
 
@@ -221,10 +234,10 @@ let fire_one path watch =
 	Printf.fprintf stderr "Adding %s, %s to %s\n%!" path watch.token watch.con.domstr;
 	Queue.add (path, watch.token) watch.con.watch_events
 
-let fire (op, path) =
-	let key = key_of_path path in
-	let path = Store.Path.to_string path in
-	Printf.fprintf stderr "Looking for watches on: %s\n%!" path;
+let fire (op, path') =
+	let key = key_of_path path' in
+	let path = string_of_path path' in
+	Printf.fprintf stderr "Looking for watches on: %s (key = [ %s ])\n%!" path (String.concat ", " key);
 	Trie.iter_path
 		(fun _ w -> match w with
 		| None -> ()

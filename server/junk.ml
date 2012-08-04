@@ -87,16 +87,6 @@ let list_tl_multi n l =
 		in
 	do_tl n l
 
-(* string utils *)
-let get_hierarchy path =
-	let l = List.length path in
-	let revpath = List.rev path in
-	let rec sub i =
-		let x = List.rev (list_tl_multi (l - i) revpath) in
-		if i = l then [ x ] else x :: sub (i + 1)
-		in
-	sub 0
-
 let hexify s =
 	let hexseq_of_char c = Printf.sprintf "%02x" (Char.code c) in
 	let hs = String.create (String.length s * 2) in
