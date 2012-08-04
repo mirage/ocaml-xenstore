@@ -252,10 +252,13 @@ let assert_watches c expected =
 let test_simple_watches () =
 	(* Check that writes generate watches and reads do not *)
 	let dom0 = Connection.create 0 in
+	let dom1 = Connection.create 1 in
 	let store = empty_store () in
 	let open Xs_packet.Request in
+	(* No watch events are generated without registering *)
 	run store [
 		dom0, none, Mkdir "/a", OK;
+		dom0, none, Setperms("/a", Xs_packet.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
 	];
 	assert_watches dom0 [];
 	run store [
@@ -264,10 +267,49 @@ let test_simple_watches () =
 	assert_watches dom0 [ ("/a", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
+	(* dom0 can see its own write via watches *)
 	run store [
 		dom0, none, Write("/a", "foo"), OK;
 	];
-	assert_watches dom0 [ ("/a", "token") ]
+	assert_watches dom0 [ ("/a", "token") ];
+	Queue.clear dom0.Connection.watch_events;
+	assert_watches dom0 [];
+	(* dom0 can see dom1's writes via watches *)
+	run store [
+		dom1, none, Write("/a", "foo"), OK;
+	];
+	assert_watches dom0 [ ("/a", "token") ];
+	Queue.clear dom0.Connection.watch_events;
+	assert_watches dom0 [];
+	(* reads don't generate watches *)
+	run store [
+		dom0, none, Read "/a", OK;
+		dom0, none, Read "/a/1", Err "ENOENT";
+		dom1, none, Read "/a", OK;
+		dom1, none, Read "/a/1", Err "ENOENT";
+	];
+	assert_watches dom0 []
+
+let test_watches_read_perm () =
+	(* Check that a connection only receives a watch if it
+       can read the node that was modified. *)
+	let dom0 = Connection.create 0 in
+	let dom1 = Connection.create 1 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom1, none, Watch ("/a", "token"), OK;
+	];
+	assert_watches dom1 [ ("/a", "token") ];
+	Queue.clear dom1.Connection.watch_events;
+	assert_watches dom1 [];
+	run store [
+		dom0, none, Write ("/a", "hello"), OK;
+		dom1, none, Read "/a", Err "EACCES";
+	];
+	assert_watches dom1 []
+
+
 
 let test_transaction_watches () =
 	(* Check that watches only appear on transaction commit
@@ -311,5 +353,6 @@ let _ =
 		"independent_transactions_coalesce" >:: test_independent_transactions_coalesce;
 (*		"device_create_coalesce" >:: test_device_create_coalesce; *)
 		"test_simple_watches" >:: test_simple_watches;
+(*		"test_watches_read_perm" >:: test_watches_read_perm; *)
 	] in
   run_test_tt ~verbose:!verbose suite
