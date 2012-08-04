@@ -41,7 +41,7 @@ exception Doesnt_exist
 
 exception Already_exist
 
-type t = string list
+type t
 
 val getdomainpath: int -> string
 
@@ -52,6 +52,8 @@ val create: string -> string -> t
 val to_string: t -> string
 
 val to_string_list: t -> string list
+
+val to_key: t -> string list
 
 val get_hierarchy: t -> t list
 

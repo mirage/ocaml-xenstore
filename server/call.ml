@@ -126,7 +126,7 @@ let reply_exn store c request =
 		| Some (Introduce(domid, mfn, port)) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
 			(* register domain *)
-			Connection.fire (Xs_packet.Op.Write, [ "@introduceDomain" ]);
+			Connection.fire (Xs_packet.Op.Write, Store.Path.of_string "@introduceDomain");
 			Response.introduce request
 		| Some (Resume(domid)) ->
 			Perms.has c.Connection.perm Perms.RESUME;
@@ -135,7 +135,7 @@ let reply_exn store c request =
 		| Some (Release(domid)) ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
-			Connection.fire (Xs_packet.Op.Write, [ "@releaseDomain" ]);
+			Connection.fire (Xs_packet.Op.Write, Store.Path.of_string "@releaseDomain");
 			Response.release request
 		| Some (Set_target(mine, yours)) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;

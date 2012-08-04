@@ -154,14 +154,6 @@ let key_of_str path =
         then [path]
         else Store.Path.to_string_list (Store.Path.of_string path)
 
-let key_of_path = function
-	| [ special ] as path when special <> "" && special.[0] = '@' -> path
-	| path -> Store.Path.to_string_list path
-
-let string_of_path = function
-	| [ special ] when special <> "" && special.[0] = '@' -> special
-	| path -> Store.Path.to_string path
-
 let add_watch con path token =
 (*
 	if !Quota.activate && !Define.maxwatch > 0 &&
@@ -235,8 +227,8 @@ let fire_one path watch =
 	Queue.add (path, watch.token) watch.con.watch_events
 
 let fire (op, path') =
-	let key = key_of_path path' in
-	let path = string_of_path path' in
+	let key = Store.Path.to_key path' in
+	let path = Store.Path.to_string path' in
 	Printf.fprintf stderr "Looking for watches on: %s (key = [ %s ])\n%!" path (String.concat ", " key);
 	Trie.iter_path
 		(fun _ w -> match w with

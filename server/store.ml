@@ -114,7 +114,6 @@ let is_valid path =
 	List.for_all name_is_valid path
 
 let of_string s =
-	assert (s.[0] <> '@');
 	if s.[0] = '@'
 	then [s]
 	else if s = "/"
@@ -143,10 +142,15 @@ let path_validate path connection_path =
 let create path connection_path =
 	of_string (path_validate path connection_path)
 
-let to_string t =
-	"/" ^ (String.concat "/" t)
+let to_string = function
+	| [ special ] when special <> "" && special.[0] = '@' -> special
+	| path -> "/" ^ (String.concat "/" path)
 
 let to_string_list x = "" :: x
+
+let to_key = function
+	| [ special ] as path when special <> "" && special.[0] = '@' -> path
+	| path -> to_string_list path
 
 let get_parent t =
 	if t = [] then [] else List.rev (List.tl (List.rev t))
