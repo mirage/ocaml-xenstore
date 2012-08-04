@@ -343,7 +343,19 @@ let test_transaction_watches () =
 
 let test_introduce_watches () =
 	(* Check that @introduceDomain watches appear on introduce *)
-	()
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, Watch ("@introduceDomain", "token"), OK;
+	];
+	assert_watches dom0 [ ("@introduceDomain", "token") ];
+	Queue.clear dom0.Connection.watch_events;
+	assert_watches dom0 [];
+	run store [
+		dom0, none, Introduce(5, 5n, 5), OK;
+	];
+	assert_watches dom0 [ ("@introduceDomain", "token") ]
 
 let test_release_watches () =
 	(* Check that @releaseDomain watches appear on introduce *)
@@ -357,6 +369,9 @@ let test_no_watch_no_error () =
 	(* Check that a write failure doesn't generate a watch *)
 	()
 
+let test_bounded_watch_events () =
+	(* Check that the per-connection watch event queue is bounded *)
+	()
 
 let _ =
   let verbose = ref false in
@@ -380,5 +395,6 @@ let _ =
 		"test_simple_watches" >:: test_simple_watches;
 (*		"test_watches_read_perm" >:: test_watches_read_perm; *)
 		"test_transaction_watches" >:: test_transaction_watches;
+		"test_introduce_watches" >:: test_introduce_watches;
 	] in
   run_test_tt ~verbose:!verbose suite
