@@ -172,8 +172,11 @@ let to_key = function
 	| Absolute p -> "" :: p
 	| Relative p -> "" :: p
 
-let get_parent t =
-	if t = [] then [] else List.rev (List.tl (List.rev t))
+let get_parent t = match t with
+	| Relative []
+	| Absolute [] -> t
+	| Relative t -> Relative (List.rev (List.tl (List.rev t)))
+	| Absolute t -> Absolute (List.rev (List.tl (List.rev t)))
 
 let make_relative base t = match base, t with
 	| Absolute base, Absolute a ->
@@ -191,27 +194,33 @@ let list_tl_multi n l =
 		in
 	do_tl n l
 
+let absolute = function
+	| Absolute x -> x
+	| _ -> assert false
 
 (* string utils *)
 let get_hierarchy path =
+	let path = absolute path in
 	let l = List.length path in
 	let revpath = List.rev path in
 	let rec sub i =
 		let x = List.rev (list_tl_multi (l - i) revpath) in
 		if i = l then [ x ] else x :: sub (i + 1)
-		in
-	sub 0
+	in
+	List.map (fun x -> Absolute x) (sub 0)
 
 let get_common_prefix p1 p2 =
+	let p1 = absolute p1 in
+	let p2 = absolute p2 in
 	let rec compare l1 l2 =
 		match l1, l2 with
 		| h1 :: tl1, h2 :: tl2 ->
 			if h1 = h2 then h1 :: (compare tl1 tl2) else []
 		| _, [] | [], _ ->
-			(* if l1 or l2 is empty, we found the equal part already *)
+				(* if l1 or l2 is empty, we found the equal part already *)
 			[]
-		in
-	compare p1 p2
+	in
+	Absolute (compare p1 p2)
 
 let rec lookup_modify node path fct =
 	match path with
@@ -240,6 +249,7 @@ let rec lookup_get node path =
 	| h :: l  -> let cnode = Node.find node h in lookup_get cnode l
 
 let get_node rnode path =
+	let path = absolute path in
 	if path = [] then
 		Some rnode
 	else (
@@ -247,11 +257,14 @@ let get_node rnode path =
 	)
 
 (* get the deepest existing node for this path *)
-let rec get_deepest_existing_node node = function
-	| [] -> node
-	| h :: t ->
-		try get_deepest_existing_node (Node.find node h) t 
-		with Not_found -> node
+let rec get_deepest_existing_node node path =
+	let path = absolute path in
+	let rec f node = function
+		| [] -> node
+		| h :: t ->
+			try f (Node.find node h) t 
+			with Not_found -> node in
+	f node path
 
 let set_node rnode path nnode =
 	let quota = Quota.create () in
@@ -298,6 +311,7 @@ let set_quota store quota = store.quota <- quota
 
 (* modifying functions *)
 let path_mkdir store perm path =
+	let path = Path.absolute path in
 	let do_mkdir node name =
 		try
 			let ent = Node.find node name in
@@ -312,6 +326,7 @@ let path_mkdir store perm path =
 		Path.apply_modify store.root path do_mkdir
 
 let path_write store perm path value =
+	let path = Path.absolute path in
 	let node_created = ref false in
 	let do_write node name =
 		try
@@ -330,6 +345,7 @@ let path_write store perm path value =
 		Path.apply_modify store.root path do_write, !node_created
 
 let path_rm store perm path =
+	let path = Path.absolute path in
 	let do_rm node name =
 		try
 			let ent = Node.find node name in
@@ -343,6 +359,7 @@ let path_rm store perm path =
 		Path.apply_modify store.root path do_rm
 
 let path_setperms store perm path perms =
+	let path = Path.absolute path in
 	if path = [] then
 		Node.set_perms store.root perms
 	else
@@ -363,6 +380,7 @@ let get_deepest_existing_node store path =
 	Path.get_deepest_existing_node store.root path
 
 let read store perm path =
+	let path = Path.absolute path in
 	let do_read node name =
 		let ent = Node.find node name in
 		Perms.check perm Perms.READ ent.Node.perms;
@@ -376,6 +394,7 @@ let read store perm path =
 		Path.apply store.root path do_read
 
 let ls store perm path =
+	let path = Path.absolute path in
 	let children =
 		if path = [] then
 			(Node.get_children store.root)
@@ -388,6 +407,7 @@ let ls store perm path =
 	List.rev (List.map (fun n -> Symbol.to_string n.Node.name) children)
 
 let getperms store perm path =
+	let path = Path.absolute path in
 	if path = [] then
 		(Node.get_perms store.root)
 	else
@@ -398,6 +418,7 @@ let getperms store perm path =
 		Path.apply store.root path fct
 
 let path_exists store path =
+	let path = Path.absolute path in
 	if path = [] then
 		true
 	else
@@ -407,7 +428,6 @@ let path_exists store path =
 				true in
 			Path.apply store.root path check_exist
 		with Not_found -> false
-
 
 (* others utils *)
 let traversal root_node f =
@@ -444,6 +464,7 @@ let dump_buffer store = dump_store_buf store.root
 
 (* modifying functions with quota udpate *)
 let set_node store path node =
+	let path = Path.absolute path in
 	let root, quota_diff = Path.set_node store.root path node in
 	store.root <- root;
 	Quota.add store.quota quota_diff
@@ -469,7 +490,7 @@ let rm store perm path =
 	| Some rmed_node ->
 		store.root <- path_rm store perm path;
 		Node.recurse (fun node -> Quota.del_entry store.quota (Node.get_owner node)) rmed_node
-
+		
 let setperms store perm path nperms =
 	match Path.get_node store.root path with
 	| None -> raise Path.Doesnt_exist
