@@ -309,12 +309,37 @@ let test_watches_read_perm () =
 	];
 	assert_watches dom1 []
 
-
-
 let test_transaction_watches () =
 	(* Check that watches only appear on transaction commit
 	   and not at all in the case of abort *)
-	()
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, Watch ("/a", "token"), OK;
+	];
+	assert_watches dom0 [ ("/a", "token") ];
+	Queue.clear dom0.Connection.watch_events;
+	assert_watches dom0 [];
+	(* Writes in a transaction don't generate watches immediately *)
+	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+	run store [
+		dom0, tid, Write ("/a", "hello"), OK;
+	];
+	assert_watches dom0 [];
+	(* If the transaction is aborted then no watches are generated *)
+	run store [
+		dom0, tid, Transaction_end false, OK
+	];
+	assert_watches dom0 [];
+	(* If the transaction successfully commits then the watches appear *)
+	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+	run store [
+		dom0, tid, Write ("/a", "hello"), OK;
+		dom0, tid, Transaction_end true, OK
+	];
+	assert_watches dom0 [ ("/a", "token") ]
+
 
 let test_introduce_watches () =
 	(* Check that @introduceDomain watches appear on introduce *)
@@ -354,5 +379,6 @@ let _ =
 (*		"device_create_coalesce" >:: test_device_create_coalesce; *)
 		"test_simple_watches" >:: test_simple_watches;
 (*		"test_watches_read_perm" >:: test_watches_read_perm; *)
+		"test_transaction_watches" >:: test_transaction_watches;
 	] in
   run_test_tt ~verbose:!verbose suite
