@@ -26,8 +26,8 @@ let do_coalesce = ref true
 let check_parents_perms_identical root1 root2 path =
 	let hierarch = Store.Path.get_hierarchy path in
 	let permdiff = List.fold_left (fun acc path ->
-		let n1 = Store.Path.get_node root1 path
-		and n2 = Store.Path.get_node root2 path in
+		let n1 = Store.lookup root1 path
+		and n2 = Store.lookup root2 path in
 		match n1, n2 with
 		| Some n1, Some n2 ->
 			(Store.Node.get_perms n1) <> (Store.Node.get_perms n2) || acc
@@ -45,8 +45,8 @@ let test_coalesce oldroot currentroot optpath =
 	match optpath with
 	| None      -> true
 	| Some path ->
-		let oldnode = Store.Path.get_node oldroot path
-		and currentnode = Store.Path.get_node currentroot path in
+		let oldnode = Store.lookup oldroot path
+		and currentnode = Store.lookup currentroot path in
 		
 		match oldnode, currentnode with
 		| (Some oldnode), (Some currentnode) ->
@@ -58,7 +58,7 @@ let test_coalesce oldroot currentroot optpath =
 		| None, None -> (
 			(* ok then it doesn't exists in the old version and the current version,
 			   just sneak it in as a child of the parent node if it exists, or else fail *)
-			let pnode = Store.Path.get_node currentroot (Store.Path.get_parent path) in
+			let pnode = Store.lookup currentroot (Store.Path.get_parent path) in
 			match pnode with
 			| None       -> false (* ok it doesn't exists, just bail out. *)
 			| Some pnode -> true
@@ -170,7 +170,7 @@ let commit ~con t =
 			if can_coalesce oldroot cstore.Store.root t.read_lowpath
 			&& can_coalesce oldroot cstore.Store.root t.write_lowpath then (
 				maybe (fun p ->
-					let n = Store.get_node store p in
+					let n = Store.lookup store.Store.root p in
 
 					(* it has to be in the store, otherwise it means bugs
 					   in the lowpath registration. we don't need to handle none. *)

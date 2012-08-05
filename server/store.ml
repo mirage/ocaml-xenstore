@@ -249,23 +249,6 @@ let rec lookup_modify node path fct =
 let apply_modify rnode path fct =
 	lookup_modify rnode path fct
 
-let rec lookup_get node path =
-	match path with
-	| []      -> raise (Invalid_path)
-	| h :: [] ->
-		(try
-			Node.find node h
-		with Not_found ->
-			raise Doesnt_exist)
-	| h :: l  -> let cnode = Node.find node h in lookup_get cnode l
-
-let get_node rnode path =
-	if path = [] then
-		Some rnode
-	else (
-		try Some (lookup_get rnode path) with Doesnt_exist -> None
-	)
-
 (* get the deepest existing node for this path *)
 let rec get_deepest_existing_node node path =
 	let rec f node = function
@@ -378,8 +361,22 @@ let path_setperms store perm path perms =
 		Path.apply_modify store.root path do_setperms
 
 (* accessing functions *)
-let get_node store path =
-	Path.get_node store.root path
+let lookup node path =
+	let rec lookup_get node path =
+		match path with
+		| []      -> raise (Invalid_path)
+		| h :: [] ->
+			(try
+				 Node.find node h
+			 with Not_found ->
+				 raise Path.Doesnt_exist)
+		| h :: l  -> let cnode = Node.find node h in lookup_get cnode l in
+
+	if path = [] then
+		Some node
+	else (
+		try Some (lookup_get node path) with Path.Doesnt_exist -> None
+	)
 
 let get_deepest_existing_node store path =
 	Path.get_deepest_existing_node store.root path
@@ -484,7 +481,7 @@ let mkdir store perm path =
 	Quota.add_entry store.quota owner
 
 let rm store perm path =
-	let rmed_node = Path.get_node store.root path in
+	let rmed_node = lookup store.root path in
 	match rmed_node with
 	| None -> raise Path.Doesnt_exist
 	| Some rmed_node ->
@@ -492,7 +489,7 @@ let rm store perm path =
 		Node.recurse (fun node -> Quota.del_entry store.quota (Node.get_owner node)) rmed_node
 		
 let setperms store perm path nperms =
-	match Path.get_node store.root path with
+	match lookup store.root path with
 	| None -> raise Path.Doesnt_exist
 	| Some node ->
 		let old_owner = Node.get_owner node in

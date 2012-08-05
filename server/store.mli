@@ -73,21 +73,31 @@ module Path : sig
 	(** [create path default] is the absolute path of [path], where if [path]
 		is relative then it is resolved relative to [default] *)
 
-val to_name: t -> Name.t
+	val to_name: t -> Name.t
+	(** [to_name t] returns the associated Name.t, suitable for watching *)
 
-val to_string: t -> string
+	val to_string: t -> string
+	(** [to_string t] returns [t] as a '/'-separated path string *)
 
-val get_hierarchy: t -> t list
+	val get_hierarchy: t -> t list
+	(** [get_hierarchy t] returns all t's on the path from the root node to [t] *)
 
-val get_node: Node.t -> t -> Node.t option
+	val get_common_prefix: t -> t -> t
+	(** [get_common_prefix a b] returns the largest common prefix of [a] and [b] *)
 
-val get_common_prefix: t -> t -> t
+	val get_parent: t -> t
+	(** [get_parent t] returns the parent node of [t]. The parent of the root node
+		is itself. *)
 
-val get_parent: t -> t
-
-val make_relative: t -> Name.t -> Name.t
+	val make_relative: t -> Name.t -> Name.t
+	(** [make_relative base name] returns a Name.t which is [name] transformed into
+		a relative path from [base] *)
 
 end
+
+val lookup: Node.t -> Path.t -> Node.t option
+(** [lookup node path] follows [path] from [node] and returns the node it
+	finds, or None *)
 
 type t =
 {
@@ -120,7 +130,7 @@ val read: t -> Perms.t -> Path.t -> string
 
 val getperms: t -> Perms.t -> Path.t -> Xs_packet.ACL.t
 
-val get_node: t -> Path.t -> Node.t option
+
 val set_node: t -> Path.t -> Node.t -> unit
 
 val mark_symbols: t -> unit
