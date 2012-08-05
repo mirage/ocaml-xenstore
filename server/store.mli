@@ -31,9 +31,23 @@ val set_perms: t -> Xs_packet.ACL.t -> t
 
 end
 
-module Path : sig
-
 exception Invalid_path
+
+module Name : sig
+	type t
+
+	val introduceDomain: t
+	val releaseDomain: t
+
+	val of_string: string -> t
+	val to_string: t -> string
+
+	val is_relative: t -> bool
+
+	val to_key: t -> string list
+end
+
+module Path : sig
 
 exception Lookup_Doesnt_exist of string
 
@@ -43,18 +57,14 @@ exception Already_exist
 
 type t
 
-val introduceDomain: t
-val releaseDomain: t
 
 val getdomainpath: int -> t
 
-val of_string: string -> t
-
 val create: string -> t -> t
 
-val to_string: t -> string
+val to_name: t -> Name.t
 
-val to_key: t -> string list
+val to_string: t -> string
 
 val get_hierarchy: t -> t list
 
@@ -64,9 +74,7 @@ val get_common_prefix: t -> t -> t
 
 val get_parent: t -> t
 
-val make_relative: t -> t -> t
-
-val is_relative: t -> bool
+val make_relative: t -> Name.t -> Name.t
 
 end
 

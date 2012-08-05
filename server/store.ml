@@ -84,36 +84,6 @@ let unpack node = (Symbol.to_string node.name, node.perms, node.value)
 
 end
 
-module Path = struct
-
-exception Invalid_path
-
-exception Lookup_Doesnt_exist of string
-
-exception Doesnt_exist
-
-exception Already_exist
-
-type t =
-| IntroduceDomain
-| ReleaseDomain
-| Absolute of string list
-| Relative of string list
-
-(* represent a path in a store.
- * [] -> "/"
- * [ "local"; "domain"; "1" ] -> "/local/domain/1"
- *)
-(*
-type t = string list
-*)
-
-let getdomainpath domid = Absolute [ "local"; "domain"; Printf.sprintf "%u" domid ]
-
-let is_relative = function
-	| Relative _ -> true
-	| _ -> false
-
 let char_is_valid c =
 	(c >= 'a' && c <= 'z') ||
 	(c >= 'A' && c <= 'Z') ||
@@ -125,16 +95,12 @@ let name_is_valid name =
 
 let is_valid = List.for_all name_is_valid
 
-let introduceDomain = IntroduceDomain
-let releaseDomain = ReleaseDomain
+type path = string list
 
-let of_string = function
-	| "@introduceDomain" -> IntroduceDomain
-	| "@releaseDomain"   -> ReleaseDomain
-	| "" ->
-		error "zero-length paths are invalid";
-		raise Invalid_path
-	| "/" -> Absolute []
+exception Invalid_path
+
+let path_of_string = function
+	| "/" -> []
 	| path ->
 		if String.length path > 1024 then begin
 			error "paths larger than 1024 bytes are invalid";
@@ -146,47 +112,103 @@ let of_string = function
 				error "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
 				raise Invalid_path
 			end;
-			Absolute path
+			path
 		| path ->
-			if not(is_valid path) then begin
-				error "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
-				raise Invalid_path
-			end;
-			Relative path
+			raise Invalid_path
 		end
 
-let to_string = function
-	| IntroduceDomain -> "@introduceDomain"
-	| ReleaseDomain -> "@releaseDomain"
-	| Absolute path -> "/" ^ (String.concat "/" path)
-	| Relative path -> String.concat "/" path
+let path_to_string path = String.concat "/" ("" :: path)
 
-let create path connection_path = match of_string path, connection_path with
-	| Absolute _ as path, _ -> path
-	| Relative x, Absolute y -> Absolute (y @ x)
-	| _, _ -> raise Invalid_path
+module Name = struct
 
-let to_key = function
-	| IntroduceDomain -> [ "@introduceDomain" ]
-	| ReleaseDomain -> [ "@releaseDomain" ]
-	| Absolute p -> "" :: p
-	| Relative p -> "" :: p
+	type t =
+		| IntroduceDomain
+		| ReleaseDomain
+		| Absolute of path
+		| Relative of path
+
+	let is_relative = function
+		| Relative _ -> true
+		| _ -> false
+
+	let introduceDomain = IntroduceDomain
+	let releaseDomain = ReleaseDomain
+
+	let of_string = function
+        | "@introduceDomain" -> IntroduceDomain
+        | "@releaseDomain"   -> ReleaseDomain
+        | "" ->
+                error "zero-length paths are invalid";
+                raise Invalid_path
+		| path when path.[0] <> '/' ->
+			if String.length path > 1024 then begin
+				error "paths larger than 1024 bytes are invalid";
+				raise Invalid_path
+			end;
+			let path = String.split '/' path in
+            if not(is_valid path) then begin
+                error "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
+                raise Invalid_path
+            end;
+            Relative path
+		| path -> Absolute (path_of_string path)
+
+	let to_string = function
+		| IntroduceDomain -> "@introduceDomain"
+		| ReleaseDomain -> "@releaseDomain"
+		| Absolute path -> path_to_string path
+		| Relative path -> String.concat "/" path
+
+	let to_key = function
+		| IntroduceDomain -> [ "@introduceDomain" ]
+		| ReleaseDomain -> [ "@releaseDomain" ]
+		| Absolute p -> "" :: p
+		| Relative p -> "" :: p
+
+end
+
+module Path = struct
+
+exception Lookup_Doesnt_exist of string
+
+exception Doesnt_exist
+
+exception Already_exist
+
+type t = string list
+
+let getdomainpath domid = [ "local"; "domain"; Printf.sprintf "%u" domid ]
+
+
+let create path connection_path =
+	let open Name in
+	match of_string path with
+	| Absolute path -> path
+	| Relative x -> connection_path @ x
+	| _ -> raise Invalid_path
+
+let to_name x = Name.Absolute x
+
+let of_string = path_of_string
+let to_string = path_to_string
 
 let get_parent t = match t with
-	| Relative []
-	| Absolute [] -> t
-	| Relative t -> Relative (List.rev (List.tl (List.rev t)))
-	| Absolute t -> Absolute (List.rev (List.tl (List.rev t)))
+	| [] -> t
+	| t -> List.rev (List.tl (List.rev t))
 
-let make_relative base t = match base, t with
-	| Absolute base, Absolute a ->
-		(* r should be a prefix of a *)
+let make_relative base t =
+	let open Name in
+	match t with
+	| IntroduceDomain
+	| ReleaseDomain
+	| Relative _ -> t
+	| Absolute t ->
+		(* base should be a prefix of t *)
 		let rec f x y = match x, y with
 			| x :: xs, y :: ys when x = y -> f xs ys
 			| [], y -> Relative y
-			| _, _ -> Absolute a in
-		f base a
-	| _, _ -> t
+			| _, _ -> Absolute t in
+		f base t
 
 let list_tl_multi n l =
 	let rec do_tl i x =
@@ -194,24 +216,17 @@ let list_tl_multi n l =
 		in
 	do_tl n l
 
-let absolute = function
-	| Absolute x -> x
-	| _ -> assert false
-
 (* string utils *)
 let get_hierarchy path =
-	let path = absolute path in
 	let l = List.length path in
 	let revpath = List.rev path in
 	let rec sub i =
 		let x = List.rev (list_tl_multi (l - i) revpath) in
 		if i = l then [ x ] else x :: sub (i + 1)
 	in
-	List.map (fun x -> Absolute x) (sub 0)
+	sub 0
 
 let get_common_prefix p1 p2 =
-	let p1 = absolute p1 in
-	let p2 = absolute p2 in
 	let rec compare l1 l2 =
 		match l1, l2 with
 		| h1 :: tl1, h2 :: tl2 ->
@@ -220,7 +235,7 @@ let get_common_prefix p1 p2 =
 				(* if l1 or l2 is empty, we found the equal part already *)
 			[]
 	in
-	Absolute (compare p1 p2)
+	compare p1 p2
 
 let rec lookup_modify node path fct =
 	match path with
@@ -249,7 +264,6 @@ let rec lookup_get node path =
 	| h :: l  -> let cnode = Node.find node h in lookup_get cnode l
 
 let get_node rnode path =
-	let path = absolute path in
 	if path = [] then
 		Some rnode
 	else (
@@ -258,7 +272,6 @@ let get_node rnode path =
 
 (* get the deepest existing node for this path *)
 let rec get_deepest_existing_node node path =
-	let path = absolute path in
 	let rec f node = function
 		| [] -> node
 		| h :: t ->
@@ -311,7 +324,6 @@ let set_quota store quota = store.quota <- quota
 
 (* modifying functions *)
 let path_mkdir store perm path =
-	let path = Path.absolute path in
 	let do_mkdir node name =
 		try
 			let ent = Node.find node name in
@@ -326,7 +338,6 @@ let path_mkdir store perm path =
 		Path.apply_modify store.root path do_mkdir
 
 let path_write store perm path value =
-	let path = Path.absolute path in
 	let node_created = ref false in
 	let do_write node name =
 		try
@@ -345,7 +356,6 @@ let path_write store perm path value =
 		Path.apply_modify store.root path do_write, !node_created
 
 let path_rm store perm path =
-	let path = Path.absolute path in
 	let do_rm node name =
 		try
 			let ent = Node.find node name in
@@ -359,7 +369,6 @@ let path_rm store perm path =
 		Path.apply_modify store.root path do_rm
 
 let path_setperms store perm path perms =
-	let path = Path.absolute path in
 	if path = [] then
 		Node.set_perms store.root perms
 	else
@@ -380,7 +389,6 @@ let get_deepest_existing_node store path =
 	Path.get_deepest_existing_node store.root path
 
 let read store perm path =
-	let path = Path.absolute path in
 	let do_read node name =
 		let ent = Node.find node name in
 		Perms.check perm Perms.READ ent.Node.perms;
@@ -394,7 +402,6 @@ let read store perm path =
 		Path.apply store.root path do_read
 
 let ls store perm path =
-	let path = Path.absolute path in
 	let children =
 		if path = [] then
 			(Node.get_children store.root)
@@ -407,7 +414,6 @@ let ls store perm path =
 	List.rev (List.map (fun n -> Symbol.to_string n.Node.name) children)
 
 let getperms store perm path =
-	let path = Path.absolute path in
 	if path = [] then
 		(Node.get_perms store.root)
 	else
@@ -418,7 +424,6 @@ let getperms store perm path =
 		Path.apply store.root path fct
 
 let path_exists store path =
-	let path = Path.absolute path in
 	if path = [] then
 		true
 	else
@@ -464,7 +469,6 @@ let dump_buffer store = dump_store_buf store.root
 
 (* modifying functions with quota udpate *)
 let set_node store path node =
-	let path = Path.absolute path in
 	let root, quota_diff = Path.set_node store.root path node in
 	store.root <- root;
 	Quota.add store.quota quota_diff

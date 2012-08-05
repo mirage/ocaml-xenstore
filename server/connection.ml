@@ -24,7 +24,7 @@ exception End_of_file
 type watch = {
 	con: t;
 	token: string;
-	path: Store.Path.t;
+	name: Store.Name.t;
 }
 
 and t = {
@@ -33,7 +33,7 @@ and t = {
 	domstr: string;
 	transactions: (int32, Transaction.t) Hashtbl.t;
 	mutable next_tid: int32;
-	watches: (Store.Path.t, watch list) Hashtbl.t;
+	watches: (Store.Name.t, watch list) Hashtbl.t;
 	mutable nb_watches: int;
 	mutable stat_nb_ops: int;
 	mutable perm: Perms.t;
@@ -52,10 +52,10 @@ let list_of_watches () =
 		| Some vs -> Printf.sprintf "%s <- %s" path (String.concat ", " (List.map (fun v -> v.con.domstr) vs)) :: acc
 	) !watches []
 
-let watch_create ~con ~path ~token = { 
+let watch_create ~con ~name ~token = { 
 	con = con; 
 	token = token; 
-	path = path; 
+	name = name; 
 }
 
 let get_con w = w.con
@@ -120,9 +120,9 @@ let send_error con tid rid err = send_reply con tid rid Xs_packet.Op.Error (err 
 let send_ack con tid rid ty = send_reply con tid rid ty "OK\000"
 *)
 
-let get_watches (con: t) path =
-	if Hashtbl.mem con.watches path
-	then Hashtbl.find con.watches path
+let get_watches (con: t) name =
+	if Hashtbl.mem con.watches name
+	then Hashtbl.find con.watches name
 	else []
 
 (*
@@ -130,22 +130,22 @@ let is_dom0 con =
 	Perms.Connection.is_dom0 (get_perm con)
 *)
 
-let add_watch con path token =
+let add_watch con name token =
 (*
 	if !Quota.activate && !Define.maxwatch > 0 &&
 	   not (is_dom0 con) && con.nb_watches > !Define.maxwatch then
 		raise Quota.Limit_reached;
 *)
 
-	let l = get_watches con path in
+	let l = get_watches con name in
 	if List.exists (fun w -> w.token = token) l then
 		raise Store.Path.Already_exist;
-	let watch = watch_create ~con ~token ~path in
-	Hashtbl.replace con.watches path (watch :: l);
+	let watch = watch_create ~con ~token ~name in
+	Hashtbl.replace con.watches name (watch :: l);
 	con.nb_watches <- con.nb_watches + 1;
 
 	watches :=
-		(let key = Store.Path.to_key path in
+		(let key = Store.Name.to_key name in
 		let ws =
             if Trie.mem !watches key
             then Trie.find !watches key
@@ -157,54 +157,50 @@ let add_watch con path token =
 
 	watch
 
-let del_watch con path token =
-	let ws = Hashtbl.find con.watches path in
+let del_watch con name token =
+	let ws = Hashtbl.find con.watches name in
 	let w = List.find (fun w -> w.token = token) ws in
 	let filtered = List.filter (fun e -> e != w) ws in
 	if List.length filtered > 0 then
-		Hashtbl.replace con.watches path filtered
+		Hashtbl.replace con.watches name filtered
 	else
-		Hashtbl.remove con.watches path;
+		Hashtbl.remove con.watches name;
 	con.nb_watches <- con.nb_watches - 1;
 
 	watches :=
-        (let key = Store.Path.to_key path in
+        (let key = Store.Name.to_key name in
 		let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
         if ws = [] then
                 Trie.unset !watches key
         else
-                Trie.set !watches key ws);
+                Trie.set !watches key ws)
 
-	path, w
 
-let list_watches con =
-	let ll = Hashtbl.fold 
-		(fun _ watches acc -> List.map (fun watch -> watch.path, watch.token) watches :: acc)
-		con.watches [] in
-	List.concat ll
-
-let fire_one path watch =
-	let path = match path with
-		| None -> watch.path
-		| Some path ->
-			if Store.Path.is_relative watch.path
-			then Store.Path.make_relative watch.con.domainpath path
-			else path in
-	let path = Store.Path.to_string path in
+let fire_one name watch =
+	let name = match name with
+		| None ->
+			(* If no specific path was modified then we fire the generic watch *)
+			watch.name
+		| Some name ->
+			(* If the watch was registered as a relative path, then we make
+			   all the watch events relative too *)
+			if Store.Name.is_relative watch.name
+			then Store.Path.make_relative watch.con.domainpath name
+			else name in
+	let name = Store.Name.to_string name in
 	let open Xs_packet in
-	let packet = Response.watchevent path watch.token in
+	let packet = Response.watchevent name watch.token in
 	Logging.xb_answer ~tid:(get_tid packet) ~con:watch.con.domstr ~ty:(get_ty packet) (get_data packet);
-	Printf.fprintf stderr "Adding %s, %s to %s\n%!" path watch.token watch.con.domstr;
-	Queue.add (path, watch.token) watch.con.watch_events
+	Printf.fprintf stderr "Adding %s, %s to %s\n%!" name watch.token watch.con.domstr;
+	Queue.add (name, watch.token) watch.con.watch_events
 
-let fire (op, path') =
-	let key = Store.Path.to_key path' in
-	let path = Store.Path.to_string path' in
-	Printf.fprintf stderr "Looking for watches on: %s (key = [ %s ])\n%!" path (String.concat ", " key);
+let fire (op, name) =
+	let key = Store.Name.to_key name in
+	Printf.fprintf stderr "Looking for watches on: %s (key = [ %s ])\n%!" (String.concat "/" key) (String.concat ", " key);
 	Trie.iter_path
 		(fun _ w -> match w with
 		| None -> ()
-		| Some ws -> List.iter (fire_one (Some path')) ws
+		| Some ws -> List.iter (fire_one (Some name)) ws
 		) !watches key;
 	
 	if op = Xs_packet.Op.Rm
@@ -284,5 +280,11 @@ let dump con chan =
 *)
 
 let debug con =
-	let watches = List.map (fun (path, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Store.Path.to_string path) token) (list_watches con) in
+	let list_watches con =
+		let ll = Hashtbl.fold 
+			(fun _ watches acc -> List.map (fun watch -> watch.name, watch.token) watches :: acc)
+			con.watches [] in
+		List.concat ll in
+
+	let watches = List.map (fun (name, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Store.Name.to_string name) token) (list_watches con) in
 	String.concat "" watches

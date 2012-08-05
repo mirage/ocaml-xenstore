@@ -62,7 +62,6 @@ let reply_exn store c request =
 		| Some (Transaction_start) ->
 			if tid <> Transaction.none then raise Transaction_nested;
 			let tid = Connection.register_transaction c store in
-			let t = Transaction.make tid (Transaction.get_store t) in
 			Response.transaction_start request tid
 		| Some (Write(path, value)) ->
 			Printf.fprintf stderr "Write %s <- %s\n%!" path value;
@@ -93,11 +92,11 @@ let reply_exn store c request =
 			Transaction.setperms t c.Connection.perm path perms;
 			Response.setperms request
 		| Some (Watch(path, token)) ->
-			let watch = Connection.add_watch c (Store.Path.of_string path) token in
+			let watch = Connection.add_watch c (Store.Name.of_string path) token in
 			Connection.fire_one None watch;
 			Response.watch request
 		| Some (Unwatch(path, token)) ->
-			Connection.del_watch c (Store.Path.of_string path) token;
+			Connection.del_watch c (Store.Name.of_string path) token;
 			Response.unwatch request
 		| Some (Transaction_end commit) ->
 			Connection.unregister_transaction c tid;
@@ -126,7 +125,7 @@ let reply_exn store c request =
 		| Some (Introduce(domid, mfn, port)) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
 			(* register domain *)
-			Connection.fire (Xs_packet.Op.Write, Store.Path.introduceDomain);
+			Connection.fire (Xs_packet.Op.Write, Store.Name.introduceDomain);
 			Response.introduce request
 		| Some (Resume(domid)) ->
 			Perms.has c.Connection.perm Perms.RESUME;
@@ -135,7 +134,7 @@ let reply_exn store c request =
 		| Some (Release(domid)) ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
-			Connection.fire (Xs_packet.Op.Write, Store.Path.releaseDomain);
+			Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);
 			Response.release request
 		| Some (Set_target(mine, yours)) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;
@@ -174,7 +173,7 @@ let reply store c request =
 				error "Caught: %s; returning %s" (Printexc.to_string e) code;
 				Response.error request code in
 			begin match e with
-				| Store.Path.Invalid_path          -> reply "EINVAL"
+				| Store.Invalid_path               -> reply "EINVAL"
 				| Store.Path.Already_exist         -> reply "EEXIST"
 				| Store.Path.Doesnt_exist          -> reply "ENOENT"
 				| Store.Path.Lookup_Doesnt_exist s -> reply "ENOENT"

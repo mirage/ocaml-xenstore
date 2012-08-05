@@ -23,7 +23,7 @@ let error fmt = Logging.error "xs_server" fmt
 
 let store =
 	let store = Store.create () in
-	let localpath = Store.Path.of_string "/local" in
+	let localpath = Store.Path.create "/local" (Store.Path.getdomainpath 0) in
 	if not (Store.path_exists store localpath)
 	then Store.mkdir store (Perms.of_domain 0) localpath;
 	store

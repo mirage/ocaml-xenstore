@@ -77,7 +77,7 @@ type ty = No | Full of (int32 * Store.Node.t * Store.t)
 type t = {
 	ty: ty;
 	store: Store.t;
-	mutable ops: (Xs_packet.Op.t * Store.Path.t) list;
+	mutable ops: (Xs_packet.Op.t * Store.Name.t) list;
 	mutable read_lowpath: Store.Path.t option;
 	mutable write_lowpath: Store.Path.t option;
 }
@@ -96,7 +96,7 @@ let get_id t = match t.ty with No -> none | Full (id, _, _) -> id
 let get_store t = t.store
 let get_ops t = t.ops
 
-let add_wop t ty path = t.ops <- (ty, path) :: t.ops
+let add_wop t ty path = t.ops <- (ty, Store.Path.to_name path) :: t.ops
 let set_read_lowpath t path = t.read_lowpath <- get_lowest path t.read_lowpath
 let set_write_lowpath t path = t.write_lowpath <- get_lowest path t.write_lowpath
 
