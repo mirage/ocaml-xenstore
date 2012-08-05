@@ -4,7 +4,8 @@ To-do list
   1. Update the transaction coalesce algorithm so that a VIF/VBD device
      add doesn't cause a conflict (see the disabled unit test)
 
-  2. Update the quota system to make it work for driver domains
+  2. Update the quota system to make it work for driver domains.
+     Consider using 'created by' rather than 'owner' for quota?
 
   3. Switch the parsing/printing over to cstruct, rather than bitstring
 
