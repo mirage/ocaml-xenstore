@@ -68,6 +68,14 @@ Executable xs
   Install:            true
   BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.client, xenstore.unix
 
+Executable xsbench
+  Path:               bench
+  MainIs:             xs_bench.ml
+  Custom:             true
+  CompiledObject:     best
+  Install:            true
+  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.client, xenstore.unix
+
 Flag tests
   Description:        Build and run tests
   Default:            true
