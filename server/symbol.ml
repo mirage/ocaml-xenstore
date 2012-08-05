@@ -1,7 +1,5 @@
 (*
- * Copyright (C) 2006-2007 XenSource Ltd.
- * Copyright (C) 2008      Citrix Ltd.
- * Author Thomas Gazagnaire <thomas.gazagnaire@eu.citrix.com>
+ * Copyright (C) Citrix Systems Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published
