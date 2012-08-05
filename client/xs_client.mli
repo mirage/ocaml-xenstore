@@ -56,12 +56,24 @@ module Client : functor(T: TRANSPORT) -> sig
   val write : handle -> string -> string -> unit Lwt.t
   (** [write h k v] writes [v] at [k] *)
 
+  val rm : handle -> string -> unit Lwt.t
+  (** [rm h k] removes the node [k] *)
+
+  val mkdir : handle -> string -> unit Lwt.t
+  (** [mkdir h k] creates the node [k] with an empty value *)
+
+  val setperms : handle -> string -> Xs_packet.ACL.t -> unit Lwt.t
+  (** [setperms h k acl] sets the permissions of [k] to [acl] *)
+
   val debug : handle -> string list -> string list Lwt.t
   (** [debug cmd_args] invokes a debug command *)
 
   val restrict : handle -> int -> unit Lwt.t
   (** [restrict h domid] restricts the current connection to have only
 	  the priviledges associated with domain [domid] *)
+
+  val getdomainpath : handle -> int -> string Lwt.t
+  (** [getdomainpath domid] returns the local directory of domain [domid] *)
 
   val watch : handle -> string -> Xs_packet.Token.t -> unit Lwt.t
   (** [watch h path token] registers a manual watch at [path] with [token] *)

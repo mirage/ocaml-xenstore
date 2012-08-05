@@ -209,8 +209,12 @@ module Client = functor(T: TRANSPORT) -> struct
   let directory h path = rpc "directory" (Handle.accessed_path h path) (Request.directory path) Unmarshal.list
   let read h path = rpc "read" (Handle.accessed_path h path) (Request.read path) Unmarshal.string
   let write h path data = rpc "write" (Handle.accessed_path h path) (Request.write path data) Unmarshal.ok
+  let rm h path = rpc "rm" (Handle.accessed_path h path) (Request.rm path) Unmarshal.ok
+  let mkdir h path = rpc "mkdir" (Handle.accessed_path h path) (Request.mkdir path) Unmarshal.ok
+  let setperms h path acl = rpc "setperms" (Handle.accessed_path h path) (Request.setperms path acl) Unmarshal.ok
   let debug h cmd_args = rpc "debug" h (fun _ -> Request.debug cmd_args) Unmarshal.list
   let restrict h domid = rpc "restrict" h (fun _ -> Request.restrict domid) Unmarshal.ok
+  let getdomainpath h domid = rpc "getdomainpath" h (fun _ -> Request.getdomainpath domid) Unmarshal.string
   let watch h path token = rpc "watch" (Handle.watch h path) (fun _ -> Request.watch path token) Unmarshal.ok
   let unwatch h path token = rpc "unwatch" (Handle.watch h path) (fun _ -> Request.unwatch path token) Unmarshal.ok
 
