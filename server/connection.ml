@@ -102,33 +102,13 @@ let create (* xbcon *) dom =
 	Hashtbl.replace domains dom con;
 	con
 
-(*
-let get_fd con = Xenbus.Xb.get_fd con.xb
-*)
-(*
-	Xenbus.Xb.close con.xb
-*)
-
 let restrict con domid =
 	con.perm <- Perms.restrict con.perm domid
-
-(*
-let send_reply con tid rid ty data =
-	Xenbus.Xb.queue con.xb (Xenbus.Xb.Packet.create tid rid ty data)
-
-let send_error con tid rid err = send_reply con tid rid Xs_packet.Op.Error (err ^ "\000")
-let send_ack con tid rid ty = send_reply con tid rid ty "OK\000"
-*)
 
 let get_watches (con: t) name =
 	if Hashtbl.mem con.watches name
 	then Hashtbl.find con.watches name
 	else []
-
-(*
-let is_dom0 con =
-	Perms.Connection.is_dom0 (get_perm con)
-*)
 
 let add_watch con name token =
 (*
@@ -234,17 +214,6 @@ let get_transaction con tid =
 	with Not_found as e ->
 		error "Failed to find transaction %lu on %s" tid con.domstr;
 		raise e
-(*
-let do_input con = Xenbus.Xb.input con.xb
-let has_input con = Xenbus.Xb.has_in_packet con.xb
-let pop_in con = Xenbus.Xb.get_in_packet con.xb
-let has_more_input con = Xenbus.Xb.has_more_input con.xb
-
-let has_output con = Xenbus.Xb.has_output con.xb
-let has_new_output con = Xenbus.Xb.has_new_output con.xb
-let peek_output con = Xenbus.Xb.peek_output con.xb
-let do_output con = Xenbus.Xb.output con.xb
-*)
 
 let incr_ops con = con.stat_nb_ops <- con.stat_nb_ops + 1
 
@@ -253,31 +222,6 @@ let mark_symbols con =
 
 let stats con =
 	Hashtbl.length con.watches, con.stat_nb_ops
-
-(*
-let hexify s =
-        let hexseq_of_char c = sprintf "%02x" (Char.code c) in
-        let hs = String.create (String.length s * 2) in
-        for i = 0 to String.length s - 1
-        do
-                let seq = hexseq_of_char s.[i] in
-                hs.[i * 2] <- seq.[0];
-                hs.[i * 2 + 1] <- seq.[1];
-        done;
-        hs
-
-let dump con chan =
-	match con.dom with
-	| Some dom -> 
-		let domid = Domain.get_id dom in
-		(* dump domain *)
-		Domain.dump dom chan;
-		(* dump watches *)
-		List.iter (fun (path, token) ->
-			Printf.fprintf chan "watch,%d,%s,%s\n" domid (hexify path) (hexify token)
-			) (list_watches con);
-	| None -> ()
-*)
 
 let debug con =
 	let list_watches con =
