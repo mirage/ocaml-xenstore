@@ -16,51 +16,62 @@
  *)
 
 module Node : sig
+	(** A Node in the main xenstore tree *)
 
-type t = {
-	name: Symbol.t;
-	perms: Xs_packet.ACL.t;
-	value: string;
-	children: t list;
-}
+	type t
 
-val create : string -> Xs_packet.ACL.t -> string -> t
+	val create : string -> Xs_packet.ACL.t -> string -> t
+	(** [create name perms value] returns fresh Node.t *)
 
-val set_value: t -> string -> t
-val set_perms: t -> Xs_packet.ACL.t -> t
+	val get_perms: t -> Xs_packet.ACL.t
+	(** [get_perms t] returns the permissions attached to [t] *)
 
 end
 
 exception Invalid_path
+(** Raised if the given path is too long, or has illegal characters *)
 
 module Name : sig
+
 	type t
+	(** The name of an entity which may be watched. Note that not all these
+		entities are stored in the xenstore tree (e.g. @introduceDomain) *)
 
 	val introduceDomain: t
+	(** The special watch when a domain is created *)
+
 	val releaseDomain: t
+	(** The special watch when a domain shuts down *)
 
 	val of_string: string -> t
+
 	val to_string: t -> string
 
 	val is_relative: t -> bool
+	(** [is_relative t] is true if [t] contains a relative path *)
 
 	val to_key: t -> string list
+	(** [to_key t] returns a key which can be used as a path in a Trie *)
+
 end
 
 module Path : sig
 
-exception Lookup_Doesnt_exist of string
+	type t
+	(** Represents an absolute path within the xenstore tree *)
 
-exception Doesnt_exist
+	exception Lookup_Doesnt_exist of string
 
-exception Already_exist
+	exception Doesnt_exist
 
-type t
+	exception Already_exist
 
+	val getdomainpath: int -> t
+	(** [getdomainpath domid] returns the default directory for [domid] *)
 
-val getdomainpath: int -> t
-
-val create: string -> t -> t
+	val create: string -> t -> t
+	(** [create path default] is the absolute path of [path], where if [path]
+		is relative then it is resolved relative to [default] *)
 
 val to_name: t -> Name.t
 
