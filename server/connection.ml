@@ -130,9 +130,10 @@ let add_watch con name token =
             else []
         in
         Trie.set !watches key (watch :: ws));
+(*
 	Printf.fprintf stderr "Watches:\n";
 	List.iter (Printf.fprintf stderr "%s\n%!") (list_of_watches ());
-
+*)
 	watch
 
 let del_watch con name token =
@@ -169,12 +170,12 @@ let fire_one name watch =
 	let open Xs_packet in
 	let packet = Response.watchevent name watch.token in
 	Logging.xb_answer ~tid:(get_tid packet) ~con:watch.con.domstr ~ty:(get_ty packet) (get_data packet);
-	Printf.fprintf stderr "Adding %s, %s to %s\n%!" name watch.token watch.con.domstr;
+(*	Printf.fprintf stderr "Adding %s, %s to %s\n%!" name watch.token watch.con.domstr; *)
 	Queue.add (name, watch.token) watch.con.watch_events
 
 let fire (op, name) =
 	let key = Store.Name.to_key name in
-	Printf.fprintf stderr "Looking for watches on: %s (key = [ %s ])\n%!" (String.concat "/" key) (String.concat ", " key);
+(*	Printf.fprintf stderr "Looking for watches on: %s (key = [ %s ])\n%!" (String.concat "/" key) (String.concat ", " key); *)
 	Trie.iter_path
 		(fun _ w -> match w with
 		| None -> ()

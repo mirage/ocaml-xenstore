@@ -64,11 +64,11 @@ let reply_exn store c request =
 			let tid = Connection.register_transaction c store in
 			Response.transaction_start request tid
 		| Some (Write(path, value)) ->
-			Printf.fprintf stderr "Write %s <- %s\n%!" path value;
+(*			Printf.fprintf stderr "Write %s <- %s\n%!" path value; *)
 			let path = resolve path in
 			Transaction.mkdir_p t c.Connection.perm path;
 			Transaction.write t c.Connection.perm path value;
-			Printf.fprintf stderr "tid = %lu len(wops) = %d\n%!" tid (List.length t.Transaction.ops);
+(*			Printf.fprintf stderr "tid = %lu len(wops) = %d\n%!" tid (List.length t.Transaction.ops); *)
 			Response.write request
 		| Some (Mkdir path) ->
 			let path = resolve path in

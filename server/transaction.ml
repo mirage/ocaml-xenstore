@@ -155,7 +155,6 @@ let getperms t perm path =
 
 let commit ~con t =
 	let has_write_ops = List.length t.ops > 0 in
-	debug "committing with %d write ops" (List.length t.ops);
 	let has_coalesced = ref false in
 	let has_commited =
 	match t.ty with
