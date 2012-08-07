@@ -160,10 +160,27 @@ let test_mkdir () =
 	run store [
 		dom0, none, Read "/a/b", Err "ENOENT";
 		dom0, none, Read "/a", Err "ENOENT";
-		dom0, none, Mkdir "/a", OK;
-		dom0, none, Mkdir "/a/b", OK;
-		dom0, none, Setperms("/a/b", example_acl), OK;
+	];
+	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+	run store [
+		dom0, tid, Mkdir "/bench/local/domain/0", OK;
+		dom0, tid, Setperms("/bench/local/domain/0", example_acl), OK;
+		dom0, tid, Read "/bench/local/domain/0", OK;
+		dom0, tid, Transaction_end true, OK;
 	]
+
+let test_empty () =
+	(* Check that I can read an empty value *)
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, Write("/a", ""), OK;
+		dom0, none, Read "/a", OK;
+	]
+
+let test_directory () =
+	()
 
 let test_rm () =
 	(* rm of a missing node from an existing parent should succeed *)
@@ -416,6 +433,7 @@ let _ =
 		"getperms(setperms)" >:: test_setperms_getperms;
 		"test_setperms_owner" >:: test_setperms_owner;
 		"test_mkdir" >:: test_mkdir;
+		"test_empty" >:: test_empty;
 		"test_rm" >:: test_rm;
 		"test_restrict" >:: test_restrict;
 		"test_set_target" >:: test_set_target;
