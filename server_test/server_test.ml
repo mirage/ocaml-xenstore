@@ -152,6 +152,32 @@ let test_setperms_owner () =
 		dom2, none, Setperms("/foo", { example_acl with Xs_packet.ACL.owner = 5 }), OK;
 	]
 
+let test_mkdir () =
+	(* Check that mkdir creates usable nodes *)
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, Read "/a/b", Err "ENOENT";
+		dom0, none, Read "/a", Err "ENOENT";
+		dom0, none, Mkdir "/a", OK;
+		dom0, none, Mkdir "/a/b", OK;
+		dom0, none, Setperms("/a/b", example_acl), OK;
+	]
+
+let test_rm () =
+	(* rm of a missing node from an existing parent should succeed *)
+	(* rm of a missing node from a missing parent should ENOENT *)
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, Rm "/a", OK;
+		dom0, none, Rm "/a/b", Err "ENOENT";
+		dom0, none, Write ("/a", "hello"), OK;
+		dom0, none, Rm "/a/b", OK;
+	]
+
 let test_restrict () =
 	(* Check that only dom0 can restrict to another domain
 	   and that it loses access to dom0-only nodes. *)
@@ -373,6 +399,8 @@ let test_bounded_watch_events () =
 	(* Check that the per-connection watch event queue is bounded *)
 	()
 
+
+
 let _ =
   let verbose = ref false in
   Arg.parse [
@@ -387,6 +415,8 @@ let _ =
 		"test_directory_order" >:: test_directory_order;
 		"getperms(setperms)" >:: test_setperms_getperms;
 		"test_setperms_owner" >:: test_setperms_owner;
+		"test_mkdir" >:: test_mkdir;
+		"test_rm" >:: test_rm;
 		"test_restrict" >:: test_restrict;
 		"test_set_target" >:: test_set_target;
 		"transactions_are_isolated" >:: test_transactions_are_isolated;
