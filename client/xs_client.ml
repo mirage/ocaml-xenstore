@@ -126,6 +126,11 @@ module Client = functor(T: TRANSPORT) -> struct
 	  end
       end
    with e ->
+	   Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
+	   lwt () = begin match e with
+	   | Xs_packet.Response_parser_failed x ->
+		   Lwt_io.hexdump Lwt_io.stderr x
+	   | _ -> return () end in
      t.dispatcher_shutting_down <- true; (* no more hashtable entries after this *)
      (* all blocking threads are failed with our exception *)
      Hashtbl.iter (fun _ u -> Lwt.wakeup_later_exn u e) t.rid_to_wakeup;
