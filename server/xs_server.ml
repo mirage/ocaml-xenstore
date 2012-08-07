@@ -52,12 +52,16 @@ module Server = functor(T: TRANSPORT) -> struct
 		let domid = T.domain_of t in
 		let c = Connection.create domid in
 		let channel = PS.make t in
-		while_lwt true do
-			lwt request = PS.recv channel in
-			let reply = Call.reply store c request in
-			PS.send channel reply
-		done >>
-		T.destroy t
+		try_lwt
+			lwt () = while_lwt true do
+				lwt request = PS.recv channel in
+				let reply = Call.reply store c request in
+				PS.send channel reply
+			done in
+			T.destroy t
+		with e ->
+			error "Caught: %s" (Printexc.to_string e);
+			T.destroy t
 
 	let serve_forever () =
 		lwt server = T.listen () in
