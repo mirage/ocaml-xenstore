@@ -19,14 +19,18 @@ open Client
 
 let ( |> ) a b = b a
 
+(* So we can run against a real xenstore, place all nodes in a subtree *)
+let prefix = "/bench"
+
 let vm_start domid client =
 	(* create /local/domain/<domid> *)
 	(* create 3 VBDs, 1 VIF (workaround transaction problem?) *)
 	lwt dom_path = with_xs client (fun xs -> getdomainpath xs domid) in
+	let dom_path = prefix ^ dom_path in
 	let uuid = Printf.sprintf "uuid-%d" domid in
 	let name = "name" in
-	let vm_path = "/vm/" ^ uuid in
-	let vss_path = "/vss/" ^ uuid in
+	let vm_path = prefix ^ "/vm/" ^ uuid in
+	let vss_path = prefix ^ "/vss/" ^ uuid in
 	let xsdata = [
 		"xsdata", "xsdata"
 	] in
@@ -42,7 +46,7 @@ let vm_start domid client =
 		with_xst client
 			(fun xs ->
 				(* Clear any existing rubbish in xenstored *)
-				lwt () = rm xs dom_path in
+				lwt () = try_lwt lwt _ = rm xs dom_path in return () with _ -> return () in
 				lwt () = mkdir xs dom_path in
 				lwt () = setperms xs dom_path roperm in
 				(* The /vm path needs to be shared over a localhost migrate *)
@@ -80,7 +84,7 @@ let vm_start domid client =
 	lwt () = with_xs client
 		(fun xs ->
 
-			lwt () = Lwt_list.iter_s (fun (x, y) -> write xs (dom_path ^ x) y) xsdata in
+			lwt () = Lwt_list.iter_s (fun (x, y) -> write xs (dom_path ^ "/" ^ x) y) xsdata in
 
 			lwt () = Lwt_list.iter_s (fun (x, y) -> write xs (dom_path ^ "/platform/" ^ x) y) platformdata in
 			lwt () = Lwt_list.iter_s (fun (x, y) -> write xs (dom_path ^ "/bios-strings/" ^ x) y) bios_strings in
@@ -103,6 +107,7 @@ let vm_shutdown domid client =
 	with_xs client
 	(fun xs ->
 		lwt p = getdomainpath xs domid in
+		let p = prefix ^ p in
 		lwt () = rm xs p in
 		return ()
 	)
