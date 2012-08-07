@@ -166,7 +166,7 @@ module Parser = struct
 
   type state =
     | Unknown_operation of int32
-    | Parser_failed
+    | Parser_failed of string
     | Need_more_data of int
     | Packet of t
 
@@ -192,16 +192,19 @@ module Parser = struct
 	      (* TODO: detect anamalous 'len' values and abort early *)
 	begin match Op.of_int32 ty with
 	  | Some ty ->
-	    ReadingBody {
-	      tid = tid;
-	      rid = rid;
-	      ty = ty;
-	      len = len;
-	      data = Buffer.create len;
-	    }
+		  let t = {
+			  tid = tid;
+			  rid = rid;
+			  ty = ty;
+			  len = len;
+			  data = Buffer.create len;
+	      } in
+		  if len = 0
+		  then Finished (Packet t)
+		  else ReadingBody t
 	  | None -> Finished (Unknown_operation ty)
 	end
-      | { _ } -> Finished Parser_failed
+      | { _ } -> Finished (Parser_failed str)
 
   let input state bytes =
     match state with
@@ -228,8 +231,8 @@ module type CHANNEL = sig
 end
 
 exception Unknown_xenstore_operation of int32
-exception Response_parser_failed
-
+exception Response_parser_failed of string
+exception EOF
 
 module PacketStream = functor(C: CHANNEL) -> struct
   open Lwt
@@ -255,12 +258,12 @@ module PacketStream = functor(C: CHANNEL) -> struct
       let buf = String.make x '\000' in
       lwt n = C.read t.channel buf 0 x in
       if n = 0
-      then raise_lwt Response_parser_failed
+      then raise_lwt EOF
       else let fragment = String.sub buf 0 n in
 	   t.incoming_pkt <- input t.incoming_pkt fragment;
 	   recv t
     | Unknown_operation x -> raise_lwt (Unknown_xenstore_operation x)
-    | Parser_failed -> raise_lwt Response_parser_failed
+    | Parser_failed x -> raise_lwt (Response_parser_failed x)
 
   (* [send client pkt] sends [pkt] and returns (), or fails *)
   let send t request =

@@ -63,7 +63,7 @@ module Parser : sig
 
   type state =
     | Unknown_operation of int32 (** received an unexpected message type *)
-    | Parser_failed              (** we failed to parse a header *)
+    | Parser_failed of string    (** we failed to parse a header *)
     | Need_more_data of int      (** we still need 'n' bytes *)
     | Packet of t                (** successfully decoded a packet *)
 
@@ -87,7 +87,7 @@ module type CHANNEL = sig
 end
 
 exception Unknown_xenstore_operation of int32
-exception Response_parser_failed
+exception Response_parser_failed of string
 
 module PacketStream : functor(C: CHANNEL) -> sig
   type stream
