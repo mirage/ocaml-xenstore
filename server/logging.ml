@@ -179,9 +179,9 @@ let commit = access_logging Commit
 let xb_op ~tid ~con ~ty data =
 	let print =
 	  let open Xs_packet.Op in match ty with
-		| Read | Directory | Getperms -> !access_log_read_ops
+		| Read | Directory | Getperms -> (* !access_log_read_ops *) true
 		| Transaction_start | Transaction_end ->
-			false (* transactions are managed below *)
+			(* false *) true (* transactions are managed below *)
 		| Introduce | Release | Getdomainpath | Isintroduced | Resume ->
 			!access_log_special_ops
 		| _ -> true in
@@ -205,6 +205,6 @@ let xb_answer ~tid ~con ~ty data =
 		| Error when startswith "ENOENT " data -> !access_log_read_ops
 		| Error -> true
 		| Watchevent -> true
-		| _ -> false
+		| _ -> (* false *) true
 	in
 	if print then access_logging ~tid ~con ~data (XbOp ty)
