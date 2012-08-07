@@ -19,7 +19,7 @@ open Client
 
 let ( |> ) a b = b a
 
-let vm_create domid client =
+let vm_start domid client =
 	(* create /local/domain/<domid> *)
 	(* create 3 VBDs, 1 VIF (workaround transaction problem?) *)
 	lwt dom_path = with_xs client (fun xs -> getdomainpath xs domid) in
@@ -45,19 +45,17 @@ let vm_create domid client =
 				lwt () = rm xs dom_path in
 				lwt () = mkdir xs dom_path in
 				lwt () = setperms xs dom_path roperm in
-
 				(* The /vm path needs to be shared over a localhost migrate *)
 				lwt vm_exists = try_lwt lwt _ = read xs vm_path in return true with _ -> return false in
 				lwt () = if not vm_exists then begin
 					lwt () = mkdir xs vm_path in
 					lwt () = setperms xs vm_path roperm in
-					lwt () = write xs (vm_path ^ "uuid") uuid in
-					lwt () = write xs (vm_path ^ "name") name in
+					lwt () = write xs (vm_path ^ "/uuid") uuid in
+					lwt () = write xs (vm_path ^ "/name") name in
 					return ()
 				end else return () in
 				lwt () = write xs (Printf.sprintf "%s/domains/%d" vm_path domid) dom_path in
 
-				lwt () = rm xs vss_path in
 				lwt () = mkdir xs vss_path in
 				lwt () = setperms xs vss_path rwperm in
 
@@ -101,10 +99,32 @@ let vm_create domid client =
 	return ()
 
 
-let vm_shutdown domid xs =
-	(* destroy devices *)
-	(* destroy /local/domain/<domid> *)
-	()
+let vm_shutdown domid client =
+	with_xs client
+	(fun xs ->
+		lwt p = getdomainpath xs domid in
+		lwt () = rm xs p in
+		return ()
+	)
+
+let vm_cycle domid client =
+	vm_start domid client >> (vm_shutdown domid client)
+
+let rec between start finish =
+	if start > finish
+	then []
+	else start :: (between (start + 1) finish)
+
+let sequential n client : unit Lwt.t =
+	Lwt_list.iter_s
+		(fun domid ->
+		   vm_cycle domid client
+		) (between 0 n)
+
+let time f =
+	let start = Unix.gettimeofday () in
+	lwt () = f () in
+	return (Unix.gettimeofday () -. start)
 
 let usage () =
   let bin x = Sys.argv.(0) ^ x in
@@ -112,7 +132,7 @@ let usage () =
     bin " : a xenstore benchmark tool";
     "";
     "Usage:";
-	bin " [-path /var/run/xenstored/socket]";
+	bin " [-path /var/run/xenstored/socket] [-n number of vms]";
   ] in
   List.iter (fun x -> Printf.fprintf stderr "%s\n" x) lines
 
@@ -141,7 +161,14 @@ let main () =
 	| Some path -> Xs_transport_unix.xenstored_socket := path
 	| None -> ()
 	end;
+	let n, args = extract args "-n" in
+	let n = match n with
+		| None -> 300
+		| Some n -> int_of_string n in
 
+	lwt client = make () in
+	lwt t = time (fun () -> sequential n client) in
+    lwt () = Lwt_io.write Lwt_io.stdout (Printf.sprintf "%d sequential starts and shutdowns: %.02f\n" n t) in
 	return ()
  end
 
