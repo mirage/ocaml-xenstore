@@ -18,7 +18,6 @@ open Junk
 
 let none = 0l
 let test_eagain = ref false
-let do_coalesce = ref true
 
 let check_parents_perms_identical root1 root2 path =
 	let hierarch = Store.Path.get_hierarchy path in
@@ -64,10 +63,7 @@ let test_coalesce oldroot currentroot optpath =
 			false
 
 let can_coalesce oldroot currentroot path =
-	if !do_coalesce then
-		try test_coalesce oldroot currentroot path with _ -> false
-	else
-		false
+	try test_coalesce oldroot currentroot path with _ -> false
 
 type ty = No | Full of (int32 * Store.Node.t * Store.t)
 
