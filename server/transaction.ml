@@ -37,14 +37,11 @@ let get_lowest path1 path2 =
 	| None       -> Some path1
 	| Some path2 -> Some (Store.Path.get_common_prefix path1 path2)
 
-let test_coalesce oldroot currentroot optpath =
-	match optpath with
-	| None      -> true
-	| Some path ->
-		let oldnode = Store.lookup oldroot path
-		and currentnode = Store.lookup currentroot path in
-		
-		match oldnode, currentnode with
+let test_coalesce oldroot currentroot path =
+	let oldnode = Store.lookup oldroot path
+	and currentnode = Store.lookup currentroot path in
+
+	match oldnode, currentnode with
 		| (Some oldnode), (Some currentnode) ->
 			if oldnode == currentnode then (
 				check_parents_perms_identical oldroot currentroot path
@@ -159,8 +156,13 @@ let commit ~con t =
 		let commit_partial oldroot cstore store =
 			(* get the lowest path of the query and verify that it hasn't
 			   been modified by others transactions. *)
-			if can_coalesce oldroot cstore.Store.root t.read_lowpath
-			&& can_coalesce oldroot cstore.Store.root t.write_lowpath then (
+			let readpath_ok = match t.read_lowpath with
+				| None -> true (* no reads recorded *)
+				| Some path -> can_coalesce oldroot cstore.Store.root path in
+			let writepath_ok = match t.write_lowpath with
+				| None -> true (* no writes recorded *)
+				| Some path -> can_coalesce oldroot cstore.Store.root path in
+			if readpath_ok && writepath_ok then (
 				maybe (fun p ->
 					let n = Store.lookup store.Store.root p in
 
