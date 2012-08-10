@@ -119,6 +119,8 @@ module Token : sig
 
   val of_string: string -> t
   (** [of_string x] parses the marshalled token [x] *)
+
+  val to_string: t -> string
 end
 
 module Response : sig
@@ -151,27 +153,6 @@ module Response : sig
 end
 
 module Request : sig
-  val directory : string -> int32 -> t option
-  val read : string -> int32 -> t option
-  val getperms : string -> int32 -> t option
-  val rm : string -> int32 -> t option
-  val setperms : string -> ACL.t -> int32 -> t option
-  val write : string -> string -> int32 -> t option
-  val mkdir : string -> int32 -> t option
-
-  val transaction_start : unit -> t option
-  val transaction_end : bool -> int32 -> t option
-  val introduce : int -> nativeint -> int -> t option
-  val release : int -> t option
-  val resume : int -> t option
-  val getdomainpath : int -> t option
-  val watch : string -> Token.t -> t option
-  val unwatch : string -> Token.t -> t option
-  val debug : string list -> t option
-  val set_target : int -> int -> t option
-  val restrict : int -> t option
-  val isintroduced : int -> t option
-
   type payload =
   | Read of string
   | Directory of string

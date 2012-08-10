@@ -195,9 +195,9 @@ module Client = functor(T: TRANSPORT) -> struct
     let get_watched_paths h = h.watched_paths
   end
 
-  let rpc hint h request unmarshal =
+  let rpc hint h payload unmarshal =
     let open Handle in
-    let request = match request h.tid with Some x -> x | None -> failwith "bad request" in
+	let request = Request.print payload h.tid in
     let rid = get_rid request in
     let t, u = wait () in
     if h.client.dispatcher_shutting_down
@@ -211,17 +211,17 @@ module Client = functor(T: TRANSPORT) -> struct
         return (response hint request res unmarshal)
  end
 
-  let directory h path = rpc "directory" (Handle.accessed_path h path) (Request.directory path) Unmarshal.list
-  let read h path = rpc "read" (Handle.accessed_path h path) (Request.read path) Unmarshal.string
-  let write h path data = rpc "write" (Handle.accessed_path h path) (Request.write path data) Unmarshal.ok
-  let rm h path = rpc "rm" (Handle.accessed_path h path) (Request.rm path) Unmarshal.ok
-  let mkdir h path = rpc "mkdir" (Handle.accessed_path h path) (Request.mkdir path) Unmarshal.ok
-  let setperms h path acl = rpc "setperms" (Handle.accessed_path h path) (Request.setperms path acl) Unmarshal.ok
-  let debug h cmd_args = rpc "debug" h (fun _ -> Request.debug cmd_args) Unmarshal.list
-  let restrict h domid = rpc "restrict" h (fun _ -> Request.restrict domid) Unmarshal.ok
-  let getdomainpath h domid = rpc "getdomainpath" h (fun _ -> Request.getdomainpath domid) Unmarshal.string
-  let watch h path token = rpc "watch" (Handle.watch h path) (fun _ -> Request.watch path token) Unmarshal.ok
-  let unwatch h path token = rpc "unwatch" (Handle.watch h path) (fun _ -> Request.unwatch path token) Unmarshal.ok
+  let directory h path = rpc "directory" (Handle.accessed_path h path) (Request.Directory path) Unmarshal.list
+  let read h path = rpc "read" (Handle.accessed_path h path) (Request.Read path) Unmarshal.string
+  let write h path data = rpc "write" (Handle.accessed_path h path) (Request.Write(path, data)) Unmarshal.ok
+  let rm h path = rpc "rm" (Handle.accessed_path h path) (Request.Rm path) Unmarshal.ok
+  let mkdir h path = rpc "mkdir" (Handle.accessed_path h path) (Request.Mkdir path) Unmarshal.ok
+  let setperms h path acl = rpc "setperms" (Handle.accessed_path h path) (Request.Setperms(path, acl)) Unmarshal.ok
+  let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
+  let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
+  let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
+  let watch h path token = rpc "watch" (Handle.watch h path) (Request.Watch(path, Token.to_string token)) Unmarshal.ok
+  let unwatch h path token = rpc "unwatch" (Handle.watch h path) (Request.Unwatch(path, Token.to_string token)) Unmarshal.ok
 
   let with_xs client f = f (Handle.no_transaction client)
 
@@ -283,11 +283,11 @@ module Client = functor(T: TRANSPORT) -> struct
     result
 
   let rec with_xst client f =
-    lwt tid = rpc "transaction_start" (Handle.no_transaction client) (fun _ -> Request.transaction_start ()) Unmarshal.int32 in
+    lwt tid = rpc "transaction_start" (Handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
     let h = Handle.transaction client tid in
     lwt result = f h in
     try_lwt
-      lwt res' = rpc "transaction_end" h (Request.transaction_end true) Unmarshal.string in
+      lwt res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
       if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
     with Eagain ->
       with_xst client f

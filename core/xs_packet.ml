@@ -319,6 +319,7 @@ module Token = struct
   let to_debug_string x = x
 
   let of_string x = x
+  let to_string x = x
 end
 
 let data_concat ls = (String.concat "\000" ls) ^ "\000"
@@ -620,53 +621,6 @@ module Request = struct
 		| Isintroduced domid ->
 			let data = data_concat [ Printf.sprintf "%u" domid; ] in
 			create 0l (next_rid ()) Op.Isintroduced data
-
-  let directory path tid =
-    if is_valid_path path then Some (print (Directory path) tid) else None
-
-  let read path tid =
-    if is_valid_path path then Some (print (Read path) tid) else None
-
-  let getperms path tid =
-    if is_valid_path path then Some (print (Getperms path) tid) else None
-
-  let debug commands = Some (print (Debug commands) 0l)
-
-  let watch path data =
-    if is_valid_watch_path path then Some (print (Watch (path, data)) 0l) else None
-
-  let unwatch path data =
-    if is_valid_watch_path path then Some (print (Unwatch (path, data)) 0l) else None
-
-  let transaction_start () = Some (print (Transaction_start) 0l)
-
-  let transaction_end commit tid = Some (print (Transaction_end commit) tid)
-
-  let introduce domid mfn port = Some (print (Introduce (domid, mfn, port)) 0l)
-
-  let release domid = Some (print (Release domid) 0l)
-
-  let resume domid = Some (print (Resume domid) 0l)
-
-  let getdomainpath domid = Some (print (Getdomainpath domid) 0l)
-
-  let write path value tid =
-	  if is_valid_path path then Some (print (Write(path, value)) tid) else None
-
-  let mkdir path tid =
-      if is_valid_path path then Some (print (Mkdir path) tid) else None
-
-  let rm path tid =
-      if is_valid_path path then Some (print (Rm path) tid) else None
-
-  let setperms path perms tid =
-	  if is_valid_path path then Some (print (Setperms (path, perms)) tid) else None
-
-  let set_target mine yours = Some (print (Set_target(mine, yours)) 0l)
-
-  let restrict domid = Some (print (Restrict domid) 0l)
-
-  let isintroduced domid = Some (print (Isintroduced domid) 0l)
 end
 
 module Unmarshal = struct

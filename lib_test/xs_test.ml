@@ -84,48 +84,46 @@ type example_packet = {
 	packet: Xs_packet.t;
 	wire_fmt: string;
 }
-let make_example_request op pkt_opt wire_fmt = match pkt_opt with
-	| None -> failwith (Printf.sprintf "make_example_request:%s" (Xs_packet.Op.to_string op))
-	| Some x -> {
+let make_example_request op payload tid wire_fmt = {
 		op = op;
-		packet = x;
+		packet = Xs_packet.Request.print payload tid;
 		wire_fmt = wire_fmt;
 	}
 
 let example_request_packets =
-	let open Xs_packet.Request in
-    let open Xs_packet.Op in [
-		make_example_request Directory (directory "/whatever/whenever" 5l)
+	let open Xs_packet in
+	let open Xs_packet.Request in [
+		make_example_request Op.Directory (Directory "/whatever/whenever") 5l
 			"\x01\x00\x00\x00\x0f\x00\x00\x00\x05\x00\x00\x00\x13\x00\x00\x00\x2f\x77\x68\x61\x74\x65\x76\x65\x72\x2f\x77\x68\x65\x6e\x65\x76\x65\x72\x00";
-		make_example_request Read (read "/a/b/c" 6l)
+		make_example_request Op.Read (Read "/a/b/c") 6l
 			"\x02\x00\x00\x00\x0e\x00\x00\x00\x06\x00\x00\x00\x07\x00\x00\x00\x2f\x61\x2f\x62\x2f\x63\x00";
-		make_example_request Getperms (getperms "/a/b" 7l)
+		make_example_request Op.Getperms (Getperms "/a/b") 7l
 			"\x03\x00\x00\x00\x0d\x00\x00\x00\x07\x00\x00\x00\x05\x00\x00\x00\x2f\x61\x2f\x62\x00";
-		make_example_request Rm (rm "/" 0l)
+		make_example_request Op.Rm (Rm "/") 0l
 			"\x0d\x00\x00\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x2f\x00";
-		make_example_request Setperms (setperms "/" example_acl 1l)
+		make_example_request Op.Setperms (Setperms("/", example_acl)) 1l
 			"\x0e\x00\x00\x00\x0b\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x2f\x00\x72\x35\x00\x77\x32\x00\x62\x33\x00";
-		make_example_request Write (write "/key" "value" 1l)
+		make_example_request Op.Write (Write("/key", "value")) 1l
 			"\x0b\x00\x00\x00\x0a\x00\x00\x00\x01\x00\x00\x00\x0a\x00\x00\x00\x2f\x6b\x65\x79\x00\x76\x61\x6c\x75\x65";
-		make_example_request Mkdir (mkdir "/" 1024l)
+		make_example_request Op.Mkdir (Mkdir "/") 1024l
 			"\x0c\x00\x00\x00\x09\x00\x00\x00\x00\x04\x00\x00\x02\x00\x00\x00\x2f\x00";
-		make_example_request Transaction_start (transaction_start ())
+		make_example_request Op.Transaction_start Transaction_start 0l
 			"\x06\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00";
-		make_example_request Transaction_end (transaction_end true 1l)
+		make_example_request Op.Transaction_end (Transaction_end true) 1l
 			"\x07\x00\x00\x00\x07\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x54\x00";
-		make_example_request Introduce (introduce 4 5n 1)
+		make_example_request Op.Introduce (Introduce(4, 5n, 1)) 0l
 			"\x08\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x34\x00\x35\x00\x31\x00";
-		make_example_request Release (release 2)
+		make_example_request Op.Release (Release 2) 0l
 			"\x09\x00\x00\x00\x05\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x32\x00";
-		make_example_request Resume (resume 3)
+		make_example_request Op.Resume (Resume 3) 0l
 			"\x12\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x33\x00";
-		make_example_request Getdomainpath (getdomainpath 3)
+		make_example_request Op.Getdomainpath (Getdomainpath 3) 0l
 			"\x0a\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x33\x00";
-		make_example_request Watch (watch "/foo/bar" (Xs_packet.Token.of_user_string "something"))
+		make_example_request Op.Watch (Watch("/foo/bar", (Xs_packet.Token.(to_string(of_user_string "something"))))) 0l
 			"\x04\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x15\x00\x00\x00\x2f\x66\x6f\x6f\x2f\x62\x61\x72\x00\x31\x3a\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x00";
-		make_example_request Unwatch (unwatch "/foo/bar" (Xs_packet.Token.of_user_string "somethinglse"))
+		make_example_request Op.Unwatch (Unwatch("/foo/bar", (Xs_packet.Token.(to_string(of_user_string "somethinglse"))))) 0l
 			"\x05\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\x2f\x66\x6f\x6f\x2f\x62\x61\x72\x00\x30\x3a\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x6c\x73\x65\x00";
-		make_example_request Debug (debug [ "a"; "b"; "something" ])
+		make_example_request Op.Debug (Debug [ "a"; "b"; "something" ]) 0l
 			"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x61\x00\x62\x00\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x00"
 	]
 
@@ -168,7 +166,7 @@ let example_response_packets =
 			"\x07\x00\x00\x00\x07\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
 		{
 			op = Op.Error;
-			packet = print (Xs_packet.Request.directory "/foo" 2l |> unbox) (Error "whatyoutalkingabout");
+			packet = print (Xs_packet.Request.(print (Directory "/foo") 2l)) (Error "whatyoutalkingabout");
 			wire_fmt =
 				"\x10\x00\x00\x00\x10\x00\x00\x00\x02\x00\x00\x00\x14\x00\x00\x00\x77\x68\x61\x74\x79\x6f\x75\x74\x61\x6c\x6b\x69\x6e\x67\x61\x62\x6f\x75\x74\x00"
 		}
