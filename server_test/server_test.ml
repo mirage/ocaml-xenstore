@@ -292,6 +292,24 @@ let test_device_create_coalesce () =
 		dom0, none, Read "/local/domain/0/backend/vbd/2/51712", String "hello";
 	]
 
+let test_transactions_really_do_conflict () =
+	(* Check that transactions that really can't interleave are aborted *)
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, Mkdir "/a", OK;
+	];
+	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+	run store [
+		dom0, tid, Directory "/a", OK;
+		dom0, none, Write("/a/b", "hello"), OK;
+		dom0, tid, Write("/a/b", "there"), OK;
+		dom0, tid, Transaction_end true, Err "EAGAIN";
+		dom0, none, Read "/a/b", String "hello"
+	]
+
+
 let string_of_watch_events watch_events =
 	String.concat "; " (List.map (fun (k, v) -> k ^ ", " ^ v) watch_events)
 
@@ -390,7 +408,6 @@ let test_transaction_watches () =
 	];
 	assert_watches dom0 [ ("/a", "token") ]
 
-
 let test_introduce_watches () =
 	(* Check that @introduceDomain watches appear on introduce *)
 	let dom0 = Connection.create 0 in
@@ -447,6 +464,7 @@ let _ =
 		"transactions_are_isolated" >:: test_transactions_are_isolated;
 		"independent_transactions_coalesce" >:: test_independent_transactions_coalesce;
 		"device_create_coalesce" >:: test_device_create_coalesce;
+		"test_transactions_really_do_conflict" >:: test_transactions_really_do_conflict;
 		"test_simple_watches" >:: test_simple_watches;
 (*		"test_watches_read_perm" >:: test_watches_read_perm; *)
 		"test_transaction_watches" >:: test_transaction_watches;
