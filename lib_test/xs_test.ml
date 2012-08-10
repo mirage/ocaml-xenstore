@@ -129,10 +129,10 @@ let example_request_packets =
 			"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x61\x00\x62\x00\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x00"
 	]
 
-let make_example_response op f wire_fmt =
+let make_example_response op response wire_fmt =
 	let request = List.find (fun x -> x.op = op) example_request_packets in {
 		op = op;
-		packet = f request.packet;
+		packet = Xs_packet.Response.print request.packet response;
 		wire_fmt = wire_fmt;
 	}
 
@@ -140,35 +140,35 @@ let make_example_response op f wire_fmt =
 let example_response_packets =
 	let open Xs_packet in
 	let open Xs_packet.Response in [
-		make_example_response Op.Read (fun t -> read t "theresult")
+		make_example_response Op.Read (Read "theresult")
 			"\x02\x00\x00\x00\x0e\x00\x00\x00\x06\x00\x00\x00\x09\x00\x00\x00\x74\x68\x65\x72\x65\x73\x75\x6c\x74";
-		make_example_response Op.Read (fun t -> read t "")
+		make_example_response Op.Read (Read "")
 			"\x02\x00\x00\x00\x0e\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00";
-		make_example_response Op.Getperms (fun t -> getperms t (Xs_packet.ACL.( { owner = 2; other = READ; acl = [ 4, NONE ] } )))
+		make_example_response Op.Getperms (Getperms (Xs_packet.ACL.( { owner = 2; other = READ; acl = [ 4, NONE ] } )))
 			"\x03\x00\x00\x00\x0d\x00\x00\x00\x07\x00\x00\x00\x06\x00\x00\x00\x72\x32\x00\x6e\x34\x00";
-		make_example_response Op.Getdomainpath (fun t -> getdomainpath t "/local/domain/4")
+		make_example_response Op.Getdomainpath (Getdomainpath "/local/domain/4")
 			"\x0a\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x2f\x6c\x6f\x63\x61\x6c\x2f\x64\x6f\x6d\x61\x69\x6e\x2f\x34\x00";
-		make_example_response Op.Transaction_start (fun t -> transaction_start t 3l)
+		make_example_response Op.Transaction_start (Transaction_start 3l)
 			"\x06\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x33\x00";
-		make_example_response Op.Directory (fun t -> directory t [ "a"; "b"; "c"; "aseasyas"; "1"; "2"; "3" ])
+		make_example_response Op.Directory (Directory [ "a"; "b"; "c"; "aseasyas"; "1"; "2"; "3" ])
 			"\x01\x00\x00\x00\x0f\x00\x00\x00\x05\x00\x00\x00\x15\x00\x00\x00\x61\x00\x62\x00\x63\x00\x61\x73\x65\x61\x73\x79\x61\x73\x00\x31\x00\x32\x00\x33\x00";
-		make_example_response Op.Write write
+		make_example_response Op.Write Write
 			"\x0b\x00\x00\x00\x0a\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
-		make_example_response Op.Mkdir mkdir
+		make_example_response Op.Mkdir Mkdir
 			"\x0c\x00\x00\x00\x09\x00\x00\x00\x00\x04\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
-		make_example_response Op.Rm rm
+		make_example_response Op.Rm Rm
 			"\x0d\x00\x00\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
-		make_example_response Op.Setperms setperms
+		make_example_response Op.Setperms Setperms
 			"\x0e\x00\x00\x00\x0b\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
-		make_example_response Op.Watch watch
+		make_example_response Op.Watch Watch
 			"\x04\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
-		make_example_response Op.Unwatch unwatch
+		make_example_response Op.Unwatch Unwatch
 			"\x05\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
-		make_example_response Op.Transaction_end transaction_end
+		make_example_response Op.Transaction_end Transaction_end
 			"\x07\x00\x00\x00\x07\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
 		{
 			op = Op.Error;
-			packet = error (Xs_packet.Request.directory "/foo" 2l |> unbox) "whatyoutalkingabout";
+			packet = print (Xs_packet.Request.directory "/foo" 2l |> unbox) (Error "whatyoutalkingabout");
 			wire_fmt =
 				"\x10\x00\x00\x00\x10\x00\x00\x00\x02\x00\x00\x00\x14\x00\x00\x00\x77\x68\x61\x74\x79\x6f\x75\x74\x61\x6c\x6b\x69\x6e\x67\x61\x62\x6f\x75\x74\x00"
 		}

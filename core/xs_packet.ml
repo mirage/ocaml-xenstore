@@ -420,28 +420,6 @@ module Response = struct
 			| Release -> f Op.Release ok
 			| Set_target -> f Op.Set_target ok
 			| Restrict -> f Op.Restrict ok
-
-  let read request x = print request (Read x)
-  let getperms request perms = print request (Getperms perms)
-  let getdomainpath request x = print request (Getdomainpath x)
-  let transaction_start request tid = print request (Transaction_start tid)
-  let directory request ls = print request (Directory ls)
-  let error request x = print request (Error x)
-  let write request = print request Write
-  let mkdir request = print request Mkdir
-  let rm request = print request Rm
-  let setperms request = print request Setperms
-  let watch request = print request Watch
-  let unwatch request = print request Unwatch
-  let transaction_end request = print request Transaction_end
-  let introduce request = print request Introduce
-  let release request = print request Release
-  let debug request items = print request (Debug items)
-  let set_target request = print request Set_target
-  let restrict request = print request Restrict
-  let resume request = print request Resume
-  let isintroduced request b = print request (Isintroduced b)
-  let watchevent path token =  create 0l 0l Op.Watchevent (data_concat [ path; token ])
 end
 
 module Request = struct

@@ -122,28 +122,6 @@ module Token : sig
 end
 
 module Response : sig
-  val read : t -> string -> t
-  val getperms : t -> ACL.t -> t
-  val getdomainpath : t -> string -> t
-  val transaction_start : t -> int32 -> t
-  val directory : t -> string list -> t
-  val write : t -> t
-  val mkdir : t -> t
-  val rm : t -> t
-  val setperms : t -> t
-  val watch : t -> t
-  val unwatch : t -> t
-  val transaction_end : t -> t
-  val introduce : t -> t
-  val release : t -> t
-  val error : t -> string -> t
-  val debug : t -> string list -> t
-  val set_target : t -> t
-  val restrict : t -> t
-  val resume : t -> t
-  val isintroduced : t -> bool -> t
-  val watchevent : string -> string -> t
-
   type payload =
   | Read of string
   | Directory of string list
