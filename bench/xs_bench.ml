@@ -388,13 +388,16 @@ let vm_shutdown domid client =
 	lwt _ = Domain.shutdown domid () client in
 	Domain.destroy domid client
 
-let vm_cycle domid client =
+let vm_start domid client =
 	let vbd devid = {
 		Device.frontend = { Device.domid = domid; kind = Device.Vbd; devid = 0 };
 		backend = { Device.domid = 0; kind = Device.Vbd; devid = 0 }
 	} in
 	lwt () = Domain.make domid client in
-	lwt () = Lwt_list.iter_s (fun d -> Device.add d client) [ vbd 0; vbd 1; vbd 2 ] in
+	Lwt_list.iter_s (fun d -> Device.add d client) [ vbd 0; vbd 1; vbd 2 ]
+
+let vm_cycle domid client =
+	lwt () = vm_start domid client in
 	vm_shutdown domid client
 
 let rec between start finish =
@@ -413,6 +416,24 @@ let parallel n client =
 		(fun domid ->
 			vm_cycle domid client
 		) (between 0 n)
+
+let query m n client =
+	lwt () = Lwt_list.iter_s
+	(fun domid -> 
+		vm_start domid client
+	) (between 0 n) in
+	lwt () = for_lwt i = 0 to m do
+		Lwt_list.iter_p
+		(fun domid ->
+			with_xs client (fun xs -> lwt _ = read xs (Printf.sprintf "%s/local/domain/%d/name" prefix domid) in return ())
+		) (between 0 n)
+	done in
+	lwt () = Lwt_list.iter_s
+	(fun domid -> 
+		vm_shutdown domid client
+	) (between 0 n) in
+	return ()
+
 
 let time f =
 	let start = Unix.gettimeofday () in
@@ -460,12 +481,15 @@ let main () =
 		| Some n -> int_of_string n in
 
 	lwt client = make () in
-(*
+
 	lwt t = time (fun () -> sequential n client) in
     lwt () = Lwt_io.write Lwt_io.stdout (Printf.sprintf "%d sequential starts and shutdowns: %.02f\n" n t) in
-*)
+
 	lwt t = time (fun () -> parallel n client) in
     lwt () = Lwt_io.write Lwt_io.stdout (Printf.sprintf "%d parallel starts and shutdowns: %.02f\n" n t) in
+	lwt t = time (fun () -> query 1000 n client) in
+    lwt () = Lwt_io.write Lwt_io.stdout (Printf.sprintf "%d read queries per %d VMs: %.02f\n" 1000 n t) in
+
 	return ()
  end
 
