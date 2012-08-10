@@ -460,12 +460,12 @@ let main () =
 		| Some n -> int_of_string n in
 
 	lwt client = make () in
+(*
 	lwt t = time (fun () -> sequential n client) in
     lwt () = Lwt_io.write Lwt_io.stdout (Printf.sprintf "%d sequential starts and shutdowns: %.02f\n" n t) in
-(*
+*)
 	lwt t = time (fun () -> parallel n client) in
     lwt () = Lwt_io.write Lwt_io.stdout (Printf.sprintf "%d parallel starts and shutdowns: %.02f\n" n t) in
-*)
 	return ()
  end
 

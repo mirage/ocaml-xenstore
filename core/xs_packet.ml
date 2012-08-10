@@ -347,34 +347,101 @@ let set_data pkt (data: string) =
 
 module Response = struct
 
-  let read request x = set_data request x
-  let getperms request perms = set_data request (data_concat [ ACL.to_string perms ])
-  let getdomainpath request x = set_data request (data_concat [ x ])
-  let transaction_start request tid = set_data request (data_concat [ Int32.to_string tid ])
+  type payload =
+  | Read of string
+  | Directory of string list
+  | Getperms of ACL.t
+  | Getdomainpath of string
+  | Transaction_start of int32
+  | Write
+  | Mkdir
+  | Rm
+  | Setperms
+  | Watch
+  | Unwatch
+  | Transaction_end
+  | Debug of string list
+  | Introduce
+  | Resume
+  | Release
+  | Set_target
+  | Restrict
+  | Isintroduced of bool
+  | Error of string
+  | Watchevent of string * string
 
-  let directory request ls = set_data request (if ls = [] then "" else data_concat ls)
+	let prettyprint_payload =
+		let open Printf in function
+			| Read x -> sprintf "Read %s" x
+			| Directory xs -> sprintf "Directory [ %s ]" (String.concat "; " xs)
+			| Getperms acl -> sprintf "Getperms %s" (ACL.to_string acl)
+			| Getdomainpath p -> sprintf "Getdomainpath %s" p
+			| Transaction_start x -> sprintf "Transaction_start %ld" x
+			| Write -> "Write"
+			| Mkdir -> "Mkdir"
+			| Rm -> "Rm"
+			| Setperms -> "Setperms"
+			| Watch -> "Watch"
+			| Unwatch -> "Unwatch"
+			| Transaction_end -> "Transaction_end"
+			| Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
+			| Introduce -> "Introduce"
+			| Resume -> "Resume"
+			| Release -> "Release"
+			| Set_target -> "Set_target"
+			| Restrict -> "Restrict"
+			| Isintroduced x -> sprintf "Isintroduced %b" x
+			| Error x -> sprintf "Error %s" x
+			| Watchevent (x, y) -> sprintf "Watchevent %s %s" x y
 
-  let error request x =
-	  let reply = { request with ty = Op.Error } in
-	  set_data reply (data_concat [ x ])
+	let ok = "OK\000"
 
-  let ack request = set_data request "OK\000"
+	let print request =
+		let f op data = create (get_tid request) (get_rid request) op data in
+		function
+			| Read x -> f Op.Read x
+			| Directory ls -> f Op.Directory (if ls = [] then "" else data_concat ls)
+			| Getperms perms -> f Op.Getperms (data_concat [ ACL.to_string perms ])
+			| Getdomainpath x -> f Op.Getdomainpath (data_concat [ x ])
+			| Transaction_start tid -> f Op.Transaction_start (data_concat [ Int32.to_string tid ])
+			| Debug items -> f Op.Debug (data_concat items)
+			| Isintroduced b -> f Op.Isintroduced (data_concat [ if b then "T" else "F" ])
+			| Watchevent (path, token) -> create 0l 0l Op.Watchevent (data_concat [ path; token ])
+			| Error x -> f Op.Error (data_concat [ x ])
+			| Write -> f Op.Write ok
+			| Mkdir -> f Op.Mkdir ok
+			| Rm -> f Op.Rm ok
+			| Setperms -> f Op.Setperms ok
+			| Watch -> f Op.Watch ok
+			| Unwatch -> f Op.Unwatch ok
+			| Transaction_end -> f Op.Transaction_end ok
+			| Introduce -> f Op.Introduce ok
+			| Resume -> f Op.Resume ok
+			| Release -> f Op.Release ok
+			| Set_target -> f Op.Set_target ok
+			| Restrict -> f Op.Restrict ok
 
-  let write = ack
-  let mkdir = ack
-  let rm = ack
-  let setperms = ack
-  let watch = ack
-  let unwatch = ack
-  let transaction_end = ack
-  let introduce = ack
-  let release = ack
-  let debug request items = set_data request (data_concat items)
-  let set_target = ack
-  let restrict = ack
-  let resume = ack
-  let isintroduced request b = set_data request (data_concat [ if b then "T" else "F" ])
-  let watchevent path token = create 0l 0l Op.Watchevent (data_concat [ path; token ])
+  let read request x = print request (Read x)
+  let getperms request perms = print request (Getperms perms)
+  let getdomainpath request x = print request (Getdomainpath x)
+  let transaction_start request tid = print request (Transaction_start tid)
+  let directory request ls = print request (Directory ls)
+  let error request x = print request (Error x)
+  let write request = print request Write
+  let mkdir request = print request Mkdir
+  let rm request = print request Rm
+  let setperms request = print request Setperms
+  let watch request = print request Watch
+  let unwatch request = print request Unwatch
+  let transaction_end request = print request Transaction_end
+  let introduce request = print request Introduce
+  let release request = print request Release
+  let debug request items = print request (Debug items)
+  let set_target request = print request Set_target
+  let restrict request = print request Restrict
+  let resume request = print request Resume
+  let isintroduced request b = print request (Isintroduced b)
+  let watchevent path token =  create 0l 0l Op.Watchevent (data_concat [ path; token ])
 end
 
 module Request = struct
@@ -401,6 +468,30 @@ module Request = struct
 	| Isintroduced of int
 	| Error of string
 	| Watchevent of string
+
+	let prettyprint_payload =
+		let open Printf in function
+			| Read x -> sprintf "Read %s" x
+			| Directory x -> sprintf "Directory %s" x
+			| Getperms x -> sprintf "Getperms %s" x
+			| Getdomainpath x -> sprintf "Getdomainpath %d" x
+			| Transaction_start -> "Transaction_start"
+			| Write (k, v) -> sprintf "Write %s %s" k v
+			| Mkdir x -> sprintf "Mkdir %s" x
+			| Rm x -> sprintf "Rm %s" x
+			| Setperms (x, acl) -> sprintf "Setperms %s %s" x (ACL.to_string acl)
+			| Watch (x, y) -> sprintf "Watch %s %s" x y
+			| Unwatch (x, y) -> sprintf "Unwatch %s %s" x y
+			| Transaction_end x -> sprintf "Transaction_end %b" x
+			| Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
+			| Introduce (x, n, y) -> sprintf "Introduce %d %nu %d" x n y
+			| Resume x -> sprintf "Resume %d" x
+			| Release x -> sprintf "Release %d" x
+			| Set_target (x, y) -> sprintf "Set_target %d %d" x y
+			| Restrict x -> sprintf "Restrict %d" x
+			| Isintroduced x -> sprintf "Isintroduced %d" x
+			| Error x -> sprintf "Error %s" x
+			| Watchevent x -> sprintf "Watchevent %s" x
 
 	exception Parse_failure
 
@@ -496,6 +587,13 @@ module Request = struct
 		try
 			Some (parse_exn request)
 		with _ -> None
+
+	let prettyprint request =
+		Printf.sprintf "tid = %ld; rid = %ld; payload = %s"
+			(get_tid request) (get_rid request)
+			(match parse request with
+				| None -> "None"
+				| Some x -> "Some " ^ (prettyprint_payload x))
 
 	let print x tid = match x with
 		| Directory path -> with_path Op.Directory tid path

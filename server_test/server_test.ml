@@ -57,6 +57,7 @@ let equals expected got =
 type result =
 	| OK
 	| Err of string
+	| String of string
 	| StringList of (string list -> unit)
 	| Perms of (Xs_packet.ACL.t -> unit)
 	| Tid of (int32 -> unit)
@@ -67,6 +68,8 @@ let check_result reply =
 	function
 	| OK ->
 		success ignore reply
+	| String which ->
+		(success ++ string ++ equals) which reply
 	| Err which ->
 		(failure ++ string ++ equals) which reply
 	| StringList f ->
@@ -262,6 +265,8 @@ let test_independent_transactions_coalesce () =
 		dom0, tid_2, Write("/1/2", "foo"), OK;
 		dom0, tid_1, Transaction_end true, OK;
 		dom0, tid_2, Transaction_end true, OK;
+		dom0, none, Read "/a/b", String "foo";
+		dom0, none, Read "/1/2", String "foo";
 	]
 
 let test_device_create_coalesce () =
@@ -283,6 +288,8 @@ let test_device_create_coalesce () =
 		dom0, tid_2, Write("/local/domain/2/device/vbd/51712", "there"), OK;
 		dom0, tid_1, Transaction_end true, OK;
 		dom0, tid_2, Transaction_end true, OK;
+		dom0, none, Read "/local/domain/0/backend/vbd/1/51712", String "hello";
+		dom0, none, Read "/local/domain/0/backend/vbd/2/51712", String "hello";
 	]
 
 let string_of_watch_events watch_events =
@@ -439,7 +446,7 @@ let _ =
 		"test_set_target" >:: test_set_target;
 		"transactions_are_isolated" >:: test_transactions_are_isolated;
 		"independent_transactions_coalesce" >:: test_independent_transactions_coalesce;
-(*		"device_create_coalesce" >:: test_device_create_coalesce; *)
+		"device_create_coalesce" >:: test_device_create_coalesce;
 		"test_simple_watches" >:: test_simple_watches;
 (*		"test_watches_read_perm" >:: test_watches_read_perm; *)
 		"test_transaction_watches" >:: test_transaction_watches;

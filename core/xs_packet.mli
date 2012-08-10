@@ -143,6 +143,33 @@ module Response : sig
   val resume : t -> t
   val isintroduced : t -> bool -> t
   val watchevent : string -> string -> t
+
+  type payload =
+  | Read of string
+  | Directory of string list
+  | Getperms of ACL.t
+  | Getdomainpath of string
+  | Transaction_start of int32
+  | Write
+  | Mkdir
+  | Rm
+  | Setperms
+  | Watch
+  | Unwatch
+  | Transaction_end
+  | Debug of string list
+  | Introduce
+  | Resume
+  | Release
+  | Set_target
+  | Restrict
+  | Isintroduced of bool
+  | Error of string
+  | Watchevent of string * string
+
+  val prettyprint_payload: payload -> string
+
+  val print: t -> payload -> t
 end
 
 module Request : sig
@@ -189,6 +216,9 @@ module Request : sig
   | Isintroduced of int
   | Error of string
   | Watchevent of string
+
+  val prettyprint_payload: payload -> string
+  val prettyprint: t -> string
 
   val parse: t -> payload option
   val print: payload -> int32 -> t

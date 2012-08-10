@@ -168,8 +168,7 @@ let fire_one name watch =
 			else name in
 	let name = Store.Name.to_string name in
 	let open Xs_packet in
-	let packet = Response.watchevent name watch.token in
-	Logging.xb_answer ~tid:(get_tid packet) ~con:watch.con.domstr ~ty:(get_ty packet) (get_data packet);
+	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
 (*	Printf.fprintf stderr "Adding %s, %s to %s\n%!" name watch.token watch.con.domstr; *)
 	Queue.add (name, watch.token) watch.con.watch_events
 

@@ -99,7 +99,11 @@ type access_type =
 	| Commit
 	| Newconn
 	| Endconn
-	| XbOp of Xs_packet.Op.t
+	| Debug of string
+	| Start_transaction
+	| End_transaction
+	| Request of Xs_packet.Request.payload
+	| Response of Xs_packet.Response.payload
 
 let string_of_tid ~con tid =
 	if tid = 0l
@@ -112,40 +116,11 @@ let string_of_access_type = function
 	| Commit                  -> "commit   "
 	| Newconn                 -> "newconn  "
 	| Endconn                 -> "endconn  "
-
-	| XbOp op ->
-	  let open Xs_packet.Op in match op with
-	| Debug             -> "debug    "
-
-	| Directory         -> "directory"
-	| Read              -> "read     "
-	| Getperms          -> "getperms "
-
-	| Watch             -> "watch    "
-	| Unwatch           -> "unwatch  "
-
-	| Transaction_start -> "t start  "
-	| Transaction_end   -> "t end    "
-
-	| Introduce         -> "introduce"
-	| Release           -> "release  "
-	| Getdomainpath     -> "getdomain"
-	| Isintroduced      -> "is introduced"
-	| Resume            -> "resume   "
- 
-	| Write             -> "write    "
-	| Mkdir             -> "mkdir    "
-	| Rm                -> "rm       "
-	| Setperms          -> "setperms "
-	| Restrict          -> "restrict "
-	| Set_target        -> "settarget"
-
-	| Error             -> "error    "
-	| Watchevent        -> "w event  "
-(*	| Invalid           -> "invalid  " *)
-	(*
-	| x                       -> to_string x
-	*)
+	| Debug x                 -> "debug    " ^ x
+	| Start_transaction       -> "t start  "
+	| End_transaction         -> "t end    "
+	| Request r               -> " <- in   " ^ (Xs_packet.Request.prettyprint_payload r)
+	| Response r              -> " -> out  " ^ (Xs_packet.Response.prettyprint_payload r)
 
 let sanitize_data data =
 	let data = String.copy data in
@@ -176,35 +151,13 @@ let write_coalesce data = access_logging Coalesce ~data:("write "^data)
 let conflict = access_logging Conflict
 let commit = access_logging Commit
 
-let xb_op ~tid ~con ~ty data =
-	let print =
-	  let open Xs_packet.Op in match ty with
-		| Read | Directory | Getperms -> (* !access_log_read_ops *) true
-		| Transaction_start | Transaction_end ->
-			(* false *) true (* transactions are managed below *)
-		| Introduce | Release | Getdomainpath | Isintroduced | Resume ->
-			!access_log_special_ops
-		| _ -> true in
-	if print then access_logging ~tid ~con ~data (XbOp ty)
+let request ~tid ~con request = access_logging ~tid ~con (Request request)
+let response ~tid ~con response = access_logging ~tid ~con (Response response)
+let debug_print ~con x = access_logging ~tid:0l ~con (Debug x)
 
-let start_transaction ~tid ~con = 
-	if !access_log_transaction_ops && tid <> 0l
-	then access_logging ~tid ~con (XbOp Xs_packet.Op.Transaction_start)
-
-let end_transaction ~tid ~con = 
-	if !access_log_transaction_ops && tid <> 0l
-	then access_logging ~tid ~con (XbOp Xs_packet.Op.Transaction_end)
+let start_transaction ~tid ~con = access_logging ~tid ~con (Start_transaction)
+let end_transaction ~tid ~con = access_logging ~tid ~con (End_transaction)
 
 let startswith prefix x =
         let x_l = String.length x and prefix_l = String.length prefix in
         prefix_l <= x_l && String.sub x 0 prefix_l  = prefix
-
-let xb_answer ~tid ~con ~ty data =
-	let print =
-	  let open Xs_packet.Op in match ty with
-		| Error when startswith "ENOENT " data -> !access_log_read_ops
-		| Error -> true
-		| Watchevent -> true
-		| _ -> (* false *) true
-	in
-	if print then access_logging ~tid ~con ~data (XbOp ty)

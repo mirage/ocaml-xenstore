@@ -26,3 +26,4 @@ To-do list
 
   11. Add mirage domain frontend
 
+  12. Remove exceptions

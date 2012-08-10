@@ -67,7 +67,8 @@ type ty = No | Full of (int32 * Store.Node.t * Store.t)
 type t = {
 	ty: ty;
 	store: Store.t;
-	mutable ops: (Xs_packet.Op.t * Store.Name.t) list;
+	mutable paths: (Xs_packet.Op.t * Store.Name.t) list;
+	mutable operations: (Xs_packet.Request.payload * Xs_packet.Response.payload) list;
 	mutable read_lowpath: Store.Path.t option;
 	mutable write_lowpath: Store.Path.t option;
 }
@@ -77,16 +78,19 @@ let make id store =
 	{
 		ty = ty;
 		store = if id = none then store else Store.copy store;
-		ops = [];
+		paths = [];
+		operations = [];
 		read_lowpath = None;
 		write_lowpath = None;
 	}
 
 let get_id t = match t.ty with No -> none | Full (id, _, _) -> id
 let get_store t = t.store
-let get_ops t = t.ops
+let get_paths t = t.paths
 
-let add_wop t ty path = t.ops <- (ty, Store.Path.to_name path) :: t.ops
+let add_wop t ty path = t.paths <- (ty, Store.Path.to_name path) :: t.paths
+let add_operation t request response = t.operations <- (request, response) :: t.operations
+let get_operations t = List.rev t.operations
 let set_read_lowpath t path = t.read_lowpath <- get_lowest path t.read_lowpath
 let set_write_lowpath t path = t.write_lowpath <- get_lowest path t.write_lowpath
 
@@ -147,7 +151,7 @@ let getperms t perm path =
 	r
 
 let commit ~con t =
-	let has_write_ops = List.length t.ops > 0 in
+	let has_write_ops = List.length t.paths > 0 in
 	let has_coalesced = ref false in
 	let has_commited =
 	match t.ty with
