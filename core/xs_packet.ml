@@ -139,16 +139,22 @@ type t = {
   data: Buffer.t;
 }
 
+cstruct header {
+	uint32_t ty;
+	uint32_t rid;
+	uint32_t tid;
+	uint32_t len
+} as little_endian
+
 let to_string pkt =
-  let len = Int32.of_int (Buffer.length pkt.data) in
-  let ty = Op.to_int32 pkt.ty in
-  let header = BITSTRING {
-    ty: 32: littleendian;
-    pkt.rid: 32: littleendian;
-    pkt.tid: 32: littleendian;
-    len: 32: littleendian
-  } in
-  Bitstring.string_of_bitstring header ^ (Buffer.contents pkt.data)
+	let header = Bigarray.Array1.create Bigarray.char Bigarray.c_layout sizeof_header in
+	let len = Int32.of_int (Buffer.length pkt.data) in
+	let ty = Op.to_int32 pkt.ty in
+	set_header_ty header ty;
+	set_header_rid header pkt.rid;
+	set_header_tid header pkt.tid;
+	set_header_len header len;
+	Cstruct.to_string header ^ (Buffer.contents pkt.data)
 
 let get_tid pkt = pkt.tid
 let get_ty pkt = pkt.ty
@@ -183,14 +189,18 @@ module Parser = struct
     | Finished r -> r
 
   let parse_header str =
-    bitmatch (Bitstring.bitstring_of_string str) with
-      | { ty: 32: littleendian;
-	  rid: 32: littleendian;
-	  tid: 32: littleendian;
-	  len: 32: littleendian } ->
-	let len = Int32.to_int len in
-	      (* TODO: detect anamalous 'len' values and abort early *)
-	begin match Op.of_int32 ty with
+	  let header = Bigarray.Array1.create Bigarray.char Bigarray.c_layout sizeof_header in
+	  for i = 0 to sizeof_header - 1 do
+		  header.{i} <- str.[i]
+	  done;
+	  let ty = get_header_ty header in
+	  let rid = get_header_rid header in
+	  let tid = get_header_tid header in
+	  let len = get_header_len header in
+
+	  let len = Int32.to_int len in
+	  (* TODO: detect anamalous 'len' values and abort early *)
+	  begin match Op.of_int32 ty with
 	  | Some ty ->
 		  let t = {
 			  tid = tid;
@@ -203,8 +213,7 @@ module Parser = struct
 		  then Finished (Packet t)
 		  else ReadingBody t
 	  | None -> Finished (Unknown_operation ty)
-	end
-      | { _ } -> Finished (Parser_failed str)
+	  end
 
   let input state bytes =
     match state with

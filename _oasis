@@ -11,7 +11,7 @@ Library xenstore
   Path: core
   Findlibname: xenstore
   Modules: Xs_packet
-  BuildDepends:	lwt, bitstring, bitstring.syntax, lwt
+  BuildDepends:	lwt, cstruct, cstruct.syntax, lwt
 
 Library xenstore_client
   Path: client
