@@ -12,6 +12,10 @@
  * GNU Lesser General Public License for more details.
  *)
 
+let debug fmt = Logging.debug "quota" fmt
+let info  fmt = Logging.info  "quota" fmt
+let warn  fmt = Logging.warn  "quota" fmt
+
 exception Limit_reached
 exception Data_too_big
 exception Transaction_opened
@@ -57,7 +61,12 @@ let check quota id size =
 	if !activate then
 		_check quota id size
 
-let get_entry quota id = Hashtbl.find quota.cur id
+let get_entry quota id =
+	if not(Hashtbl.mem quota.cur id) then begin
+		info "Creating quota record for domain: %d" id;
+		Hashtbl.add quota.cur id 0
+	end;
+	Hashtbl.find quota.cur id
 
 let set_entry quota id nb =
 	if nb = 0
