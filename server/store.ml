@@ -481,6 +481,9 @@ let rm store perm path =
 	let rmed_node = lookup store.root path in
 	match rmed_node with
 	| None -> raise Path.Doesnt_exist
+	| Some node when node = store.root ->
+		error "Removing the root node is forbidden";
+		raise Invalid_path
 	| Some rmed_node ->
 		store.root <- path_rm store perm path;
 		Node.recurse (fun node -> Quota.del_entry store.quota (Node.get_owner node)) rmed_node
