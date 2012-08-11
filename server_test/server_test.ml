@@ -440,7 +440,40 @@ let test_bounded_watch_events () =
 	(* Check that the per-connection watch event queue is bounded *)
 	()
 
+let test_quota () =
+	(* Check that node creation and destruction changes a quota *)
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	let start = ref 0 in
+	let expect n x =
+		assert_equal ~msg:"quota" ~printer:string_of_int (!start + n) (int_of_string (List.hd x)) in
 
+	run store [
+		dom0, none, Debug [ "quota"; "0" ], StringList (fun x -> start := int_of_string (List.hd x));
+		dom0, none, Write ("/a", "hello"), OK;
+		dom0, none, Debug [ "quota"; "0" ], StringList (expect 1);
+		(* Implicit creation of 2 elements *)
+		dom0, none, Write ("/a/b/c", "hello"), OK;
+		dom0, none, Debug [ "quota"; "0" ], StringList (expect 3);
+		(* Remove one element *)
+		dom0, none, Rm "/a/b/c", OK;
+		dom0, none, Debug [ "quota"; "0" ], StringList (expect 2);
+		(* Recursive remove of 2 elements *)
+		dom0, none, Rm "/a", OK;
+		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
+		(* Remove an already removed element *)
+		dom0, none, Rm "/a", OK;
+		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
+		(* Remove a missing element: *)
+		dom0, none, Rm "/a", OK;
+		dom0, none, Rm "/a", OK;
+		dom0, none, Rm "/a", OK;
+		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
+		(* Removing the root node is forbidden *)
+		dom0, none, Rm "/", Err "EINVAL";
+		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
+	]
 
 let _ =
   let verbose = ref false in
@@ -469,5 +502,6 @@ let _ =
 (*		"test_watches_read_perm" >:: test_watches_read_perm; *)
 		"test_transaction_watches" >:: test_transaction_watches;
 		"test_introduce_watches" >:: test_introduce_watches;
+		"test_quota" >:: test_quota;
 	] in
   run_test_tt ~verbose:!verbose suite

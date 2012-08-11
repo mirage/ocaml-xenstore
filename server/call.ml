@@ -168,6 +168,10 @@ let reply_exn store c (request: t) : Response.payload =
 				| "watches" :: _ ->
 					let watches = (* Connections.debug cons *) "" in
 					[ watches ]
+				| "quota" :: domid :: [] ->
+					let domid = int_of_string domid in
+					let q = Quota.get_entry store.Store.quota domid in
+					[ string_of_int q ]
 				| _ -> []
 				with _ -> [])
 		| Request.Introduce(domid, mfn, port) ->
