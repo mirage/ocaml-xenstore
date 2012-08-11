@@ -17,8 +17,8 @@ module Node : sig
 
 	type t
 
-	val create : string -> Xs_packet.ACL.t -> string -> t
-	(** [create name perms value] returns fresh Node.t *)
+	val create : string -> int -> Xs_packet.ACL.t -> string -> t
+	(** [create name creator perms value] returns fresh Node.t *)
 
 	val get_perms: t -> Xs_packet.ACL.t
 	(** [get_perms t] returns the permissions attached to [t] *)
@@ -113,9 +113,9 @@ val copy: t -> t
 
 val path_exists: t -> Path.t -> bool
 
-val write: t -> Perms.t -> Path.t -> string -> unit
+val write: t -> int -> Perms.t -> Path.t -> string -> unit
 
-val mkdir: t -> Perms.t -> Path.t -> unit
+val mkdir: t -> int -> Perms.t -> Path.t -> unit
 
 val setperms: t -> Perms.t -> Path.t -> Xs_packet.ACL.t -> unit
 

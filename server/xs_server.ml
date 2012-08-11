@@ -25,10 +25,10 @@ let store =
 	let store = Store.create () in
 	let local = Store.Path.create "/local" (Store.Path.getdomainpath 0) in
 	if not (Store.path_exists store local)
-	then Store.mkdir store (Perms.of_domain 0) local;
+	then Store.mkdir store 0 (Perms.of_domain 0) local;
 	let domain = Store.Path.create "/local/domain" (Store.Path.getdomainpath 0) in
 	if not (Store.path_exists store domain)
-	then Store.mkdir store (Perms.of_domain 0) domain;
+	then Store.mkdir store 0 (Perms.of_domain 0) domain;
 	store
 
 module type TRANSPORT = sig

@@ -65,15 +65,15 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 			Response.Getdomainpath v
 		| Write(path, value) ->
 			let path = resolve path in
-			Transaction.mkdir_p t c.Connection.perm path;
-			Transaction.write t c.Connection.perm path value;
+			Transaction.mkdir_p t c.Connection.domid c.Connection.perm path;
+			Transaction.write t c.Connection.domid c.Connection.perm path value;
 			Response.Write
 		| Mkdir path ->
 			let path = resolve path in
-			Transaction.mkdir_p t c.Connection.perm path;
+			Transaction.mkdir_p t c.Connection.domid c.Connection.perm path;
 			begin
 				try
-					Transaction.mkdir t c.Connection.perm path
+					Transaction.mkdir t c.Connection.domid c.Connection.perm path
 				with Store.Path.Already_exist -> ()
 			end;
 			Response.Mkdir

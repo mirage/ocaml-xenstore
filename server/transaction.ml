@@ -96,21 +96,21 @@ let set_write_lowpath t path = t.write_lowpath <- get_lowest path t.write_lowpat
 
 let path_exists t path = Store.path_exists t.store path
 
-let write t perm path value =
+let write t creator perm path value =
 	let path_exists = path_exists t path in
-	Store.write t.store perm path value;
+	Store.write t.store creator perm path value;
 	if path_exists
 	then set_write_lowpath t path
 	else set_write_lowpath t (Store.Path.get_parent path);
 	add_wop t Xs_packet.Op.Write path
 
-let mkdir ?(with_watch=true) t perm path =
-	Store.mkdir t.store perm path;
+let mkdir ?(with_watch=true) t creator perm path =
+	Store.mkdir t.store creator perm path;
 	set_write_lowpath t path;
 	if with_watch then
 		add_wop t Xs_packet.Op.Mkdir path
 
-let mkdir_p t perm path =
+let mkdir_p t creator perm path =
 	let dirname = Store.Path.get_parent path in
 	if not (path_exists t dirname) then (
 		let rec check_path p =
@@ -122,7 +122,7 @@ let mkdir_p t perm path =
 					else
 						p in
 		let ret = check_path (List.tl (Store.Path.get_hierarchy dirname)) in
-		List.iter (fun s -> mkdir ~with_watch:false t perm s) ret
+		List.iter (fun s -> mkdir ~with_watch:false t creator perm s) ret
 	)
 
 let setperms t perm path perms =

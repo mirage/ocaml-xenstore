@@ -20,15 +20,16 @@ module Node = struct
 
 type t = {
 	name: Symbol.t;
+	creator: int;
 	perms: Xs_packet.ACL.t;
 	value: string;
 	children: t list;
 }
 
-let create _name _perms _value =
-	{ name = Symbol.of_string _name; perms = _perms; value = _value; children = []; }
+let create _name _creator _perms _value =
+	{ name = Symbol.of_string _name; creator = _creator; perms = _perms; value = _value; children = []; }
 
-let get_owner node = node.perms.Xs_packet.ACL.owner
+let get_creator node = node.creator
 
 let set_value node nvalue = 
 	if node.value = nvalue
@@ -246,25 +247,16 @@ let rec lookup_modify node path fct =
 let apply_modify rnode path fct =
 	lookup_modify rnode path fct
 
-(* get the deepest existing node for this path *)
-let rec get_deepest_existing_node node path =
-	let rec f node = function
-		| [] -> node
-		| h :: t ->
-			try f (Node.find node h) t 
-			with Not_found -> node in
-	f node path
-
 let set_node rnode path nnode =
 	let quota = Quota.create () in
-	if !Quota.activate then Node.recurse (fun node -> Quota.add_entry quota (Node.get_owner node)) nnode;
+	if !Quota.activate then Node.recurse (fun node -> Quota.add_entry quota (Node.get_creator node)) nnode;
 	if path = [] then
 		nnode, quota
 	else
 		let set_node node name =
 			try
 				let ent = Node.find node name in
-				if !Quota.activate then Node.recurse (fun node -> Quota.del_entry quota (Node.get_owner node)) ent;
+				if !Quota.activate then Node.recurse (fun node -> Quota.del_entry quota (Node.get_creator node)) ent;
 				Node.replace_child node ent nnode
 			with Not_found ->
 				Node.add_child node nnode
@@ -299,7 +291,7 @@ let get_quota store = store.quota
 let set_quota store quota = store.quota <- quota
 
 (* modifying functions *)
-let path_mkdir store perm path =
+let path_mkdir store creator perm path =
 	let do_mkdir node name =
 		try
 			let ent = Node.find node name in
@@ -307,13 +299,13 @@ let path_mkdir store perm path =
 			raise Path.Already_exist
 		with Not_found ->
 			Perms.check perm Perms.WRITE node.Node.perms;
-			Node.add_child node (Node.create name node.Node.perms "") in
+			Node.add_child node (Node.create name creator node.Node.perms "") in
 	if path = [] then
 		store.root
 	else
 		Path.apply_modify store.root path do_mkdir
 
-let path_write store perm path value =
+let path_write store creator perm path value =
 	let node_created = ref false in
 	let do_write node name =
 		try
@@ -324,7 +316,7 @@ let path_write store perm path value =
 		with Not_found ->
 			node_created := true;
 			Perms.check perm Perms.WRITE node.Node.perms;
-			Node.add_child node (Node.create name node.Node.perms value) in
+			Node.add_child node (Node.create name creator node.Node.perms value) in
 	if path = [] then (
 		Perms.check perm Perms.WRITE store.root.Node.perms;
 		Node.set_value store.root value, false
@@ -374,9 +366,6 @@ let lookup node path =
 	else (
 		try Some (lookup_get node path) with Path.Doesnt_exist -> None
 	)
-
-let get_deepest_existing_node store path =
-	Path.get_deepest_existing_node store.root path
 
 let read store perm path =
 	let do_read node name =
@@ -463,19 +452,17 @@ let set_node store path node =
 	store.root <- root;
 	Quota.add store.quota quota_diff
 
-let write store perm path value =
-	let owner = Node.get_owner (get_deepest_existing_node store path) in
-	Quota.check store.quota owner (String.length value);
-	let root, node_created = path_write store perm path value in
+let write store creator perm path value =
+	Quota.check store.quota creator (String.length value);
+	let root, node_created = path_write store creator perm path value in
 	store.root <- root;
 	if node_created
-	then Quota.add_entry store.quota owner
+	then Quota.add_entry store.quota creator
 
-let mkdir store perm path =
-	let owner = Node.get_owner (get_deepest_existing_node store path) in
-	Quota.check store.quota owner 0;
-	store.root <- path_mkdir store perm path;
-	Quota.add_entry store.quota owner
+let mkdir store creator perm path =
+	Quota.check store.quota creator 0;
+	store.root <- path_mkdir store creator perm path;
+	Quota.add_entry store.quota creator
 
 let rm store perm path =
 	let rmed_node = lookup store.root path in
@@ -486,23 +473,18 @@ let rm store perm path =
 		raise Invalid_path
 	| Some rmed_node ->
 		store.root <- path_rm store perm path;
-		Node.recurse (fun node -> Quota.del_entry store.quota (Node.get_owner node)) rmed_node
+		Node.recurse (fun node -> Quota.del_entry store.quota (Node.get_creator node)) rmed_node
 		
 let setperms store perm path nperms =
 	match lookup store.root path with
 	| None -> raise Path.Doesnt_exist
 	| Some node ->
-		let old_owner = Node.get_owner node in
-		let new_owner = nperms.Xs_packet.ACL.owner in
-		Quota.check store.quota new_owner 0;
-		store.root <- path_setperms store perm path nperms;
-		Quota.del_entry store.quota old_owner;
-		Quota.add_entry store.quota new_owner
+		store.root <- path_setperms store perm path nperms
 
 let create () = {
 	stat_transaction_coalesce = 0;
 	stat_transaction_abort = 0;
-	root = Node.create "" (Xs_packet.ACL.({ owner = 0; other = NONE; acl = [] })) "";
+	root = Node.create "" 0 (Xs_packet.ACL.({ owner = 0; other = NONE; acl = [] })) "";
 	quota = Quota.create ();
 }
 let copy store = {
