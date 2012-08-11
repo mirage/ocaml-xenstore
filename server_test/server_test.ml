@@ -475,6 +475,32 @@ let test_quota () =
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
 	]
 
+let test_quota_setperms () =
+	(* Check that one connection cannot exhaust another's quota *)
+	let dom0 = Connection.create 0 in
+	let dom1 = Connection.create 1 in
+	let dom2 = Connection.create 2 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	let dom1_quota = ref 0 in
+	let dom2_quota = ref 0 in
+	let expect quota n x =
+		assert_equal ~msg:"quota" ~printer:string_of_int (!quota + n) (int_of_string (List.hd x)) in
+	run store [
+		dom0, none, Mkdir "/local/domain/1", OK;
+		dom0, none, Setperms("/local/domain/1", Xs_packet.ACL.({owner = 1; other = NONE; acl = []})), OK;
+		dom1, none, Mkdir "/local/domain/1/private", OK;
+		dom0, none, Debug [ "quota"; "1" ], StringList (fun x -> dom1_quota := int_of_string (List.hd x));
+		dom0, none, Debug [ "quota"; "2" ], StringList (fun x -> dom2_quota := int_of_string (List.hd x));
+		dom1, none, Write("/local/domain/1/private/foo", "hello"), OK;
+		dom0, none, Debug [ "quota"; "1" ], StringList (expect dom1_quota 1);
+		dom0, none, Debug [ "quota"; "2" ], StringList (expect dom2_quota 0);
+		(* Hand this node to domain 2 (who doesn't want it) *)
+		dom1, none, Setperms("/local/domain/1/private/foo", Xs_packet.ACL.({owner = 2; other = NONE; acl = []})), OK;
+		(* Domain 2's quota shouldn't be affected: *)
+		dom0, none, Debug [ "quota"; "2" ], StringList (expect dom2_quota 0);
+	]
+
 let _ =
   let verbose = ref false in
   Arg.parse [
@@ -503,5 +529,6 @@ let _ =
 		"test_transaction_watches" >:: test_transaction_watches;
 		"test_introduce_watches" >:: test_introduce_watches;
 		"test_quota" >:: test_quota;
+		"test_quota_setperms" >:: test_quota_setperms;
 	] in
   run_test_tt ~verbose:!verbose suite
