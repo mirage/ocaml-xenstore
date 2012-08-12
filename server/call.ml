@@ -31,6 +31,8 @@ exception Transaction_nested
 let get_namespace_implementation path = match Store.Path.to_string_list path with
 	| "quota" :: rest ->
 		Store.Path.of_string_list rest, (module Quota_interface: Namespace.IO)
+	| "connection" :: rest ->
+		Store.Path.of_string_list rest, (module Connection.Interface: Namespace.IO)
 	| _ ->
 		path, (module Transaction: Namespace.IO)
 

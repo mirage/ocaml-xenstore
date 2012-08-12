@@ -230,3 +230,74 @@ let debug con =
 
 	let watches = List.map (fun (name, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Store.Name.to_string name) token) (list_watches con) in
 	String.concat "" watches
+
+module Interface = struct
+	include Namespace.Unsupported
+
+	let read t (perms: Perms.t) (path: Store.Path.t) =
+		match Store.Path.to_string_list path with
+		| "socket" :: [] -> ""
+		| "domain" :: [] -> ""
+		| "domain" :: domid :: [] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			""
+		| "domain" :: domid :: "transactions" :: [] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains domid in
+			string_of_int (Hashtbl.length c.transactions)
+		| "domain" :: domid :: "operations" :: [] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains domid in
+			string_of_int c.stat_nb_ops
+		| "domain" :: domid :: "watch" :: [] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			""
+		| "domain" :: domid :: "watch" :: name :: [] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains domid in
+			let name = Store.Name.of_string name in
+			if not(Hashtbl.mem c.watches name) then raise Store.Path.Doesnt_exist;
+			""
+		| "domain" :: domid :: "watch" :: name :: token :: [] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains domid in
+			let name = Store.Name.of_string name in
+			if not(Hashtbl.mem c.watches name) then raise Store.Path.Doesnt_exist;
+			let watches = Hashtbl.find c.watches name in
+			if List.filter (fun x -> x.token = token) watches = [] then raise Store.Path.Doesnt_exist;
+			""
+		| _ -> raise Store.Path.Doesnt_exist
+
+	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist -> false
+
+	let list t perms path =
+		match Store.Path.to_string_list path with
+		| [] -> [ "socket"; "domain" ]
+		| [ "socket" ] -> []
+		| [ "domain" ] ->
+			Hashtbl.fold (fun domid _ acc -> string_of_int domid :: acc) domains []
+		| [ "domain"; domid ] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			[ "transactions"; "operations"; "watch" ]
+		| [ "domain"; domid; "watch" ] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains domid in
+			Hashtbl.fold (fun name _ acc -> Store.Name.to_string name :: acc) c.watches []
+		| [ "domain"; domid; "watch"; name ] ->
+			let domid = int_of_string domid in
+			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains domid in
+			let name = Store.Name.of_string name in
+			if not(Hashtbl.mem c.watches name) then raise Store.Path.Doesnt_exist;
+			let ws = Hashtbl.find c.watches name in
+			List.map (fun w -> w.token) ws
+		| _ -> []
+end
