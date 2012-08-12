@@ -39,7 +39,7 @@ let get_namespace_implementation path = match Store.Path.to_string_list path wit
 (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
 let op_exn store c t (payload: Request.payload) : Response.payload =
-	let connection_path = Store.Path.getdomainpath c.Connection.domid in
+	let connection_path = c.Connection.domainpath in
 	let resolve data = Store.Path.create data connection_path in
 
 	let open Request in
@@ -210,14 +210,12 @@ let reply_exn store c (request: t) : Response.payload =
 			Response.Release
 		| Request.Set_target(mine, yours) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;
-			if Hashtbl.mem Connection.domains mine then begin
-				let c = Hashtbl.find Connection.domains mine in
-				c.Connection.perm <- Perms.set_target c.Connection.perm yours;
-				Response.Set_target
-			end else begin
-				error "set_target %d -> %d; domid %d is not connected" mine yours mine;
-				Response.Error "EINVAL"
-			end
+			Hashtbl.iter
+				(fun address c ->
+					if Connection.domain_of_address address = mine
+					then c.Connection.perm <- Perms.set_target c.Connection.perm yours;
+				) Connection.domains;
+			Response.Set_target
 		| Request.Restrict domid ->
 			Perms.has c.Connection.perm Perms.RESTRICT;
 			c.Connection.perm <- Perms.restrict c.Connection.perm domid;

@@ -91,8 +91,8 @@ let run store (payloads: (Connection.t * int32 * Xs_packet.Request.payload * res
 
 let test_implicit_create () =
 	(* Write a path and check the parent nodes can be read *)
-	let dom0 = Connection.create 0 in
-	let domU = Connection.create 1 in
+	let dom0 = Connection.create (Connection.Domain 0) in
+	let domU = Connection.create (Connection.Domain 1) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -111,7 +111,7 @@ let test_implicit_create () =
 let test_directory_order () =
 	(* Create nodes in a particular order and check 'directory'
 	   preserves the ordering *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -127,7 +127,7 @@ let example_acl =
 
 let test_setperms_getperms () =
 	(* Check that getperms(setperms(x)) = x *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -139,9 +139,9 @@ let test_setperms_getperms () =
 let test_setperms_owner () =
 	(* Check that only the owner of a node can setperms even
 	   if another domain has read/write access *)
-	let dom0 = Connection.create 0 in
-	let dom2 = Connection.create 2 in
-	let dom5 = Connection.create 5 in
+	let dom0 = Connection.create (Connection.Domain 0) in
+	let dom2 = Connection.create (Connection.Domain 2) in
+	let dom5 = Connection.create (Connection.Domain 5) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -157,7 +157,7 @@ let test_setperms_owner () =
 
 let test_mkdir () =
 	(* Check that mkdir creates usable nodes *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -174,7 +174,7 @@ let test_mkdir () =
 
 let test_empty () =
 	(* Check that I can read an empty value *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -188,7 +188,7 @@ let test_directory () =
 let test_rm () =
 	(* rm of a missing node from an existing parent should succeed *)
 	(* rm of a missing node from a missing parent should ENOENT *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -201,9 +201,9 @@ let test_rm () =
 let test_restrict () =
 	(* Check that only dom0 can restrict to another domain
 	   and that it loses access to dom0-only nodes. *)
-	let dom0 = Connection.create 0 in
-	let dom3 = Connection.create 3 in
-	let dom7 = Connection.create 7 in
+	let dom0 = Connection.create (Connection.Domain 0) in
+	let dom3 = Connection.create (Connection.Domain 3) in
+	let dom7 = Connection.create (Connection.Domain 7) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -218,9 +218,9 @@ let test_restrict () =
 let test_set_target () =
 	(* Check that dom0 can grant dom1 access to dom2's nodes,
 	   without which it wouldn't have access. *)
-	let dom0 = Connection.create 0 in
-	let dom3 = Connection.create 3 in
-	let dom7 = Connection.create 7 in
+	let dom0 = Connection.create (Connection.Domain 0) in
+	let dom3 = Connection.create (Connection.Domain 3) in
+	let dom7 = Connection.create (Connection.Domain 7) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -234,7 +234,7 @@ let test_set_target () =
 let test_transactions_are_isolated () =
 	(* Check that other connections cannot see the nodes created
 	   within an uncommitted transaction *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 
@@ -250,7 +250,7 @@ let test_transactions_are_isolated () =
 let test_independent_transactions_coalesce () =
 	(* Check that two parallel, unrelated transactions can be
 	   coalesced properly *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 
@@ -271,7 +271,7 @@ let test_independent_transactions_coalesce () =
 
 let test_device_create_coalesce () =
 	(* Check that two parallel, device-creating transactions can coalesce *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -294,7 +294,7 @@ let test_device_create_coalesce () =
 
 let test_transactions_really_do_conflict () =
 	(* Check that transactions that really can't interleave are aborted *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -319,8 +319,8 @@ let assert_watches c expected =
 
 let test_simple_watches () =
 	(* Check that writes generate watches and reads do not *)
-	let dom0 = Connection.create 0 in
-	let dom1 = Connection.create 1 in
+	let dom0 = Connection.create (Connection.Domain 0) in
+	let dom1 = Connection.create (Connection.Domain 1) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	(* No watch events are generated without registering *)
@@ -361,8 +361,8 @@ let test_simple_watches () =
 let test_watches_read_perm () =
 	(* Check that a connection only receives a watch if it
        can read the node that was modified. *)
-	let dom0 = Connection.create 0 in
-	let dom1 = Connection.create 1 in
+	let dom0 = Connection.create (Connection.Domain 0) in
+	let dom1 = Connection.create (Connection.Domain 1) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -380,7 +380,7 @@ let test_watches_read_perm () =
 let test_transaction_watches () =
 	(* Check that watches only appear on transaction commit
 	   and not at all in the case of abort *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -410,7 +410,7 @@ let test_transaction_watches () =
 
 let test_introduce_watches () =
 	(* Check that @introduceDomain watches appear on introduce *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -442,7 +442,7 @@ let test_bounded_watch_events () =
 
 let test_quota () =
 	(* Check that node creation and destruction changes a quota *)
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	let start = ref 0 in
@@ -477,9 +477,9 @@ let test_quota () =
 
 let test_quota_setperms () =
 	(* Check that one connection cannot exhaust another's quota *)
-	let dom0 = Connection.create 0 in
-	let dom1 = Connection.create 1 in
-	let dom2 = Connection.create 2 in
+	let dom0 = Connection.create (Connection.Domain 0) in
+	let dom1 = Connection.create (Connection.Domain 1) in
+	let dom2 = Connection.create (Connection.Domain 2) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	let dom1_quota = ref 0 in
@@ -502,7 +502,7 @@ let test_quota_setperms () =
 	]
 
 let test_quota_maxsize () =
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
@@ -514,7 +514,7 @@ let test_quota_maxsize () =
 	]
 
 let test_quota_maxent () =
-	let dom0 = Connection.create 0 in
+	let dom0 = Connection.create (Connection.Domain 0) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [

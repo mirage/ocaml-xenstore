@@ -39,7 +39,7 @@ module type TRANSPORT = sig
   val read: t -> string -> int -> int -> int Lwt.t
   val write: t -> string -> int -> int -> int Lwt.t
   val destroy: t -> unit Lwt.t
-  val domain_of: t -> int
+  val address_of: t -> Connection.address
 
   val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
 end
@@ -49,8 +49,8 @@ module Server = functor(T: TRANSPORT) -> struct
 
 	let handle_connection t =
 		debug "New connection";
-		let domid = T.domain_of t in
-		let c = Connection.create domid in
+		let address = T.address_of t in
+		let c = Connection.create address in
 		let channel = PS.make t in
 		try_lwt
 			lwt () = while_lwt true do
@@ -61,6 +61,7 @@ module Server = functor(T: TRANSPORT) -> struct
 			T.destroy t
 		with e ->
 			error "Caught: %s" (Printexc.to_string e);
+			Connection.destroy address;
 			T.destroy t
 
 	let serve_forever () =

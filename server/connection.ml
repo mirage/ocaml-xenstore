@@ -18,6 +18,9 @@ let error fmt = Logging.debug "connection" fmt
 
 exception End_of_file
 
+type address =
+| Unix of string
+| Domain of int
 
 type watch = {
 	con: t;
@@ -26,7 +29,7 @@ type watch = {
 }
 
 and t = {
-(* 	xb: Xenbus.Xb.t; *)
+	address: address;
 	domid: int;
 	domstr: string;
 	transactions: (int32, Transaction.t) Hashtbl.t;
@@ -39,9 +42,17 @@ and t = {
 	domainpath: Store.Path.t;
 }
 
-let domains : (int, t) Hashtbl.t = Hashtbl.create 128
+let domains : (address, t) Hashtbl.t = Hashtbl.create 128
 
 let watches : (string, watch list) Trie.t ref = ref (Trie.create ())
+
+let string_of_address = function
+| Unix x -> x
+| Domain x -> string_of_int x
+
+let domain_of_address = function
+| Unix _ -> 0
+| Domain x -> x
 
 let list_of_watches () =
 	Trie.fold (fun path v_opt acc ->
@@ -63,9 +74,9 @@ let number_of_transactions con =
 
 let anon_id_next = ref 1
 
-let destroy domid =
+let destroy address =
 	try
-		let c = Hashtbl.find domains domid in
+		let c = Hashtbl.find domains address in
 		Logging.end_connection ~tid:Transaction.none ~con:c.domstr;
 		watches := Trie.map
 			(fun watches ->
@@ -73,19 +84,21 @@ let destroy domid =
 				| [] -> None
 				| ws -> Some ws
 			) !watches;
-		Hashtbl.remove domains domid
+		Hashtbl.remove domains address
 	with Not_found ->
-		error "Failed to remove connection for domid: %d" domid
+		error "Failed to remove connection for: %s" (string_of_address address)
 
-let create (* xbcon *) dom =
-	if Hashtbl.mem domains dom then begin
-		info "Connection.create: found existing connection for %d: closing" dom;
-		destroy dom
+let create address =
+	if Hashtbl.mem domains address then begin
+		info "Connection.create: found existing connection for %s: closing" (string_of_address address);
+		destroy address
 	end;
+	let dom = domain_of_address address in
 	let con = 
 	{
+		address = address;
 		domid = dom;
-		domstr = "D" ^ (string_of_int dom); (* XXX unix domain socket *)
+		domstr = string_of_address address;
 		transactions = Hashtbl.create 5;
 		next_tid = 1l;
 		watches = Hashtbl.create 8;
@@ -97,7 +110,7 @@ let create (* xbcon *) dom =
 	}
 	in 
 	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
-	Hashtbl.replace domains dom con;
+	Hashtbl.replace domains address con;
 	con
 
 let restrict con domid =
@@ -234,70 +247,81 @@ let debug con =
 module Interface = struct
 	include Namespace.Unsupported
 
+	let read_connection c = function
+		| [] ->
+			""
+		| "transactions" :: [] ->
+			string_of_int (Hashtbl.length c.transactions)
+		| "operations" :: [] ->
+			string_of_int c.stat_nb_ops
+		| "watch" :: [] ->
+			""
+		| "watch" :: n :: [] ->
+			let n = int_of_string n in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			if n > (List.length all) then raise Store.Path.Doesnt_exist;
+			""
+		| "watch" :: n :: "name" :: [] ->
+			let n = int_of_string n in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			if n > (List.length all) then raise Store.Path.Doesnt_exist;
+			Store.Name.to_string (List.nth all n).name
+		| "watch" :: n :: "token" :: [] ->
+			let n = int_of_string n in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			if n > (List.length all) then raise Store.Path.Doesnt_exist;
+			(List.nth all n).token
+		| _ -> raise Store.Path.Doesnt_exist
+
 	let read t (perms: Perms.t) (path: Store.Path.t) =
 		match Store.Path.to_string_list path with
 		| "socket" :: [] -> ""
+		| "socket" :: x :: rest ->
+			let address = Unix(x) in
+			if not(Hashtbl.mem domains address) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains address in
+			read_connection c rest
 		| "domain" :: [] -> ""
-		| "domain" :: domid :: [] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			""
-		| "domain" :: domid :: "transactions" :: [] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains domid in
-			string_of_int (Hashtbl.length c.transactions)
-		| "domain" :: domid :: "operations" :: [] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains domid in
-			string_of_int c.stat_nb_ops
-		| "domain" :: domid :: "watch" :: [] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			""
-		| "domain" :: domid :: "watch" :: name :: [] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains domid in
-			let name = Store.Name.of_string name in
-			if not(Hashtbl.mem c.watches name) then raise Store.Path.Doesnt_exist;
-			""
-		| "domain" :: domid :: "watch" :: name :: token :: [] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains domid in
-			let name = Store.Name.of_string name in
-			if not(Hashtbl.mem c.watches name) then raise Store.Path.Doesnt_exist;
-			let watches = Hashtbl.find c.watches name in
-			if List.filter (fun x -> x.token = token) watches = [] then raise Store.Path.Doesnt_exist;
-			""
+		| "domain" :: domid :: rest ->
+			let address = Domain(int_of_string domid) in
+			if not(Hashtbl.mem domains address) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains address in
+			read_connection c rest
 		| _ -> raise Store.Path.Doesnt_exist
 
 	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist -> false
 
+	let rec between start finish = if start > finish then [] else start :: (between (start + 1) finish)
+
+	let list_connection c = function
+		| [] ->
+			[ "transactions"; "operations"; "watch" ]
+		| [ "watch" ] ->
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			List.map string_of_int (between 0 (List.length all - 1))
+		| [ "watch"; n ] -> [ "name"; "token" ]
+		| _ -> []
+
 	let list t perms path =
 		match Store.Path.to_string_list path with
 		| [] -> [ "socket"; "domain" ]
-		| [ "socket" ] -> []
+		| [ "socket" ] ->
+			Hashtbl.fold (fun x _ acc -> match x with
+			| Unix x -> x :: acc
+			| _ -> acc) domains []
 		| [ "domain" ] ->
-			Hashtbl.fold (fun domid _ acc -> string_of_int domid :: acc) domains []
-		| [ "domain"; domid ] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			[ "transactions"; "operations"; "watch" ]
-		| [ "domain"; domid; "watch" ] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains domid in
-			Hashtbl.fold (fun name _ acc -> Store.Name.to_string name :: acc) c.watches []
-		| [ "domain"; domid; "watch"; name ] ->
-			let domid = int_of_string domid in
-			if not(Hashtbl.mem domains domid) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains domid in
-			let name = Store.Name.of_string name in
-			if not(Hashtbl.mem c.watches name) then raise Store.Path.Doesnt_exist;
-			let ws = Hashtbl.find c.watches name in
-			List.map (fun w -> w.token) ws
+			Hashtbl.fold (fun x _ acc -> match x with
+			| Domain x -> string_of_int x :: acc
+			| _ -> acc) domains []
+		| "domain" :: domid :: rest ->
+			let address = Domain(int_of_string domid) in
+			if not(Hashtbl.mem domains address) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains address in
+			list_connection c rest
+		| "socket" :: x :: rest ->
+			let address = Unix(x) in
+			if not(Hashtbl.mem domains address) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find domains address in
+			list_connection c rest
 		| _ -> []
 end
