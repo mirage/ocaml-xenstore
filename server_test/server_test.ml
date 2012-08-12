@@ -513,6 +513,21 @@ let test_quota_maxsize () =
 		dom0, none, PathOp("/a", Write "hello2"), OK;
 	]
 
+let test_quota_maxent () =
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		(* Side effect creates the quota entry *)
+		dom0, none, PathOp("/first", Write "post"), OK;
+		dom0, none, PathOp("/quota/default/maxent", Write "1"), OK;
+		dom0, none, PathOp("/a", Write "hello"), Err "EQUOTA";
+		dom0, none, PathOp("/quota/maxent/0", Write "2"), OK;
+		dom0, none, PathOp("/a", Write "hello"), OK;
+		dom0, none, PathOp("/a", Write "there"), OK;
+		dom0, none, PathOp("/b", Write "hello"), Err "EQUOTA";
+	]
+
 let _ =
   let verbose = ref false in
   Arg.parse [
@@ -543,5 +558,6 @@ let _ =
 		"test_quota" >:: test_quota;
 		"test_quota_setperms" >:: test_quota_setperms;
 		"test_quota_maxsize" >:: test_quota_maxsize;
+		"test_quota_maxent" >:: test_quota_maxent;
 	] in
   run_test_tt ~verbose:!verbose suite

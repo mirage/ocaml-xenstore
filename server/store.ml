@@ -457,14 +457,15 @@ let set_node store path node =
 let write store creator perm path value =
 	Quota.check store.quota creator (String.length value);
 	let root, node_created = path_write store creator perm path value in
-	store.root <- root;
 	if node_created
-	then Quota.incr store.quota creator
+	then Quota.incr store.quota creator;
+	store.root <- root
+
 
 let mkdir store creator perm path =
-	Quota.check store.quota creator 0;
-	store.root <- path_mkdir store creator perm path;
-	Quota.incr store.quota creator
+	let root = path_mkdir store creator perm path in
+	Quota.incr store.quota creator;
+	store.root <- root
 
 let rm store perm path =
 	let rmed_node = lookup store.root path in

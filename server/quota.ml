@@ -29,6 +29,18 @@ let maxsize = ref (4096)
 (* Per-domain maxent overrides *)
 let maxent_overrides = Hashtbl.create 10
 
+let get_maxent_override domid =
+	if Hashtbl.mem maxent_overrides domid
+	then Some(Hashtbl.find maxent_overrides domid)
+	else None
+
+let set_maxent_override domid override = match override with
+	| None -> Hashtbl.remove maxent_overrides domid
+	| Some override -> Hashtbl.replace maxent_overrides domid override
+
+let list_maxent_overrides () =
+	Hashtbl.fold (fun domid x acc -> (domid, x) :: acc) maxent_overrides []
+
 let maxent_of_domain domid =
 	if Hashtbl.mem maxent_overrides domid
 	then Hashtbl.find maxent_overrides domid
@@ -49,14 +61,7 @@ let check quota id size =
 	if size > !maxsize then (
 		warn "domain %u err create entry: data too big %d" id size;
 		raise Data_too_big
-	);
-	if Hashtbl.mem quota.cur id then
-		let entry = Hashtbl.find quota.cur id in
-		let maxent = maxent_of_domain id in
-		if entry >= maxent then (
-			warn "domain %u cannot create entry: quota reached (%d)" id maxent;
-			raise Limit_reached
-		)
+	)
 
 let list quota =
 	Hashtbl.fold (fun domid x acc -> (domid, x) :: acc) quota.cur []
@@ -83,6 +88,8 @@ let decr quota id =
 
 let incr quota id =
 	let nb = get quota id in
+	let maxent = maxent_of_domain id in
+	if nb >= maxent then raise Limit_reached;
 	set quota id (nb + 1)
 
 let union quota diff =

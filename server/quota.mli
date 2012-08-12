@@ -27,6 +27,15 @@ val maxent: int ref
 val maxsize: int ref
 (** The current global default maximum value size *)
 
+val set_maxent_override: int -> int option -> unit
+(** [set_maxent_override t domid x] sets the maxent override for [domid] to [x] *)
+
+val get_maxent_override: int -> int option
+(** [get_maxent_override t domid] returns any current maxent override for [domid] *)
+
+val list_maxent_overrides: unit -> (int * int) list
+(** [list_maxent_overrides ()] returns the current maxent (domid, override) pairs *)
+
 type t
 (** Represents the current per-domain number of entries *)
 
@@ -55,3 +64,4 @@ val incr: t -> int -> unit
 
 val decr: t -> int -> unit
 (** [decr t domid] removes an entry from [domid] *)
+
