@@ -211,12 +211,12 @@ module Client = functor(T: TRANSPORT) -> struct
         return (response hint request res unmarshal)
  end
 
-  let directory h path = rpc "directory" (Handle.accessed_path h path) (Request.Directory path) Unmarshal.list
-  let read h path = rpc "read" (Handle.accessed_path h path) (Request.Read path) Unmarshal.string
-  let write h path data = rpc "write" (Handle.accessed_path h path) (Request.Write(path, data)) Unmarshal.ok
-  let rm h path = rpc "rm" (Handle.accessed_path h path) (Request.Rm path) Unmarshal.ok
-  let mkdir h path = rpc "mkdir" (Handle.accessed_path h path) (Request.Mkdir path) Unmarshal.ok
-  let setperms h path acl = rpc "setperms" (Handle.accessed_path h path) (Request.Setperms(path, acl)) Unmarshal.ok
+  let directory h path = rpc "directory" (Handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
+  let read h path = rpc "read" (Handle.accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
+  let write h path data = rpc "write" (Handle.accessed_path h path) Request.(PathOp(path, Write data)) Unmarshal.ok
+  let rm h path = rpc "rm" (Handle.accessed_path h path) Request.(PathOp(path, Rm)) Unmarshal.ok
+  let mkdir h path = rpc "mkdir" (Handle.accessed_path h path) Request.(PathOp(path, Mkdir)) Unmarshal.ok
+  let setperms h path acl = rpc "setperms" (Handle.accessed_path h path) Request.(PathOp(path, Setperms acl)) Unmarshal.ok
   let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
   let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
   let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string

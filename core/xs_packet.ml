@@ -434,16 +434,19 @@ end
 
 module Request = struct
 
+	type path_op =
+	| Read
+	| Directory
+	| Getperms
+	| Write of string
+	| Mkdir
+	| Rm
+	| Setperms of ACL.t
+
 	type payload =
-	| Read of string
-	| Directory of string
-	| Getperms of string
+	| PathOp of string * path_op
 	| Getdomainpath of int
 	| Transaction_start
-	| Write of string * string
-	| Mkdir of string
-	| Rm of string
-	| Setperms of string * ACL.t
 	| Watch of string * string
 	| Unwatch of string * string
 	| Transaction_end of bool
@@ -457,29 +460,33 @@ module Request = struct
 	| Error of string
 	| Watchevent of string
 
-	let prettyprint_payload =
-		let open Printf in function
-			| Read x -> sprintf "Read %s" x
-			| Directory x -> sprintf "Directory %s" x
-			| Getperms x -> sprintf "Getperms %s" x
-			| Getdomainpath x -> sprintf "Getdomainpath %d" x
-			| Transaction_start -> "Transaction_start"
-			| Write (k, v) -> sprintf "Write %s %s" k v
-			| Mkdir x -> sprintf "Mkdir %s" x
-			| Rm x -> sprintf "Rm %s" x
-			| Setperms (x, acl) -> sprintf "Setperms %s %s" x (ACL.to_string acl)
-			| Watch (x, y) -> sprintf "Watch %s %s" x y
-			| Unwatch (x, y) -> sprintf "Unwatch %s %s" x y
-			| Transaction_end x -> sprintf "Transaction_end %b" x
-			| Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
-			| Introduce (x, n, y) -> sprintf "Introduce %d %nu %d" x n y
-			| Resume x -> sprintf "Resume %d" x
-			| Release x -> sprintf "Release %d" x
-			| Set_target (x, y) -> sprintf "Set_target %d %d" x y
-			| Restrict x -> sprintf "Restrict %d" x
-			| Isintroduced x -> sprintf "Isintroduced %d" x
-			| Error x -> sprintf "Error %s" x
-			| Watchevent x -> sprintf "Watchevent %s" x
+	open Printf
+
+	let prettyprint_pathop x = function
+		| Read -> sprintf "Read %s" x
+		| Directory -> sprintf "Directory %s" x
+		| Getperms -> sprintf "Getperms %s" x
+		| Write v -> sprintf "Write %s %s" x v
+		| Mkdir -> sprintf "Mkdir %s" x
+		| Rm -> sprintf "Rm %s" x
+		| Setperms acl -> sprintf "Setperms %s %s" x (ACL.to_string acl)
+
+	let prettyprint_payload = function
+		| PathOp (path, op) -> prettyprint_pathop path op
+		| Getdomainpath x -> sprintf "Getdomainpath %d" x
+		| Transaction_start -> "Transaction_start"
+		| Watch (x, y) -> sprintf "Watch %s %s" x y
+		| Unwatch (x, y) -> sprintf "Unwatch %s %s" x y
+		| Transaction_end x -> sprintf "Transaction_end %b" x
+		| Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
+		| Introduce (x, n, y) -> sprintf "Introduce %d %nu %d" x n y
+		| Resume x -> sprintf "Resume %d" x
+		| Release x -> sprintf "Release %d" x
+		| Set_target (x, y) -> sprintf "Set_target %d %d" x y
+		| Restrict x -> sprintf "Restrict %d" x
+		| Isintroduced x -> sprintf "Isintroduced %d" x
+		| Error x -> sprintf "Error %s" x
+		| Watchevent x -> sprintf "Watchevent %s" x
 
 	exception Parse_failure
 
@@ -528,20 +535,20 @@ module Request = struct
 	let parse_exn request =
 		let data = get_data request in
 		match get_ty request with
-		| Op.Read -> Read (data |> one_string)
-		| Op.Directory -> Directory (data |> one_string)
-		| Op.Getperms -> Getperms (data |> one_string)
+		| Op.Read -> PathOp (data |> one_string, Read)
+		| Op.Directory -> PathOp (data |> one_string, Directory)
+		| Op.Getperms -> PathOp (data |> one_string, Getperms)
 		| Op.Getdomainpath -> Getdomainpath (data |> one_string |> domid)
 		| Op.Transaction_start -> Transaction_start
 		| Op.Write ->
 			let path, value = two_strings data in
-			Write (path, value)
-		| Op.Mkdir -> Mkdir (data |> one_string)
-		| Op.Rm -> Rm (data |> one_string)
+			PathOp (path, Write value)
+		| Op.Mkdir -> PathOp (data |> one_string, Mkdir)
+		| Op.Rm -> PathOp (data |> one_string, Rm)
 		| Op.Setperms ->
 			let path, perms = two_strings data in
 			let perms = acl perms in
-			Setperms(path, perms)
+			PathOp(path, Setperms perms)
 		| Op.Watch ->
 			let path, token = two_strings data in
 			Watch(path, token)
@@ -584,9 +591,9 @@ module Request = struct
 				| Some x -> "Some " ^ (prettyprint_payload x))
 
 	let print x tid = match x with
-		| Directory path -> with_path Op.Directory tid path
-		| Read path -> with_path Op.Read tid path
-		| Getperms path -> with_path Op.Getperms tid path
+		| PathOp(path, Directory) -> with_path Op.Directory tid path
+		| PathOp(path, Read) -> with_path Op.Read tid path
+		| PathOp(path, Getperms) -> with_path Op.Getperms tid path
 		| Debug commands -> create 0l (next_rid ()) Op.Debug (data_concat commands)
 		| Watch (path, data) ->
 			let data = data_concat [ path; data; ] in
@@ -613,12 +620,12 @@ module Request = struct
 		| Getdomainpath domid ->
 			let data = data_concat [ Printf.sprintf "%u" domid; ] in
 			create 0l (next_rid ()) Op.Getdomainpath data
-		| Write(path, value) ->
+		| PathOp(path, Write value) ->
 			let data = path ^ "\000" ^ value (* no NULL at the end *) in
 			create tid (next_rid ()) Op.Write data
-		| Mkdir path -> with_path Op.Mkdir tid path
-		| Rm path -> with_path Op.Rm tid path
-		| Setperms (path, perms) ->
+		| PathOp(path, Mkdir) -> with_path Op.Mkdir tid path
+		| PathOp(path, Rm) -> with_path Op.Rm tid path
+		| PathOp(path, Setperms perms) ->
 			let data = data_concat [ path; ACL.to_string perms ] in
 			create tid (next_rid ()) Op.Setperms data
 		| Set_target (mine, yours) ->

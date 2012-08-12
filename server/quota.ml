@@ -90,3 +90,5 @@ let add_entry quota id =
 
 let add quota diff =
 	Hashtbl.iter (fun id nb -> set_entry quota id (get_entry quota id + nb)) diff.cur
+
+

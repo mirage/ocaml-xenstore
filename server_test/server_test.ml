@@ -97,15 +97,15 @@ let test_implicit_create () =
 	let open Xs_packet.Request in
 	run store [
 		(* If a node doesn't exist, everyone gets ENOENT: *)
-		dom0, none, Read "/a", Err "ENOENT";
-		domU, none, Read "/a", Err "ENOENT";
+		dom0, none, PathOp("/a", Read), Err "ENOENT";
+		domU, none, PathOp("/a", Read), Err "ENOENT";
 		(* If dom0 makes a node, suddenly domU gets EACCES: *)
-		dom0, none, Write ("/a/b", "hello"), OK;
-		domU, none, Read "/a/b", Err "EACCES";
+		dom0, none, PathOp("/a/b", Write "hello"), OK;
+		domU, none, PathOp("/a/b", Read), Err "EACCES";
 		(* dom0 can also see the implicit path created: *)
-		dom0, none, Read "/a", OK;
+		dom0, none, PathOp("/a", Read), OK;
 		(* domU gets EACCES: *)
-		domU, none, Read "/a", Err "EACCES";
+		domU, none, PathOp("/a", Read), Err "EACCES";
 	]
 
 let test_directory_order () =
@@ -115,10 +115,10 @@ let test_directory_order () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Write ("/a/1", ""), OK;
-		dom0, none, Write ("/a/2/foo", ""), OK;
-		dom0, none, Write ("/a/3", ""), OK;
-		dom0, none, Directory "/a", StringList (fun x -> assert_equal ~msg:"directory /a" ~printer:(String.concat ", ") ["1"; "2"; "3"] x);
+		dom0, none, PathOp("/a/1", Write ""), OK;
+		dom0, none, PathOp("/a/2/foo", Write ""), OK;
+		dom0, none, PathOp("/a/3", Write ""), OK;
+		dom0, none, PathOp("/a", Directory), StringList (fun x -> assert_equal ~msg:"directory /a" ~printer:(String.concat ", ") ["1"; "2"; "3"] x);
 	]
 
 let example_acl =
@@ -131,9 +131,9 @@ let test_setperms_getperms () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Write ("/foo", ""), OK;
-		dom0, none, Setperms("/foo", example_acl), OK;
-		dom0, none, Getperms "/foo", Perms (fun x -> assert_equal ~msg:"perms /foo" ~printer:Xs_packet.ACL.to_string x example_acl);
+		dom0, none, PathOp("/foo", Write ""), OK;
+		dom0, none, PathOp("/foo", Setperms example_acl), OK;
+		dom0, none, PathOp("/foo", Getperms), Perms (fun x -> assert_equal ~msg:"perms /foo" ~printer:Xs_packet.ACL.to_string x example_acl);
 	]
 
 let test_setperms_owner () =
@@ -145,14 +145,14 @@ let test_setperms_owner () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Write ("/foo", ""), OK;
-		dom0, none, Setperms("/foo", example_acl), OK;
+		dom0, none, PathOp("/foo", Write ""), OK;
+		dom0, none, PathOp("/foo", Setperms example_acl), OK;
 		(* owned by dom5, so dom2 can't setperms *)
-		dom2, none, Setperms("/foo", { example_acl with Xs_packet.ACL.owner = 2 }), Err "EACCES";
+		dom2, none, PathOp("/foo", Setperms { example_acl with Xs_packet.ACL.owner = 2 }), Err "EACCES";
 		(* dom5 sets the owner to dom2 *)
-		dom5, none, Setperms("/foo", { example_acl with Xs_packet.ACL.owner = 2 }), OK;
+		dom5, none, PathOp("/foo", Setperms { example_acl with Xs_packet.ACL.owner = 2 }), OK;
 		(* dom2 sets the owner back to dom5 *)
-		dom2, none, Setperms("/foo", { example_acl with Xs_packet.ACL.owner = 5 }), OK;
+		dom2, none, PathOp("/foo", Setperms { example_acl with Xs_packet.ACL.owner = 5 }), OK;
 	]
 
 let test_mkdir () =
@@ -161,14 +161,14 @@ let test_mkdir () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Read "/a/b", Err "ENOENT";
-		dom0, none, Read "/a", Err "ENOENT";
+		dom0, none, PathOp("/a/b", Read), Err "ENOENT";
+		dom0, none, PathOp("/a", Read), Err "ENOENT";
 	];
 	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 	run store [
-		dom0, tid, Mkdir "/bench/local/domain/0", OK;
-		dom0, tid, Setperms("/bench/local/domain/0", example_acl), OK;
-		dom0, tid, Read "/bench/local/domain/0", OK;
+		dom0, tid, PathOp("/bench/local/domain/0", Mkdir), OK;
+		dom0, tid, PathOp("/bench/local/domain/0", Setperms example_acl), OK;
+		dom0, tid, PathOp("/bench/local/domain/0", Read), OK;
 		dom0, tid, Transaction_end true, OK;
 	]
 
@@ -178,8 +178,8 @@ let test_empty () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Write("/a", ""), OK;
-		dom0, none, Read "/a", OK;
+		dom0, none, PathOp("/a", Write ""), OK;
+		dom0, none, PathOp("/a", Read), OK;
 	]
 
 let test_directory () =
@@ -192,10 +192,10 @@ let test_rm () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Rm "/a", OK;
-		dom0, none, Rm "/a/b", Err "ENOENT";
-		dom0, none, Write ("/a", "hello"), OK;
-		dom0, none, Rm "/a/b", OK;
+		dom0, none, PathOp("/a", Rm), OK;
+		dom0, none, PathOp("/a/b", Rm), Err "ENOENT";
+		dom0, none, PathOp("/a", Write "hello"), OK;
+		dom0, none, PathOp("/a/b", Rm), OK;
 	]
 
 let test_restrict () =
@@ -207,12 +207,12 @@ let test_restrict () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Write("/foo", "bar"), OK;
-		dom0, none, Setperms("/foo", example_acl), OK;
-		dom3, none, Write("/foo", "bar"), OK;
-		dom7, none, Write("/foo", "bar"), Err "EACCES";
+		dom0, none, PathOp("/foo", Write "bar"), OK;
+		dom0, none, PathOp("/foo", Setperms example_acl), OK;
+		dom3, none, PathOp("/foo", Write "bar"), OK;
+		dom7, none, PathOp("/foo", Write "bar"), Err "EACCES";
 		dom0, none, Restrict 7, OK;
-		dom0, none, Write("/foo", "bar"), Err "EACCES";
+		dom0, none, PathOp("/foo", Write "bar"), Err "EACCES";
 	]
 
 let test_set_target () =
@@ -224,11 +224,11 @@ let test_set_target () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Write("/foo", "bar"), OK;
-		dom0, none, Setperms("/foo", example_acl), OK;
-		dom7, none, Write("/foo", "bar"), Err "EACCES";
+		dom0, none, PathOp("/foo", Write "bar"), OK;
+		dom0, none, PathOp("/foo", Setperms example_acl), OK;
+		dom7, none, PathOp("/foo", Write "bar"), Err "EACCES";
 		dom0, none, Set_target(7, 5), OK;
-		dom7, none, Write("/foo", "bar"), OK;
+		dom7, none, PathOp("/foo", Write "bar"), OK;
 	]
 
 let test_transactions_are_isolated () =
@@ -241,10 +241,10 @@ let test_transactions_are_isolated () =
 	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 
 	run store [
-		dom0, tid, Write("/foo", "bar"), OK;
-		dom0, none, Read "/foo", Err "ENOENT";
+		dom0, tid, PathOp("/foo", Write "bar"), OK;
+		dom0, none, PathOp("/foo", Read), Err "ENOENT";
 		dom0, tid, Transaction_end true, OK;
-		dom0, none, Read "/foo", OK;
+		dom0, none, PathOp("/foo", Read), OK;
 	]
 
 let test_independent_transactions_coalesce () =
@@ -255,18 +255,18 @@ let test_independent_transactions_coalesce () =
 	let open Xs_packet.Request in
 
 	run store [
-		dom0, none, Mkdir "/a/b", OK;
-		dom0, none, Mkdir "/1/2", OK;
+		dom0, none, PathOp("/a/b", Mkdir), OK;
+		dom0, none, PathOp("/1/2", Mkdir), OK;
 	];
 	let tid_1 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 	let tid_2 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 	run store [
-		dom0, tid_1, Write("/a/b", "foo"), OK;
-		dom0, tid_2, Write("/1/2", "foo"), OK;
+		dom0, tid_1, PathOp("/a/b", Write "foo"), OK;
+		dom0, tid_2, PathOp("/1/2", Write "foo"), OK;
 		dom0, tid_1, Transaction_end true, OK;
 		dom0, tid_2, Transaction_end true, OK;
-		dom0, none, Read "/a/b", String "foo";
-		dom0, none, Read "/1/2", String "foo";
+		dom0, none, PathOp("/a/b", Read), String "foo";
+		dom0, none, PathOp("/1/2", Read), String "foo";
 	]
 
 let test_device_create_coalesce () =
@@ -275,21 +275,21 @@ let test_device_create_coalesce () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Mkdir "/local/domain/0/backend/vbd", OK;
-		dom0, none, Mkdir "/local/domain/1/device/vbd", OK;
-		dom0, none, Mkdir "/local/domain/2/device/vbd", OK;
+		dom0, none, PathOp("/local/domain/0/backend/vbd", Mkdir), OK;
+		dom0, none, PathOp("/local/domain/1/device/vbd", Mkdir), OK;
+		dom0, none, PathOp("/local/domain/2/device/vbd", Mkdir), OK;
 	];
 	let tid_1 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 	let tid_2 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 	run store [
-		dom0, tid_1, Write("/local/domain/0/backend/vbd/1/51712", "hello"), OK;
-		dom0, tid_1, Write("/local/domain/1/device/vbd/51712", "there"), OK;
-		dom0, tid_2, Write("/local/domain/0/backend/vbd/2/51712", "hello"), OK;
-		dom0, tid_2, Write("/local/domain/2/device/vbd/51712", "there"), OK;
+		dom0, tid_1, PathOp("/local/domain/0/backend/vbd/1/51712", Write "hello"), OK;
+		dom0, tid_1, PathOp("/local/domain/1/device/vbd/51712", Write "there"), OK;
+		dom0, tid_2, PathOp("/local/domain/0/backend/vbd/2/51712", Write "hello"), OK;
+		dom0, tid_2, PathOp("/local/domain/2/device/vbd/51712", Write "there"), OK;
 		dom0, tid_1, Transaction_end true, OK;
 		dom0, tid_2, Transaction_end true, OK;
-		dom0, none, Read "/local/domain/0/backend/vbd/1/51712", String "hello";
-		dom0, none, Read "/local/domain/0/backend/vbd/2/51712", String "hello";
+		dom0, none, PathOp("/local/domain/0/backend/vbd/1/51712", Read), String "hello";
+		dom0, none, PathOp("/local/domain/0/backend/vbd/2/51712", Read), String "hello";
 	]
 
 let test_transactions_really_do_conflict () =
@@ -298,15 +298,15 @@ let test_transactions_really_do_conflict () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, Mkdir "/a", OK;
+		dom0, none, PathOp("/a", Mkdir), OK;
 	];
 	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 	run store [
-		dom0, tid, Directory "/a", OK;
-		dom0, none, Write("/a/b", "hello"), OK;
-		dom0, tid, Write("/a/b", "there"), OK;
+		dom0, tid, PathOp("/a", Directory), OK;
+		dom0, none, PathOp("/a/b", Write "hello"), OK;
+		dom0, tid, PathOp("/a/b", Write "there"), OK;
 		dom0, tid, Transaction_end true, Err "EAGAIN";
-		dom0, none, Read "/a/b", String "hello"
+		dom0, none, PathOp("/a/b", Read), String "hello"
 	]
 
 
@@ -325,8 +325,8 @@ let test_simple_watches () =
 	let open Xs_packet.Request in
 	(* No watch events are generated without registering *)
 	run store [
-		dom0, none, Mkdir "/a", OK;
-		dom0, none, Setperms("/a", Xs_packet.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
+		dom0, none, PathOp("/a", Mkdir), OK;
+		dom0, none, PathOp("/a", Setperms Xs_packet.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
 	];
 	assert_watches dom0 [];
 	run store [
@@ -337,24 +337,24 @@ let test_simple_watches () =
 	assert_watches dom0 [];
 	(* dom0 can see its own write via watches *)
 	run store [
-		dom0, none, Write("/a", "foo"), OK;
+		dom0, none, PathOp("/a", Write "foo"), OK;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
 	(* dom0 can see dom1's writes via watches *)
 	run store [
-		dom1, none, Write("/a", "foo"), OK;
+		dom1, none, PathOp("/a", Write "foo"), OK;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
 	(* reads don't generate watches *)
 	run store [
-		dom0, none, Read "/a", OK;
-		dom0, none, Read "/a/1", Err "ENOENT";
-		dom1, none, Read "/a", OK;
-		dom1, none, Read "/a/1", Err "ENOENT";
+		dom0, none, PathOp("/a", Read), OK;
+		dom0, none, PathOp("/a/1", Read), Err "ENOENT";
+		dom1, none, PathOp("/a", Read), OK;
+		dom1, none, PathOp("/a/1", Read), Err "ENOENT";
 	];
 	assert_watches dom0 []
 
@@ -372,8 +372,8 @@ let test_watches_read_perm () =
 	Queue.clear dom1.Connection.watch_events;
 	assert_watches dom1 [];
 	run store [
-		dom0, none, Write ("/a", "hello"), OK;
-		dom1, none, Read "/a", Err "EACCES";
+		dom0, none, PathOp("/a", Write "hello"), OK;
+		dom1, none, PathOp("/a", Read), Err "EACCES";
 	];
 	assert_watches dom1 []
 
@@ -389,10 +389,10 @@ let test_transaction_watches () =
 	assert_watches dom0 [ ("/a", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
-	(* Writes in a transaction don't generate watches immediately *)
+	(* PathOp( Writes in a transaction don't generate watches immediately *)
 	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 	run store [
-		dom0, tid, Write ("/a", "hello"), OK;
+		dom0, tid, PathOp("/a", Write "hello"), OK;
 	];
 	assert_watches dom0 [];
 	(* If the transaction is aborted then no watches are generated *)
@@ -403,7 +403,7 @@ let test_transaction_watches () =
 	(* If the transaction successfully commits then the watches appear *)
 	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 	run store [
-		dom0, tid, Write ("/a", "hello"), OK;
+		dom0, tid, PathOp("/a", Write "hello"), OK;
 		dom0, tid, Transaction_end true, OK
 	];
 	assert_watches dom0 [ ("/a", "token") ]
@@ -451,27 +451,27 @@ let test_quota () =
 
 	run store [
 		dom0, none, Debug [ "quota"; "0" ], StringList (fun x -> start := int_of_string (List.hd x));
-		dom0, none, Write ("/a", "hello"), OK;
+		dom0, none, PathOp("/a", Write "hello"), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 1);
 		(* Implicit creation of 2 elements *)
-		dom0, none, Write ("/a/b/c", "hello"), OK;
+		dom0, none, PathOp("/a/b/c", Write "hello"), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 3);
 		(* Remove one element *)
-		dom0, none, Rm "/a/b/c", OK;
+		dom0, none, PathOp("/a/b/c", Rm), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 2);
 		(* Recursive remove of 2 elements *)
-		dom0, none, Rm "/a", OK;
+		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
 		(* Remove an already removed element *)
-		dom0, none, Rm "/a", OK;
+		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
 		(* Remove a missing element: *)
-		dom0, none, Rm "/a", OK;
-		dom0, none, Rm "/a", OK;
-		dom0, none, Rm "/a", OK;
+		dom0, none, PathOp("/a", Rm), OK;
+		dom0, none, PathOp("/a", Rm), OK;
+		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
 		(* Removing the root node is forbidden *)
-		dom0, none, Rm "/", Err "EINVAL";
+		dom0, none, PathOp("/", Rm), Err "EINVAL";
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
 	]
 
@@ -487,16 +487,16 @@ let test_quota_setperms () =
 	let expect quota n x =
 		assert_equal ~msg:"quota" ~printer:string_of_int (!quota + n) (int_of_string (List.hd x)) in
 	run store [
-		dom0, none, Mkdir "/local/domain/1", OK;
-		dom0, none, Setperms("/local/domain/1", Xs_packet.ACL.({owner = 1; other = NONE; acl = []})), OK;
-		dom1, none, Mkdir "/local/domain/1/private", OK;
+		dom0, none, PathOp("/local/domain/1", Mkdir), OK;
+		dom0, none, PathOp("/local/domain/1", Setperms Xs_packet.ACL.({owner = 1; other = NONE; acl = []})), OK;
+		dom1, none, PathOp("/local/domain/1/private", Mkdir), OK;
 		dom0, none, Debug [ "quota"; "1" ], StringList (fun x -> dom1_quota := int_of_string (List.hd x));
 		dom0, none, Debug [ "quota"; "2" ], StringList (fun x -> dom2_quota := int_of_string (List.hd x));
-		dom1, none, Write("/local/domain/1/private/foo", "hello"), OK;
+		dom1, none, PathOp("/local/domain/1/private/foo", Write "hello"), OK;
 		dom0, none, Debug [ "quota"; "1" ], StringList (expect dom1_quota 1);
 		dom0, none, Debug [ "quota"; "2" ], StringList (expect dom2_quota 0);
 		(* Hand this node to domain 2 (who doesn't want it) *)
-		dom1, none, Setperms("/local/domain/1/private/foo", Xs_packet.ACL.({owner = 2; other = NONE; acl = []})), OK;
+		dom1, none, PathOp("/local/domain/1/private/foo", Setperms Xs_packet.ACL.({owner = 2; other = NONE; acl = []})), OK;
 		(* Domain 2's quota shouldn't be affected: *)
 		dom0, none, Debug [ "quota"; "2" ], StringList (expect dom2_quota 0);
 	]

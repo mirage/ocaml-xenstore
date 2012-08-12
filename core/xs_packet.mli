@@ -153,28 +153,32 @@ module Response : sig
 end
 
 module Request : sig
-  type payload =
-  | Read of string
-  | Directory of string
-  | Getperms of string
-  | Getdomainpath of int
-  | Transaction_start
-  | Write of string * string
-  | Mkdir of string
-  | Rm of string
-  | Setperms of string * ACL.t
-  | Watch of string * string
-  | Unwatch of string * string
-  | Transaction_end of bool
-  | Debug of string list
-  | Introduce of int * Nativeint.t * int
-  | Resume of int
-  | Release of int
-  | Set_target of int * int
-  | Restrict of int
-  | Isintroduced of int
-  | Error of string
-  | Watchevent of string
+
+	type path_op =
+	| Read
+	| Directory
+	| Getperms
+	| Write of string
+	| Mkdir
+	| Rm
+	| Setperms of ACL.t
+
+	type payload =
+	| PathOp of string * path_op
+	| Getdomainpath of int
+	| Transaction_start
+	| Watch of string * string
+	| Unwatch of string * string
+	| Transaction_end of bool
+	| Debug of string list
+	| Introduce of int * Nativeint.t * int
+	| Resume of int
+	| Release of int
+	| Set_target of int * int
+	| Restrict of int
+	| Isintroduced of int
+	| Error of string
+	| Watchevent of string
 
   val prettyprint_payload: payload -> string
   val prettyprint: t -> string

@@ -28,11 +28,18 @@ exception Transaction_again
 
 exception Transaction_nested
 
+let get_namespace_implementation path = match Store.Path.to_string_list path with
+	| "quota" :: rest ->
+		Store.Path.of_string_list rest, (module Quota_interface: Namespace.IO)
+	| _ ->
+		path, (module Transaction: Namespace.IO)
+
 (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
 let op_exn store c t (payload: Request.payload) : Response.payload =
 	let connection_path = Store.Path.getdomainpath c.Connection.domid in
 	let resolve data = Store.Path.create data connection_path in
+
 	let open Request in
 	match payload with
 		| Transaction_start
@@ -48,48 +55,63 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 		| Isintroduced _
 		| Error _
 		| Watchevent _ -> assert false
-		| Read path ->
-			let path = resolve path in
-			let v = Transaction.read t c.Connection.perm path in
-			Response.Read v
-		| Directory path ->
-			let path = resolve path in
-			let entries = Transaction.ls t c.Connection.perm path in
-			Response.Directory entries
-		| Getperms path ->
-			let path = resolve path in
-			let v = Transaction.getperms t c.Connection.perm path in
-			Response.Getperms v
 		| Getdomainpath domid ->
 			let v = Store.Path.getdomainpath domid |> Store.Path.to_string in
 			Response.Getdomainpath v
-		| Write(path, value) ->
+		| PathOp(path, op) ->
 			let path = resolve path in
-			Transaction.mkdir_p t c.Connection.domid c.Connection.perm path;
-			Transaction.write t c.Connection.domid c.Connection.perm path value;
-			Response.Write
-		| Mkdir path ->
-			let path = resolve path in
-			Transaction.mkdir_p t c.Connection.domid c.Connection.perm path;
-			begin
-				try
-					Transaction.mkdir t c.Connection.domid c.Connection.perm path
-				with Store.Path.Already_exist -> ()
-			end;
-			Response.Mkdir
-		| Rm path ->
-			let path = resolve path in
-			begin
-				try
-					Transaction.rm t c.Connection.perm path
-				with Store.Path.Doesnt_exist -> ()
-			end;
-			Response.Rm
-		| Setperms(path, perms) ->
-			let path = resolve path in
-			Transaction.setperms t c.Connection.perm path perms;
-			Response.Setperms
-			
+
+			let path, m = get_namespace_implementation path in
+			let module Impl = (val m: Namespace.IO) in
+
+			let mkdir_p t creator perm path =
+				let dirname = Store.Path.get_parent path in
+				if not (Impl.exists t perm dirname) then (
+					let rec check_path p =
+						match p with
+						| []      -> []
+						| h :: l  ->
+							if Impl.exists t perm h then
+								check_path l
+							else
+								p in
+					let ret = check_path (List.tl (Store.Path.get_hierarchy dirname)) in
+					List.iter (fun s -> Impl.mkdir ~with_watch:false t creator perm s) ret
+				) in
+			begin match op with
+			| Read ->
+				let v = Impl.read t c.Connection.perm path in
+				Response.Read v
+			| Directory ->
+				let entries = Impl.list t c.Connection.perm path in
+				Response.Directory entries
+			| Getperms ->
+				let v = Impl.getperms t c.Connection.perm path in
+				Response.Getperms v
+			| Write value ->
+				mkdir_p t c.Connection.domid c.Connection.perm path;
+				Impl.write t c.Connection.domid c.Connection.perm path value;
+				Response.Write
+			| Mkdir ->
+				mkdir_p t c.Connection.domid c.Connection.perm path;
+				begin
+					try
+						Impl.mkdir t c.Connection.domid c.Connection.perm path
+					with Store.Path.Already_exist -> ()
+				end;
+				Response.Mkdir
+			| Rm ->
+				begin
+					try
+						Impl.rm t c.Connection.perm path
+					with Store.Path.Doesnt_exist -> ()
+				end;
+				Response.Rm
+			| Setperms perms ->
+				Impl.setperms t c.Connection.perm path perms;
+				Response.Setperms
+			end
+
 (* Replay a stored transaction against a fresh store, check the responses are
    all equivalent: if so, commit the transaction. Otherwise send the abort to
    the client. *)
@@ -243,6 +265,7 @@ let reply store c request =
 				| Quota.Data_too_big               -> reply "E2BIG"
 				| Quota.Transaction_opened         -> reply "EQUOTA"
 				| (Failure "int_of_string")        -> reply "EINVAL"
+				| Namespace.Unsupported            -> reply "ENOTSUP"
 				| _                                -> reply "EIO"
 			end in
 	Logging.response ~tid:(get_tid request) ~con:c.Connection.domstr response_payload;

@@ -76,6 +76,12 @@ module Path : sig
 	val to_string: t -> string
 	(** [to_string t] returns [t] as a '/'-separated path string *)
 
+	val to_string_list: t -> string list
+	(** [to_string_list t] returns [t] as a list of path element strings *)
+
+	val of_string_list: string list -> t
+	(** [of_string_list l] returns [l] as an instance of type [t] *)
+
 	val get_hierarchy: t -> t list
 	(** [get_hierarchy t] returns all t's on the path from the root node to [t] *)
 
@@ -111,7 +117,7 @@ val create: unit -> t
 
 val copy: t -> t
 
-val path_exists: t -> Path.t -> bool
+val exists: t -> Path.t -> bool
 
 val write: t -> int -> Perms.t -> Path.t -> string -> unit
 

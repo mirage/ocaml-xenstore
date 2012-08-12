@@ -93,19 +93,19 @@ let make_example_request op payload tid wire_fmt = {
 let example_request_packets =
 	let open Xs_packet in
 	let open Xs_packet.Request in [
-		make_example_request Op.Directory (Directory "/whatever/whenever") 5l
+		make_example_request Op.Directory (PathOp("/whatever/whenever", Directory)) 5l
 			"\x01\x00\x00\x00\x0f\x00\x00\x00\x05\x00\x00\x00\x13\x00\x00\x00\x2f\x77\x68\x61\x74\x65\x76\x65\x72\x2f\x77\x68\x65\x6e\x65\x76\x65\x72\x00";
-		make_example_request Op.Read (Read "/a/b/c") 6l
+		make_example_request Op.Read (PathOp("/a/b/c", Read)) 6l
 			"\x02\x00\x00\x00\x0e\x00\x00\x00\x06\x00\x00\x00\x07\x00\x00\x00\x2f\x61\x2f\x62\x2f\x63\x00";
-		make_example_request Op.Getperms (Getperms "/a/b") 7l
+		make_example_request Op.Getperms (PathOp("/a/b", Getperms)) 7l
 			"\x03\x00\x00\x00\x0d\x00\x00\x00\x07\x00\x00\x00\x05\x00\x00\x00\x2f\x61\x2f\x62\x00";
-		make_example_request Op.Rm (Rm "/") 0l
+		make_example_request Op.Rm (PathOp("/", Rm)) 0l
 			"\x0d\x00\x00\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x2f\x00";
-		make_example_request Op.Setperms (Setperms("/", example_acl)) 1l
+		make_example_request Op.Setperms (PathOp("/", Setperms example_acl)) 1l
 			"\x0e\x00\x00\x00\x0b\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x2f\x00\x72\x35\x00\x77\x32\x00\x62\x33\x00";
-		make_example_request Op.Write (Write("/key", "value")) 1l
+		make_example_request Op.Write (PathOp("/key", Write "value")) 1l
 			"\x0b\x00\x00\x00\x0a\x00\x00\x00\x01\x00\x00\x00\x0a\x00\x00\x00\x2f\x6b\x65\x79\x00\x76\x61\x6c\x75\x65";
-		make_example_request Op.Mkdir (Mkdir "/") 1024l
+		make_example_request Op.Mkdir (PathOp("/", Mkdir)) 1024l
 			"\x0c\x00\x00\x00\x09\x00\x00\x00\x00\x04\x00\x00\x02\x00\x00\x00\x2f\x00";
 		make_example_request Op.Transaction_start Transaction_start 0l
 			"\x06\x00\x00\x00\x08\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00";
@@ -166,7 +166,7 @@ let example_response_packets =
 			"\x07\x00\x00\x00\x07\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
 		{
 			op = Op.Error;
-			packet = print (Xs_packet.Request.(print (Directory "/foo") 2l)) (Error "whatyoutalkingabout");
+			packet = print (Xs_packet.Request.(print (PathOp("/foo", Directory)) 2l)) (Error "whatyoutalkingabout");
 			wire_fmt =
 				"\x10\x00\x00\x00\x10\x00\x00\x00\x02\x00\x00\x00\x14\x00\x00\x00\x77\x68\x61\x74\x79\x6f\x75\x74\x61\x6c\x6b\x69\x6e\x67\x61\x62\x6f\x75\x74\x00"
 		}

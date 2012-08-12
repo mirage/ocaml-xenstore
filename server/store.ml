@@ -185,6 +185,8 @@ let to_name x = Name.Absolute x
 
 let of_string = path_of_string
 let to_string = path_to_string
+let to_string_list x = x
+let of_string_list x = x
 
 let get_parent t = match t with
 	| [] -> t
@@ -402,7 +404,7 @@ let getperms store perm path =
 			c.Node.perms in
 		Path.apply store.root path fct
 
-let path_exists store path =
+let exists store path =
 	if path = [] then
 		true
 	else
