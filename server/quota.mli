@@ -27,14 +27,37 @@ val maxent: int ref
 val maxsize: int ref
 (** The current global default maximum value size *)
 
-val set_maxent_override: int -> int option -> unit
-(** [set_maxent_override t domid x] sets the maxent override for [domid] to [x] *)
+val maxwatch: int ref
+(** The current global default maximum number of watches *)
 
-val get_maxent_override: int -> int option
-(** [get_maxent_override t domid] returns any current maxent override for [domid] *)
+val maxtransaction: int ref
+(** The current global default maximum number of open transactions *)
 
-val list_maxent_overrides: unit -> (int * int) list
-(** [list_maxent_overrides ()] returns the current maxent (domid, override) pairs *)
+type overrides
+
+val maxent_overrides: overrides
+(** Per-domain overrides for the maxent limit *)
+
+val maxwatch_overrides: overrides
+(** Per-domain overrides for the maxwatch limit *)
+
+val maxtransaction_overrides: overrides
+(** Per-domain overrides for the maxtransaction limit *)
+
+val set_override: overrides -> int -> int option -> unit
+(** [set_override kind t domid x] sets the [kind] override for [domid] to [x] *)
+
+val get_override: overrides -> int -> int option
+(** [get_override kind t domid] returns any current [kind] override for [domid] *)
+
+val list_overrides: overrides -> (int * int) list
+(** [list_overrides kind] returns the current [kind] (domid, override) pairs *)
+
+val maxwatch_of_domain: int -> int
+(** [maxwatch_of_domain domid] returns the max number of watches for [domid] *)
+
+val maxtransaction_of_domain: int -> int
+(** [maxtransaction_of_domain domid] returns the max number of transactions for [domid] *)
 
 type t
 (** Represents the current per-domain number of entries *)

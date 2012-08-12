@@ -25,26 +25,36 @@ type domid = int
 (* Global defaults *)
 let maxent = ref (10000)
 let maxsize = ref (4096)
+let maxwatch = ref 50
+let maxtransaction = ref 20
+
+type overrides = (int, int) Hashtbl.t
 
 (* Per-domain maxent overrides *)
 let maxent_overrides = Hashtbl.create 10
+let maxwatch_overrides = Hashtbl.create 10
+let maxtransaction_overrides = Hashtbl.create 10
 
-let get_maxent_override domid =
-	if Hashtbl.mem maxent_overrides domid
-	then Some(Hashtbl.find maxent_overrides domid)
+let get_override t domid =
+	if Hashtbl.mem t domid
+	then Some(Hashtbl.find t domid)
 	else None
 
-let set_maxent_override domid override = match override with
-	| None -> Hashtbl.remove maxent_overrides domid
-	| Some override -> Hashtbl.replace maxent_overrides domid override
+let set_override t domid override = match override with
+	| None -> Hashtbl.remove t domid
+	| Some override -> Hashtbl.replace t domid override
 
-let list_maxent_overrides () =
-	Hashtbl.fold (fun domid x acc -> (domid, x) :: acc) maxent_overrides []
+let list_overrides t =
+	Hashtbl.fold (fun domid x acc -> (domid, x) :: acc) t []
 
-let maxent_of_domain domid =
-	if Hashtbl.mem maxent_overrides domid
-	then Hashtbl.find maxent_overrides domid
-	else !maxent
+let of_domain t default domid =
+	if Hashtbl.mem t domid
+	then Hashtbl.find t domid
+	else !default
+
+let maxent_of_domain = of_domain maxent_overrides maxent
+let maxwatch_of_domain = of_domain maxwatch_overrides maxwatch
+let maxtransaction_of_domain = of_domain maxtransaction_overrides maxtransaction
 
 type t = {
 	cur: (domid, int) Hashtbl.t; (* current domains entry usage *)

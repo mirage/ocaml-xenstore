@@ -122,11 +122,8 @@ let get_watches (con: t) name =
 	else []
 
 let add_watch con name token =
-(*
-	if !Quota.activate && !Define.maxwatch > 0 &&
-	   not (is_dom0 con) && con.nb_watches > !Define.maxwatch then
-		raise Quota.Limit_reached;
-*)
+	if con.nb_watches >= (Quota.maxwatch_of_domain con.domid)
+	then raise Quota.Limit_reached;
 
 	let l = get_watches con name in
 	if List.exists (fun w -> w.token = token) l then
@@ -205,11 +202,9 @@ let find_next_tid con =
 	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret
 
 let register_transaction con store =
-(*
-	if !Define.maxtransaction > 0 && not (is_dom0 con)
-	&& Hashtbl.length con.transactions > !Define.maxtransaction then
-		raise Quota.Transaction_opened;
-*)
+	if Hashtbl.length con.transactions >= (Quota.maxtransaction_of_domain con.domid)
+	then raise Quota.Limit_reached;	
+
 	let id = find_next_tid con in
 	let ntrans = Transaction.make id store in
 	Hashtbl.add con.transactions id ntrans;
@@ -254,6 +249,8 @@ module Interface = struct
 			string_of_int (Hashtbl.length c.transactions)
 		| "operations" :: [] ->
 			string_of_int c.stat_nb_ops
+		| "queued" :: [] ->
+			string_of_int (Queue.length c.watch_events)
 		| "watch" :: [] ->
 			""
 		| "watch" :: n :: [] ->
@@ -295,7 +292,7 @@ module Interface = struct
 
 	let list_connection c = function
 		| [] ->
-			[ "transactions"; "operations"; "watch" ]
+			[ "transactions"; "operations"; "watch"; "queued" ]
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))
