@@ -251,14 +251,14 @@ let apply_modify rnode path fct =
 
 let set_node rnode path nnode =
 	let quota = Quota.create () in
-	if !Quota.activate then Node.recurse (fun node -> Quota.add_entry quota (Node.get_creator node)) nnode;
+	Node.recurse (fun node -> Quota.add_entry quota (Node.get_creator node)) nnode;
 	if path = [] then
 		nnode, quota
 	else
 		let set_node node name =
 			try
 				let ent = Node.find node name in
-				if !Quota.activate then Node.recurse (fun node -> Quota.del_entry quota (Node.get_creator node)) ent;
+				Node.recurse (fun node -> Quota.del_entry quota (Node.get_creator node)) ent;
 				Node.replace_child node ent nnode
 			with Not_found ->
 				Node.add_child node nnode

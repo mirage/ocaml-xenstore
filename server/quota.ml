@@ -23,43 +23,36 @@ exception Transaction_opened
 type domid = int
 
 (* let warn fmt = Logging.warn "quota" fmt *)
-let activate = ref true
 let maxent = ref (10000)
 let maxsize = ref (4096)
 
 type t = {
-	maxent: int;               (* max entities per domU *)
-	maxsize: int;              (* max size of data store in one node *)
 	cur: (domid, int) Hashtbl.t; (* current domains quota *)
 }
 
 let to_string quota domid =
 	if Hashtbl.mem quota.cur domid
-	then Printf.sprintf "dom%i quota: %i/%i" domid (Hashtbl.find quota.cur domid) quota.maxent
+	then Printf.sprintf "dom%i quota: %i/%i" domid (Hashtbl.find quota.cur domid) !maxent
 	else Printf.sprintf "dom%i quota: not set" domid
 
 let create () =
-	{ maxent = !maxent; maxsize = !maxsize; cur = Hashtbl.create 100; }
+	{ cur = Hashtbl.create 100; }
 
 let copy quota = { quota with cur = (Hashtbl.copy quota.cur) }
 
 let del quota id = Hashtbl.remove quota.cur id
 
-let _check quota id size =
-	if size > quota.maxsize then (
+let check quota id size =
+	if size > !maxsize then (
 (*		warn "domain %u err create entry: data too big %d" id size; *)
 		raise Data_too_big
 	);
 	if id > 0 && Hashtbl.mem quota.cur id then
 		let entry = Hashtbl.find quota.cur id in
-		if entry >= quota.maxent then (
+		if entry >= !maxent then (
 (*			warn "domain %u cannot create entry: quota reached" id; *)
 			raise Limit_reached
 		)
-
-let check quota id size =
-	if !activate then
-		_check quota id size
 
 let get_entry quota id =
 	if not(Hashtbl.mem quota.cur id) then begin

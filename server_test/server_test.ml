@@ -450,29 +450,35 @@ let test_quota () =
 		assert_equal ~msg:"quota" ~printer:string_of_int (!start + n) (int_of_string (List.hd x)) in
 
 	run store [
-		dom0, none, Debug [ "quota"; "0" ], StringList (fun x -> start := int_of_string (List.hd x));
+(*		dom0, none, PathOp("/quota/domain/0", Read), StringList (fun x -> start := int_of_string (List.hd x)); *)
 		dom0, none, PathOp("/a", Write "hello"), OK;
-		dom0, none, Debug [ "quota"; "0" ], StringList (expect 1);
+		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 1);
 		(* Implicit creation of 2 elements *)
 		dom0, none, PathOp("/a/b/c", Write "hello"), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 3);
+		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 3);
 		(* Remove one element *)
 		dom0, none, PathOp("/a/b/c", Rm), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 2);
+		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 2);
 		(* Recursive remove of 2 elements *)
 		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
+		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 0);
 		(* Remove an already removed element *)
 		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
+		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 0);
 		(* Remove a missing element: *)
 		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
+		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 0);
 		(* Removing the root node is forbidden *)
 		dom0, none, PathOp("/", Rm), Err "EINVAL";
 		dom0, none, Debug [ "quota"; "0" ], StringList (expect 0);
+		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 0);
 	]
 
 let test_quota_setperms () =
@@ -499,6 +505,18 @@ let test_quota_setperms () =
 		dom1, none, PathOp("/local/domain/1/private/foo", Setperms Xs_packet.ACL.({owner = 2; other = NONE; acl = []})), OK;
 		(* Domain 2's quota shouldn't be affected: *)
 		dom0, none, Debug [ "quota"; "2" ], StringList (expect dom2_quota 0);
+	]
+
+let test_quota_maxsize () =
+	let dom0 = Connection.create 0 in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom0, none, PathOp("/quota/default/maxsize", Write "5"), OK;
+		dom0, none, PathOp("/a", Write "hello"), OK;
+		dom0, none, PathOp("/a", Write "hello2"), Err "E2BIG";
+		dom0, none, PathOp("/quota/default/maxsize", Write "6"), OK;
+		dom0, none, PathOp("/a", Write "hello2"), OK;
 	]
 
 let _ =
@@ -530,5 +548,6 @@ let _ =
 		"test_introduce_watches" >:: test_introduce_watches;
 		"test_quota" >:: test_quota;
 		"test_quota_setperms" >:: test_quota_setperms;
+		"test_quota_maxsize" >:: test_quota_maxsize;
 	] in
   run_test_tt ~verbose:!verbose suite
