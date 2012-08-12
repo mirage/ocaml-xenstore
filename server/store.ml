@@ -251,14 +251,14 @@ let apply_modify rnode path fct =
 
 let set_node rnode path nnode =
 	let quota = Quota.create () in
-	Node.recurse (fun node -> Quota.add_entry quota (Node.get_creator node)) nnode;
+	Node.recurse (fun node -> Quota.incr quota (Node.get_creator node)) nnode;
 	if path = [] then
 		nnode, quota
 	else
 		let set_node node name =
 			try
 				let ent = Node.find node name in
-				Node.recurse (fun node -> Quota.del_entry quota (Node.get_creator node)) ent;
+				Node.recurse (fun node -> Quota.decr quota (Node.get_creator node)) ent;
 				Node.replace_child node ent nnode
 			with Not_found ->
 				Node.add_child node nnode
@@ -452,19 +452,19 @@ let dump_buffer store = dump_store_buf store.root
 let set_node store path node =
 	let root, quota_diff = Path.set_node store.root path node in
 	store.root <- root;
-	Quota.add store.quota quota_diff
+	Quota.union store.quota quota_diff
 
 let write store creator perm path value =
 	Quota.check store.quota creator (String.length value);
 	let root, node_created = path_write store creator perm path value in
 	store.root <- root;
 	if node_created
-	then Quota.add_entry store.quota creator
+	then Quota.incr store.quota creator
 
 let mkdir store creator perm path =
 	Quota.check store.quota creator 0;
 	store.root <- path_mkdir store creator perm path;
-	Quota.add_entry store.quota creator
+	Quota.incr store.quota creator
 
 let rm store perm path =
 	let rmed_node = lookup store.root path in
@@ -475,7 +475,7 @@ let rm store perm path =
 		raise Invalid_path
 	| Some rmed_node ->
 		store.root <- path_rm store perm path;
-		Node.recurse (fun node -> Quota.del_entry store.quota (Node.get_creator node)) rmed_node
+		Node.recurse (fun node -> Quota.decr store.quota (Node.get_creator node)) rmed_node
 		
 let setperms store perm path nperms =
 	match lookup store.root path with

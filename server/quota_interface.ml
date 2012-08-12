@@ -1,5 +1,7 @@
 include Namespace.Unsupported
 
+let ( |> ) a b = b a
+
 let read t (perms: Perms.t) (path: Store.Path.t) =
 	match Store.Path.to_string_list path with
 		| "default" :: "maxent" :: [] ->
@@ -7,13 +9,11 @@ let read t (perms: Perms.t) (path: Store.Path.t) =
 		| "default" :: "maxsize" :: [] ->
 			string_of_int (!Quota.maxsize)
 		| "domain" :: domid :: [] ->
-			begin
-				try
-					let q = t.Transaction.store.Store.quota in
-					let domid = int_of_string domid in
-					string_of_int (Hashtbl.find q.Quota.cur domid)
-				with _ -> raise Store.Path.Doesnt_exist
-			end
+			let q = t.Transaction.store.Store.quota in
+			let domid = int_of_string domid in
+			let n = Quota.get q domid in
+(*			if n = 0 then raise Store.Path.Doesnt_exist; *)
+			string_of_int n
 		| _ -> raise Store.Path.Doesnt_exist
 
 let exists t perms path =
@@ -25,7 +25,7 @@ let exists t perms path =
 		| "domain" :: domid :: [] ->
 			let q = t.Transaction.store.Store.quota in
 			let domid = int_of_string domid in
-			Hashtbl.mem q.Quota.cur domid
+			Quota.get q domid <> 0
 		| _ -> false
 
 let write t creator perms path value =
@@ -42,7 +42,6 @@ let list t perms path =
 	| [ "default" ] -> [ "maxent"; "maxsize" ]
 	| [ "domain" ] ->
 		let q = t.Transaction.store.Store.quota in
-		let domids = Hashtbl.fold (fun domid _ acc -> domid :: acc) q.Quota.cur [] in
-		List.map string_of_int domids
+		Quota.list q |> List.map fst |> List.map string_of_int
 	| _ -> raise Store.Path.Doesnt_exist
 

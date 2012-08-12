@@ -22,46 +22,51 @@ exception Transaction_opened
 
 type domid = int
 
-(* let warn fmt = Logging.warn "quota" fmt *)
+(* Global defaults *)
 let maxent = ref (10000)
 let maxsize = ref (4096)
 
-type t = {
-	cur: (domid, int) Hashtbl.t; (* current domains quota *)
-}
+(* Per-domain maxent overrides *)
+let maxent_overrides = Hashtbl.create 10
 
-let to_string quota domid =
-	if Hashtbl.mem quota.cur domid
-	then Printf.sprintf "dom%i quota: %i/%i" domid (Hashtbl.find quota.cur domid) !maxent
-	else Printf.sprintf "dom%i quota: not set" domid
+let maxent_of_domain domid =
+	if Hashtbl.mem maxent_overrides domid
+	then Hashtbl.find maxent_overrides domid
+	else !maxent
+
+type t = {
+	cur: (domid, int) Hashtbl.t; (* current domains entry usage *)
+}
 
 let create () =
 	{ cur = Hashtbl.create 100; }
 
-let copy quota = { quota with cur = (Hashtbl.copy quota.cur) }
+let copy quota = { cur = (Hashtbl.copy quota.cur) }
 
 let del quota id = Hashtbl.remove quota.cur id
 
 let check quota id size =
 	if size > !maxsize then (
-(*		warn "domain %u err create entry: data too big %d" id size; *)
+		warn "domain %u err create entry: data too big %d" id size;
 		raise Data_too_big
 	);
-	if id > 0 && Hashtbl.mem quota.cur id then
+	if Hashtbl.mem quota.cur id then
 		let entry = Hashtbl.find quota.cur id in
-		if entry >= !maxent then (
-(*			warn "domain %u cannot create entry: quota reached" id; *)
+		let maxent = maxent_of_domain id in
+		if entry >= maxent then (
+			warn "domain %u cannot create entry: quota reached (%d)" id maxent;
 			raise Limit_reached
 		)
 
-let get_entry quota id =
-	if not(Hashtbl.mem quota.cur id) then begin
-		info "Creating quota record for domain: %d" id;
-		Hashtbl.add quota.cur id 0
-	end;
-	Hashtbl.find quota.cur id
+let list quota =
+	Hashtbl.fold (fun domid x acc -> (domid, x) :: acc) quota.cur []
 
-let set_entry quota id nb =
+let get quota id =
+	if Hashtbl.mem quota.cur id
+	then Hashtbl.find quota.cur id
+	else 0
+
+let set quota id nb =
 	if nb = 0
 	then Hashtbl.remove quota.cur id
 	else begin
@@ -71,17 +76,16 @@ let set_entry quota id nb =
 		Hashtbl.add quota.cur id nb
 	end
 
-let del_entry quota id =
-	try
-		let nb = get_entry quota id in
-		set_entry quota id (nb - 1)
-	with Not_found -> ()
+let decr quota id =
+	let nb = get quota id in
+	if nb > 0
+	then set quota id (nb - 1)
 
-let add_entry quota id =
-	let nb = try get_entry quota id with Not_found -> 0 in
-	set_entry quota id (nb + 1)
+let incr quota id =
+	let nb = get quota id in
+	set quota id (nb + 1)
 
-let add quota diff =
-	Hashtbl.iter (fun id nb -> set_entry quota id (get_entry quota id + nb)) diff.cur
+let union quota diff =
+	Hashtbl.iter (fun id nb -> set quota id (get quota id + nb)) diff.cur
 
 
