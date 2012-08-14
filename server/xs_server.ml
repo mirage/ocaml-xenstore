@@ -48,7 +48,6 @@ module Server = functor(T: TRANSPORT) -> struct
 	module PS = PacketStream(T)
 
 	let handle_connection t =
-		debug "New connection";
 		lwt address = T.address_of t in
 		let c = Connection.create address in
 		let channel = PS.make t in
@@ -60,7 +59,6 @@ module Server = functor(T: TRANSPORT) -> struct
 			done in
 			T.destroy t
 		with e ->
-			error "Caught: %s" (Printexc.to_string e);
 			Connection.destroy address;
 			T.destroy t
 

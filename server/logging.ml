@@ -103,7 +103,7 @@ type access_type =
 	| Start_transaction
 	| End_transaction
 	| Request of Xs_packet.Request.payload
-	| Response of Xs_packet.Response.payload
+	| Response of Xs_packet.Response.payload * string option
 
 let string_of_tid ~con tid =
 	if tid = 0l
@@ -116,11 +116,11 @@ let string_of_access_type = function
 	| Commit                  -> "commit   "
 	| Newconn                 -> "newconn  "
 	| Endconn                 -> "endconn  "
-	| Debug x                 -> "debug    " ^ x
+	| Debug x                 -> "         " ^ x
 	| Start_transaction       -> "t start  "
 	| End_transaction         -> "t end    "
 	| Request r               -> " <- in   " ^ (Xs_packet.Request.prettyprint_payload r)
-	| Response r              -> " -> out  " ^ (Xs_packet.Response.prettyprint_payload r)
+	| Response (r, info_opt)  -> " -> out  " ^ (Xs_packet.Response.prettyprint_payload r) ^ (match info_opt with Some x -> " (" ^ x ^ ")" | None -> "")
 
 let disable_coalesce = ref false
 let disable_conflict = ref false
@@ -143,7 +143,7 @@ let access_type_disabled = function
 	| Start_transaction
 	| End_transaction   -> !disable_transaction
 	| Request r -> List.mem (Xs_packet.(Op.to_string (Request.ty_of_payload r))) !disable_request
-	| Response r ->
+	| Response (r, _) ->
 		begin match r with
 			| Xs_packet.Response.Error x ->
 				List.mem x !disable_reply_err
@@ -180,8 +180,8 @@ let conflict = access_logging Conflict
 let commit = access_logging Commit
 
 let request ~tid ~con request = access_logging ~tid ~con (Request request)
-let response ~tid ~con response = access_logging ~tid ~con (Response response)
-let debug_print ~con x = access_logging ~tid:0l ~con (Debug x)
+let response ~tid ~con ?info response = access_logging ~tid ~con (Response(response, info))
+let debug_print ~tid ~con x = access_logging ~tid ~con (Debug x)
 
 let start_transaction ~tid ~con = access_logging ~tid ~con (Start_transaction)
 let end_transaction ~tid ~con = access_logging ~tid ~con (End_transaction)

@@ -107,11 +107,7 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 				end;
 				Response.Mkdir
 			| Rm ->
-				begin
-					try
-						Impl.rm t c.Connection.perm path
-					with Store.Path.Doesnt_exist -> ()
-				end;
+				Impl.rm t c.Connection.perm path;
 				Response.Rm
 			| Setperms perms ->
 				Impl.setperms t c.Connection.perm path perms;
@@ -190,11 +186,8 @@ let reply_exn store c (request: t) : Response.payload =
 			Response.Debug (
 				try match cmd with
 				| "print" :: msg :: _ ->
-					Logging.debug_print ~con:c.Connection.domstr msg;
+					Logging.debug_print ~tid:0l ~con:c.Connection.domstr msg;
 					[]
-				| "watches" :: _ ->
-					let watches = (* Connections.debug cons *) "" in
-					[ watches ]
 				| _ -> []
 				with _ -> [])
 		| Request.Introduce(domid, mfn, port) ->
@@ -242,17 +235,18 @@ let reply_exn store c (request: t) : Response.payload =
 	response_payload
 
 let reply store c request =
-	let response_payload =
+	let tid = get_tid request in
+	let rid = get_rid request in
+	let response_payload, info =
 		try
-			reply_exn store c request
+			reply_exn store c request, None
 		with e ->
 			let reply code =
-				error "Caught: %s; returning %s" (Printexc.to_string e) code;
 				Response.Error code in
 			begin match e with
 				| Store.Invalid_path               -> reply "EINVAL"
 				| Store.Path.Already_exist         -> reply "EEXIST"
-				| Store.Path.Doesnt_exist          -> reply "ENOENT"
+				| Store.Path.Doesnt_exist _        -> reply "ENOENT"
 				| Store.Path.Lookup_Doesnt_exist s -> reply "ENOENT"
 				| Perms.Permission_denied          -> reply "EACCES"
 				| Not_found                        -> reply "ENOENT"
@@ -266,10 +260,8 @@ let reply store c request =
 				| (Failure "int_of_string")        -> reply "EINVAL"
 				| Namespace.Unsupported            -> reply "ENOTSUP"
 				| _                                -> reply "EIO"
-			end in
-	let tid = get_tid request in
-	let rid = get_rid request in
-	Logging.response ~tid ~con:c.Connection.domstr response_payload;
+			end, Some (Printexc.to_string e) in
+	Logging.response ~tid ~con:c.Connection.domstr ?info response_payload;
 
 	Response.print response_payload tid rid
 

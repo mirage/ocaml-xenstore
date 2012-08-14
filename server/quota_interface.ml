@@ -29,26 +29,26 @@ let read t (perms: Perms.t) (path: Store.Path.t) =
 	| "maxent" :: domid :: [] ->
 		begin match Quota.get_override Quota.maxent_overrides (int_of_string domid) with
 		| Some x -> string_of_int x
-		| None -> raise Store.Path.Doesnt_exist
+		| None -> Store.Path.doesnt_exist path
 		end
 	| "maxwatch" :: domid :: [] ->
 		begin match Quota.get_override Quota.maxwatch_overrides (int_of_string domid) with
 		| Some x -> string_of_int x
-		| None -> raise Store.Path.Doesnt_exist
+		| None -> Store.Path.doesnt_exist path
 		end
 	| "maxtransaction" :: domid :: [] ->
 		begin match Quota.get_override Quota.maxtransaction_overrides (int_of_string domid) with
 		| Some x -> string_of_int x
-		| None -> raise Store.Path.Doesnt_exist
+		| None -> Store.Path.doesnt_exist path
 		end
 	| "maxwatchevent" :: domid :: [] ->
 		begin match Quota.get_override Quota.maxwatchevent_overrides (int_of_string domid) with
 		| Some x -> string_of_int x
-		| None -> raise Store.Path.Doesnt_exist
+		| None -> Store.Path.doesnt_exist path
 		end
-	| _ -> raise Store.Path.Doesnt_exist
+	| _ -> Store.Path.doesnt_exist path
 
-let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist -> false
+let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
 
 let write t creator perms path value =
 	Perms.has perms Perms.CONFIGURE;
@@ -71,7 +71,7 @@ let write t creator perms path value =
 			Quota.set_override Quota.maxtransaction_overrides (int_of_string domid) (Some (int_of_string value))
 		| "maxwatchevent" :: domid :: [] ->
 			Quota.set_override Quota.maxwatchevent_overrides (int_of_string domid) (Some (int_of_string value))
-		| _ -> raise Store.Path.Doesnt_exist
+		| _ -> Store.Path.doesnt_exist path
 
 let list t perms path =
 	Perms.has perms Perms.CONFIGURE;

@@ -59,7 +59,10 @@ module Path : sig
 
 	exception Lookup_Doesnt_exist of string
 
-	exception Doesnt_exist
+	exception Doesnt_exist of string
+
+	val doesnt_exist: t -> 'a
+	(** [doesnt_exist path] raises the Doesnt_exist exception *)
 
 	exception Already_exist
 

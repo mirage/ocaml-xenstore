@@ -164,13 +164,13 @@ end
 
 module Path = struct
 
+type t = string list
+
 exception Lookup_Doesnt_exist of string
 
-exception Doesnt_exist
+exception Doesnt_exist of string
 
 exception Already_exist
-
-type t = string list
 
 let getdomainpath domid = [ "local"; "domain"; Printf.sprintf "%u" domid ]
 
@@ -188,7 +188,9 @@ let to_string = path_to_string
 let to_string_list x = x
 let of_string_list x = x
 
-let get_parent t = match t with
+let doesnt_exist t = raise (Doesnt_exist (to_string t))
+
+let get_parent t : t = match t with
 	| [] -> t
 	| t -> List.rev (List.tl (List.rev t))
 
@@ -331,8 +333,7 @@ let path_rm store perm path =
 			let ent = Node.find node name in
 			Perms.check perm Perms.WRITE ent.Node.perms;
 			Node.del_childname node name
-		with Not_found ->
-			raise Path.Doesnt_exist in
+		with Not_found -> Path.doesnt_exist path in
 	if path = [] then
 		Node.del_all_children store.root
 	else
@@ -359,50 +360,65 @@ let lookup node path =
 		| h :: [] ->
 			(try
 				 Node.find node h
-			 with Not_found ->
-				 raise Path.Doesnt_exist)
+			 with Not_found -> Path.doesnt_exist path)
 		| h :: l  -> let cnode = Node.find node h in lookup_get cnode l in
 
 	if path = [] then
 		Some node
 	else (
-		try Some (lookup_get node path) with Path.Doesnt_exist -> None
+		try Some (lookup_get node path) with Path.Doesnt_exist _ -> None
 	)
 
 let read store perm path =
-	let do_read node name =
-		let ent = Node.find node name in
-		Perms.check perm Perms.READ ent.Node.perms;
-		ent.Node.value
-	in
-	if path = [] then (
-		let ent = store.root in
-		Perms.check perm Perms.READ ent.Node.perms;
-		ent.Node.value
-	) else
-		Path.apply store.root path do_read
+	try
+		let do_read node name =
+			let ent = Node.find node name in
+			Perms.check perm Perms.READ ent.Node.perms;
+			ent.Node.value
+		in
+		if path = [] then (
+			let ent = store.root in
+			Perms.check perm Perms.READ ent.Node.perms;
+			ent.Node.value
+		) else
+			Path.apply store.root path do_read
+	with
+		| Invalid_path
+		| Not_found -> Path.doesnt_exist path
 
 let ls store perm path =
-	let children =
-		if path = [] then
-			store.root.Node.children
-		else
-			let do_ls node name =
-				let cnode = Node.find node name in
-				Perms.check perm Perms.READ cnode.Node.perms;
-				cnode.Node.children in
-			Path.apply store.root path do_ls in
-	List.rev (List.map (fun n -> Symbol.to_string n.Node.name) children)
+	try
+		let children =
+			if path = [] then
+				store.root.Node.children
+			else
+				let do_ls node name =
+					let cnode =
+						try Node.find node name
+						with Not_found ->
+							Path.doesnt_exist path
+					in
+					Perms.check perm Perms.READ cnode.Node.perms;
+					cnode.Node.children in
+				Path.apply store.root path do_ls in
+		List.rev (List.map (fun n -> Symbol.to_string n.Node.name) children)
+	with
+		| Invalid_path
+		| Not_found -> Path.doesnt_exist path
 
 let getperms store perm path =
-	if path = [] then
-		store.root.Node.perms
-	else
-		let fct n name =
-			let c = Node.find n name in
-			Perms.check perm Perms.READ c.Node.perms;
-			c.Node.perms in
-		Path.apply store.root path fct
+	try
+		if path = [] then
+			store.root.Node.perms
+		else
+			let fct n name =
+				let c = Node.find n name in
+				Perms.check perm Perms.READ c.Node.perms;
+				c.Node.perms in
+			Path.apply store.root path fct
+	with
+		| Invalid_path
+		| Not_found -> Path.doesnt_exist path
 
 let exists store path =
 	if path = [] then
@@ -468,21 +484,31 @@ let mkdir store creator perm path =
 	store.root <- root
 
 let rm store perm path =
-	let rmed_node = lookup store.root path in
-	match rmed_node with
-	| None -> raise Path.Doesnt_exist
-	| Some node when node = store.root ->
-		error "Removing the root node is forbidden";
-		raise Invalid_path
-	| Some rmed_node ->
-		store.root <- path_rm store perm path;
-		Node.recurse (fun node -> Quota.decr store.quota (Node.get_creator node)) rmed_node
-		
+	(* If the parent node doesn't exist then fail *)
+	let parent = Path.get_parent path in
+	if not(exists store parent) then Path.doesnt_exist parent;
+	try
+		let rmed_node = lookup store.root path in
+		match rmed_node with
+			| None -> ()
+			| Some node when node = store.root ->
+				raise (Invalid_argument "removing the root node is forbidden")
+			| Some rmed_node ->
+				store.root <- path_rm store perm path;
+				Node.recurse (fun node -> Quota.decr store.quota (Node.get_creator node)) rmed_node
+	with
+		| Invalid_path
+		| Not_found -> Path.doesnt_exist path		
+
 let setperms store perm path nperms =
-	match lookup store.root path with
-	| None -> raise Path.Doesnt_exist
-	| Some node ->
-		store.root <- path_setperms store perm path nperms
+	try
+		match lookup store.root path with
+			| None -> Path.doesnt_exist path
+			| Some node ->
+				store.root <- path_setperms store perm path nperms
+	with
+		| Invalid_path
+		| Not_found -> Path.doesnt_exist path
 
 let create () = {
 	stat_transaction_coalesce = 0;

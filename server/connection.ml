@@ -243,7 +243,7 @@ let debug con =
 module Interface = struct
 	include Namespace.Unsupported
 
-	let read_connection c = function
+	let read_connection path c = function
 		| [] ->
 			""
 		| "address" :: [] ->
@@ -261,19 +261,19 @@ module Interface = struct
 		| "watch" :: n :: [] ->
 			let n = int_of_string n in
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
-			if n > (List.length all) then raise Store.Path.Doesnt_exist;
+			if n > (List.length all) then Store.Path.doesnt_exist path;
 			""
 		| "watch" :: n :: "name" :: [] ->
 			let n = int_of_string n in
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
-			if n > (List.length all) then raise Store.Path.Doesnt_exist;
+			if n > (List.length all) then Store.Path.doesnt_exist path;
 			Store.Name.to_string (List.nth all n).name
 		| "watch" :: n :: "token" :: [] ->
 			let n = int_of_string n in
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
-			if n > (List.length all) then raise Store.Path.Doesnt_exist;
+			if n > (List.length all) then Store.Path.doesnt_exist path;
 			(List.nth all n).token
-		| _ -> raise Store.Path.Doesnt_exist
+		| _ -> Store.Path.doesnt_exist path
 
 	let read t (perms: Perms.t) (path: Store.Path.t) =
 		Perms.has perms Perms.CONFIGURE;
@@ -281,18 +281,18 @@ module Interface = struct
 		| "socket" :: [] -> ""
 		| "socket" :: idx :: rest ->
 			let idx = int_of_string idx in
-			if not(Hashtbl.mem by_index idx) then raise Store.Path.Doesnt_exist;
+			if not(Hashtbl.mem by_index idx) then Store.Path.doesnt_exist path;
 			let c = Hashtbl.find by_index idx in
-			read_connection c rest
+			read_connection path c rest
 		| "domain" :: [] -> ""
 		| "domain" :: domid :: rest ->
 			let address = Xs_packet.Domain(int_of_string domid) in
-			if not(Hashtbl.mem by_address address) then raise Store.Path.Doesnt_exist;
+			if not(Hashtbl.mem by_address address) then Store.Path.doesnt_exist path;
 			let c = Hashtbl.find by_address address in
-			read_connection c rest
-		| _ -> raise Store.Path.Doesnt_exist
+			read_connection path c rest
+		| _ -> Store.Path.doesnt_exist path
 
-	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist -> false
+	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
 
 	let rec between start finish = if start > finish then [] else start :: (between (start + 1) finish)
 
@@ -319,12 +319,12 @@ module Interface = struct
 			| _ -> acc) by_address []
 		| "domain" :: domid :: rest ->
 			let address = Xs_packet.Domain(int_of_string domid) in
-			if not(Hashtbl.mem by_address address) then raise Store.Path.Doesnt_exist;
+			if not(Hashtbl.mem by_address address) then Store.Path.doesnt_exist path;
 			let c = Hashtbl.find by_address address in
 			list_connection c rest
 		| "socket" :: idx :: rest ->
 			let idx = int_of_string idx in
-			if not(Hashtbl.mem by_index idx) then raise Store.Path.Doesnt_exist;
+			if not(Hashtbl.mem by_index idx) then Store.Path.doesnt_exist path;
 			let c = Hashtbl.find by_index idx in
 			list_connection c rest
 		| _ -> []

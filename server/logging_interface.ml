@@ -19,16 +19,16 @@ let read t (perms: Perms.t) (path: Store.Path.t) =
 		| "request" :: [] -> ""
 		| "reply-ok" :: [] -> ""
 		| "reply-err" :: [] -> ""
-		| "request" :: x :: [] -> if List.mem x !disable_request then "1" else raise Store.Path.Doesnt_exist
-		| "reply-ok" :: x :: [] -> if List.mem x !disable_reply_ok then "1" else raise Store.Path.Doesnt_exist
-		| "reply-err" :: x :: [] -> if List.mem x !disable_reply_err then "1" else raise Store.Path.Doesnt_exist
+		| "request" :: x :: [] -> if List.mem x !disable_request then "1" else Store.Path.doesnt_exist path
+		| "reply-ok" :: x :: [] -> if List.mem x !disable_reply_ok then "1" else Store.Path.doesnt_exist path
+		| "reply-err" :: x :: [] -> if List.mem x !disable_reply_err then "1" else Store.Path.doesnt_exist path
 		| x :: [] ->
 			if List.mem_assoc x general_params
-			then if !(List.assoc x general_params) then "1" else raise Store.Path.Doesnt_exist
-			else raise Store.Path.Doesnt_exist
-		| _ -> raise Store.Path.Doesnt_exist
+			then if !(List.assoc x general_params) then "1" else Store.Path.doesnt_exist path
+			else Store.Path.doesnt_exist path
+		| _ -> Store.Path.doesnt_exist path
 
-let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist -> false
+let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
 
 let write t creator perms path value =
 	Perms.has perms Perms.CONFIGURE;
@@ -46,7 +46,7 @@ let write t creator perms path value =
 						| "1" -> true
 						| _ -> raise (Invalid_argument value)
 			end
-		| _ -> raise Store.Path.Doesnt_exist
+		| _ -> Store.Path.doesnt_exist path
 
 let list t perms path =
 	Perms.has perms Perms.CONFIGURE;
@@ -67,6 +67,6 @@ let rm t perms path =
 		| x :: [] ->
 			if List.mem_assoc x general_params
 			then (List.assoc x general_params) := false
-			else raise Store.Path.Doesnt_exist
-		| _ -> raise Store.Path.Doesnt_exist
+			else Store.Path.doesnt_exist path
+		| _ -> Store.Path.doesnt_exist path
 
