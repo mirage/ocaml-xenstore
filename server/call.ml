@@ -30,12 +30,10 @@ exception Transaction_nested
 
 let get_namespace_implementation path = match Store.Path.to_string_list path with
 	| "quota" :: rest ->
-		Printf.fprintf stderr "got quota\n%!";
 		Store.Path.of_string_list rest, (module Quota_interface: Namespace.IO)
 	| "connection" :: rest ->
 		Store.Path.of_string_list rest, (module Connection.Interface: Namespace.IO)
 	| "log" :: rest ->
-		Printf.fprintf stderr "got log\n%!";
 		Store.Path.of_string_list rest, (module Logging_interface: Namespace.IO)
 	| _ ->
 		path, (module Transaction: Namespace.IO)
