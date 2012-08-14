@@ -24,8 +24,10 @@ Library xenstore_unix
   Path: unix
   Findlibname: unix
   FindlibParent: xenstore
-  Modules: Xs_transport_unix
+  Modules: Xs_transport_unix, Dom0, Xenstore
   BuildDepends: lwt, xenstore
+  CSources: xenstore_stubs.c
+  CCLib: -I .
 
 Library xenstore_server
   Path: server
