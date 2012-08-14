@@ -57,8 +57,6 @@ module Path : sig
 	type t
 	(** Represents an absolute path within the xenstore tree *)
 
-	exception Lookup_Doesnt_exist of string
-
 	exception Doesnt_exist of string
 
 	val doesnt_exist: t -> 'a

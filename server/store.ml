@@ -157,8 +157,6 @@ module Path = struct
 
 type t = string list
 
-exception Lookup_Doesnt_exist of string
-
 exception Doesnt_exist of string
 
 let getdomainpath domid = [ "local"; "domain"; Printf.sprintf "%u" domid ]
@@ -231,7 +229,7 @@ let rec lookup_modify node path fct =
 	| h :: l  ->
 		let (n, c) =
 			if not (Node.exists node h) then
-				raise (Lookup_Doesnt_exist h)
+				raise (Doesnt_exist h)
 			else
 				(node, Node.find node h) in
 		let nc = lookup_modify c l fct in

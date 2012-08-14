@@ -240,7 +240,6 @@ let reply store c request =
 			begin match e with
 				| Store.Already_exists _           -> reply "EEXIST"
 				| Store.Path.Doesnt_exist _        -> reply "ENOENT"
-				| Store.Path.Lookup_Doesnt_exist s -> reply "ENOENT"
 				| Perms.Permission_denied          -> reply "EACCES"
 				| Not_found                        -> reply "ENOENT"
 				| Parse_failure                    -> reply "EINVAL"
