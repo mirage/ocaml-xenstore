@@ -1,4 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: 77fef62e13821a67ac659c50a92ac564)
+# DO NOT EDIT (digest: 8eb767c5efbd6c72cff28e80be6aec43)
 Xs_transport_unix
+Dom0
+Xenstore
 # OASIS_STOP
