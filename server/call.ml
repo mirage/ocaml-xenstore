@@ -30,9 +30,13 @@ exception Transaction_nested
 
 let get_namespace_implementation path = match Store.Path.to_string_list path with
 	| "quota" :: rest ->
+		Printf.fprintf stderr "got quota\n%!";
 		Store.Path.of_string_list rest, (module Quota_interface: Namespace.IO)
 	| "connection" :: rest ->
 		Store.Path.of_string_list rest, (module Connection.Interface: Namespace.IO)
+	| "log" :: rest ->
+		Printf.fprintf stderr "got log\n%!";
+		Store.Path.of_string_list rest, (module Logging_interface: Namespace.IO)
 	| _ ->
 		path, (module Transaction: Namespace.IO)
 
@@ -211,7 +215,7 @@ let reply_exn store c (request: t) : Response.payload =
 			Perms.has c.Connection.perm Perms.SET_TARGET;
 			Hashtbl.iter
 				(fun address c ->
-					if Connection.domain_of_address address = mine
+					if Xs_packet.domain_of_address address = mine
 					then c.Connection.perm <- Perms.set_target c.Connection.perm yours;
 				) Connection.domains;
 			Response.Set_target
@@ -263,8 +267,10 @@ let reply store c request =
 				| Namespace.Unsupported            -> reply "ENOTSUP"
 				| _                                -> reply "EIO"
 			end in
-	Logging.response ~tid:(get_tid request) ~con:c.Connection.domstr response_payload;
+	let tid = get_tid request in
+	let rid = get_rid request in
+	Logging.response ~tid ~con:c.Connection.domstr response_payload;
 
-	Response.print request response_payload
+	Response.print response_payload tid rid
 
 

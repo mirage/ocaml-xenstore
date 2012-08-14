@@ -147,9 +147,11 @@ module Response : sig
   | Error of string
   | Watchevent of string * string
 
+  val ty_of_payload: payload -> Op.t
+
   val prettyprint_payload: payload -> string
 
-  val print: t -> payload -> t
+  val print: payload -> int32 -> int32 -> t
 end
 
 module Request : sig
@@ -180,6 +182,8 @@ module Request : sig
 	| Error of string
 	| Watchevent of string
 
+	val ty_of_payload: payload -> Op.t
+
   val prettyprint_payload: payload -> string
   val prettyprint: t -> string
 
@@ -206,3 +210,10 @@ val response: string -> t -> t -> (t -> 'a option) -> 'a
 (** [response debug_hint sent received unmarshal] returns the unmarshalled
     response corresponding to the [received] packet relative to the [sent]
     packet *)
+
+type address =
+| Unix of string
+| Domain of int
+
+val string_of_address: address -> string
+val domain_of_address: address -> int

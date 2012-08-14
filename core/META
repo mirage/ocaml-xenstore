@@ -1,27 +1,33 @@
 # OASIS_START
-# DO NOT EDIT (digest: 863a642b078ed891173e0f74aa2528a9)
+# DO NOT EDIT (digest: f97f9bb0b601470aabce6c7c711bea1f)
 version = "0.9-dev"
 description = "Xenstore protocol library"
 requires = "lwt cstruct cstruct.syntax lwt"
 archive(byte) = "xenstore.cma"
+archive(byte, plugin) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
+archive(native, plugin) = "xenstore.cmxs"
 exists_if = "xenstore.cma"
+package "unix" (
+ version = "0.9-dev"
+ description = "Xenstore protocol library"
+ requires = "lwt xenstore"
+ archive(byte) = "xenstore_unix.cma"
+ archive(byte, plugin) = "xenstore_unix.cma"
+ archive(native) = "xenstore_unix.cmxa"
+ archive(native, plugin) = "xenstore_unix.cmxs"
+ exists_if = "xenstore_unix.cma"
+)
+
 package "server" (
  version = "0.9-dev"
  description = "Xenstore protocol library"
  requires = "lwt xenstore"
  archive(byte) = "xenstore_server.cma"
+ archive(byte, plugin) = "xenstore_server.cma"
  archive(native) = "xenstore_server.cmxa"
+ archive(native, plugin) = "xenstore_server.cmxs"
  exists_if = "xenstore_server.cma"
-)
-
-package "unix" (
- version = "0.9-dev"
- description = "Xenstore protocol library"
- requires = "lwt"
- archive(byte) = "xenstore_unix.cma"
- archive(native) = "xenstore_unix.cmxa"
- exists_if = "xenstore_unix.cma"
 )
 
 package "client" (
@@ -29,7 +35,9 @@ package "client" (
  description = "Xenstore protocol library"
  requires = "lwt xenstore"
  archive(byte) = "xenstore_client.cma"
+ archive(byte, plugin) = "xenstore_client.cma"
  archive(native) = "xenstore_client.cmxa"
+ archive(native, plugin) = "xenstore_client.cmxs"
  exists_if = "xenstore_client.cma"
 )
 # OASIS_STOP

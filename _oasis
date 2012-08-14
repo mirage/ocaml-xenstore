@@ -25,13 +25,13 @@ Library xenstore_unix
   Findlibname: unix
   FindlibParent: xenstore
   Modules: Xs_transport_unix
-  BuildDepends: lwt
+  BuildDepends: lwt, xenstore
 
 Library xenstore_server
   Path: server
   Findlibname: server
   FindlibParent: xenstore
-  Modules: Logging, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk
+  Modules: Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk
   BuildDepends: lwt, xenstore
 
 Executable xs_test

@@ -122,6 +122,38 @@ let string_of_access_type = function
 	| Request r               -> " <- in   " ^ (Xs_packet.Request.prettyprint_payload r)
 	| Response r              -> " -> out  " ^ (Xs_packet.Response.prettyprint_payload r)
 
+let disable_coalesce = ref false
+let disable_conflict = ref false
+let disable_commit = ref false
+let disable_newconn = ref false
+let disable_endconn = ref false
+let disable_transaction = ref false
+
+let disable_request = ref []
+let disable_reply_ok = ref []
+let disable_reply_err = ref []
+
+let access_type_disabled = function
+	| Coalesce -> !disable_coalesce
+	| Conflict -> !disable_conflict
+	| Commit   -> !disable_commit
+	| Newconn  -> !disable_newconn
+	| Endconn  -> !disable_endconn
+	| Debug _  -> false
+	| Start_transaction
+	| End_transaction   -> !disable_transaction
+	| Request r -> List.mem (Xs_packet.(Op.to_string (Request.ty_of_payload r))) !disable_request
+	| Response r ->
+		begin match r with
+			| Xs_packet.Response.Error x ->
+				List.mem x !disable_reply_err
+			| _ ->
+				let ty = Xs_packet.Response.ty_of_payload r in
+				List.mem (Xs_packet.Op.to_string ty) !disable_reply_ok
+		end
+
+let access_type_enabled x = not(access_type_disabled x)
+
 let sanitize_data data =
 	let data = String.copy data in
 	for i = 0 to String.length data - 1
@@ -131,22 +163,18 @@ let sanitize_data data =
 	done;
 	String.escaped data
 
-let access_log_read_ops = ref false
-let access_log_transaction_ops = ref false
-let access_log_special_ops = ref false
-
 let access_logging ~con ~tid ?(data="") access_type =
-	let date = !string_of_date() in
-	let tid = string_of_tid ~con tid in
-	let access_type = string_of_access_type access_type in
-	let data = sanitize_data data in
-	Printf.ksprintf logger.push "[%s] %s %s %s" date tid access_type data
+	if access_type_enabled access_type then begin
+		let date = !string_of_date() in
+		let tid = string_of_tid ~con tid in
+		let access_type = string_of_access_type access_type in
+		let data = sanitize_data data in
+		Printf.ksprintf logger.push "[%s] %s %s %s" date tid access_type data
+	end
 
 let new_connection = access_logging Newconn
 let end_connection = access_logging Endconn
-let read_coalesce ~tid ~con data =
-	if !access_log_read_ops
-	then access_logging Coalesce ~tid ~con ~data:("read "^data)
+let read_coalesce ~tid ~con data = access_logging Coalesce ~tid ~con ~data:("read "^data)
 let write_coalesce data = access_logging Coalesce ~data:("write "^data)
 let conflict = access_logging Conflict
 let commit = access_logging Commit
@@ -157,7 +185,3 @@ let debug_print ~con x = access_logging ~tid:0l ~con (Debug x)
 
 let start_transaction ~tid ~con = access_logging ~tid ~con (Start_transaction)
 let end_transaction ~tid ~con = access_logging ~tid ~con (End_transaction)
-
-let startswith prefix x =
-        let x_l = String.length x and prefix_l = String.length prefix in
-        prefix_l <= x_l && String.sub x 0 prefix_l  = prefix

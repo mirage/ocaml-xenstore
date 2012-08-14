@@ -33,7 +33,7 @@ let counter = ref 0
 let address_of fd =
 	(* TODO: bind SO_PEERCRED to find out who this is *)
 	incr counter;
-	Connection.Unix(string_of_int (!counter))
+	Xs_packet.Unix(string_of_int (!counter))
 
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr

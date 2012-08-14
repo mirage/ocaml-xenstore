@@ -28,7 +28,7 @@ let store =
 			let p = Store.Path.create path (Store.Path.getdomainpath 0) in
 			if not (Store.exists store p)
 			then Store.mkdir store 0 (Perms.of_domain 0) p
-		) [ "/local"; "/local/domain"; "/quota"; "/connection" ];
+		) [ "/local"; "/local/domain"; "/quota"; "/connection"; "/log" ];
 	store
 
 module type TRANSPORT = sig
@@ -39,7 +39,7 @@ module type TRANSPORT = sig
   val read: t -> string -> int -> int -> int Lwt.t
   val write: t -> string -> int -> int -> int Lwt.t
   val destroy: t -> unit Lwt.t
-  val address_of: t -> Connection.address
+  val address_of: t -> Xs_packet.address
 
   val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
 end

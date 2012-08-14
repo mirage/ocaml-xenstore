@@ -128,9 +128,11 @@ let example_request_packets =
 	]
 
 let make_example_response op response wire_fmt =
-	let request = List.find (fun x -> x.op = op) example_request_packets in {
+	let request = List.find (fun x -> x.op = op) example_request_packets in
+	let tid = Xs_packet.get_tid request.packet in
+	let rid = Xs_packet.get_rid request.packet in {
 		op = op;
-		packet = Xs_packet.Response.print request.packet response;
+		packet = Xs_packet.Response.print response tid rid;
 		wire_fmt = wire_fmt;
 	}
 
@@ -166,7 +168,7 @@ let example_response_packets =
 			"\x07\x00\x00\x00\x07\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
 		{
 			op = Op.Error;
-			packet = print (Xs_packet.Request.(print (PathOp("/foo", Directory)) 2l)) (Error "whatyoutalkingabout");
+			packet = print (Error "whatyoutalkingabout") 2l 0x10l;
 			wire_fmt =
 				"\x10\x00\x00\x00\x10\x00\x00\x00\x02\x00\x00\x00\x14\x00\x00\x00\x77\x68\x61\x74\x79\x6f\x75\x74\x61\x6c\x6b\x69\x6e\x67\x61\x62\x6f\x75\x74\x00"
 		}
