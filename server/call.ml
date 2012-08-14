@@ -98,11 +98,7 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 				Response.Write
 			| Mkdir ->
 				mkdir_p t c.Connection.domid c.Connection.perm path;
-				begin
-					try
-						Impl.mkdir t c.Connection.domid c.Connection.perm path
-					with Store.Path.Already_exist -> ()
-				end;
+				Impl.mkdir t c.Connection.domid c.Connection.perm path;
 				Response.Mkdir
 			| Rm ->
 				Impl.rm t c.Connection.perm path;
@@ -242,7 +238,7 @@ let reply store c request =
 			let reply code =
 				Response.Error code in
 			begin match e with
-				| Store.Path.Already_exist         -> reply "EEXIST"
+				| Store.Already_exists _           -> reply "EEXIST"
 				| Store.Path.Doesnt_exist _        -> reply "ENOENT"
 				| Store.Path.Lookup_Doesnt_exist s -> reply "ENOENT"
 				| Perms.Permission_denied          -> reply "EACCES"

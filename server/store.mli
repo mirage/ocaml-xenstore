@@ -12,6 +12,9 @@
  * GNU Lesser General Public License for more details.
  *)
 
+exception Already_exists of string
+(** thrown when a (watch) name already exists *)
+
 module Node : sig
 	(** A Node in the main xenstore tree *)
 
@@ -60,8 +63,6 @@ module Path : sig
 
 	val doesnt_exist: t -> 'a
 	(** [doesnt_exist path] raises the Doesnt_exist exception *)
-
-	exception Already_exist
 
 	val getdomainpath: int -> t
 	(** [getdomainpath domid] returns the default directory for [domid] *)

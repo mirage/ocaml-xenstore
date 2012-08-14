@@ -124,8 +124,8 @@ let add_watch con name token =
 	then raise Quota.Limit_reached;
 
 	let l = get_watches con name in
-	if List.exists (fun w -> w.token = token) l then
-		raise Store.Path.Already_exist;
+	if List.exists (fun w -> w.token = token) l
+	then raise (Store.Already_exists (Printf.sprintf "%s:%s" (Store.Name.to_string name) token));
 	let watch = watch_create ~con ~token ~name in
 	Hashtbl.replace con.watches name (watch :: l);
 	con.nb_watches <- con.nb_watches + 1;

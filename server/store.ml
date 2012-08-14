@@ -16,6 +16,8 @@ let error fmt = Logging.debug "error" fmt
 
 open Junk
 
+exception Already_exists of string
+
 module Node = struct
 
 type t = {
@@ -159,8 +161,6 @@ exception Lookup_Doesnt_exist of string
 
 exception Doesnt_exist of string
 
-exception Already_exist
-
 let getdomainpath domid = [ "local"; "domain"; Printf.sprintf "%u" domid ]
 
 let create path connection_path =
@@ -289,7 +289,7 @@ let path_mkdir store creator perm path =
 		try
 			let ent = Node.find node name in
 			Perms.check perm Perms.WRITE ent.Node.perms;
-			raise Path.Already_exist
+			raise (Already_exists (Path.to_string path))
 		with Not_found ->
 			Perms.check perm Perms.WRITE node.Node.perms;
 			Node.add_child node (Node.create name creator node.Node.perms "") in
@@ -465,9 +465,11 @@ let write store creator perm path value =
 
 
 let mkdir store creator perm path =
-	let root = path_mkdir store creator perm path in
-	Quota.incr store.quota creator;
-	store.root <- root
+	try
+		let root = path_mkdir store creator perm path in
+		Quota.incr store.quota creator;
+		store.root <- root
+	with Already_exists _ -> ()
 
 let rm store perm path =
 	(* If the parent node doesn't exist then fail *)
