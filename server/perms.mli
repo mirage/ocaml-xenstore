@@ -39,6 +39,7 @@ type permission =
 	| RELEASE      (** ability to revoke access from other domains *)
 	| SET_TARGET   (** ability to allow one domain to impersonate a specific other *)
 	| RESTRICT     (** ability to imperonate a specific other domain *)
+	| CONFIGURE    (** ability to view/edit the daemon configuration *)
 
 exception Permission_denied
 (** Thrown by the [check] function if role does not have a specific permission *)

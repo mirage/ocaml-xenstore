@@ -14,6 +14,7 @@ let general_params = [
 ]
 
 let read t (perms: Perms.t) (path: Store.Path.t) =
+	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
 		| "request" :: [] -> ""
 		| "reply-ok" :: [] -> ""
@@ -30,6 +31,7 @@ let read t (perms: Perms.t) (path: Store.Path.t) =
 let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist -> false
 
 let write t creator perms path value =
+	Perms.has perms Perms.CONFIGURE;
 	let f list value key = match value with
 		| "1" -> if not(List.mem key !list) then list := key :: !list
 		| _ -> raise (Invalid_argument value) in
@@ -47,7 +49,7 @@ let write t creator perms path value =
 		| _ -> raise Store.Path.Doesnt_exist
 
 let list t perms path =
-	Printf.fprintf stderr "hello\n%!";
+	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
 		| [] -> [ "request"; "reply-ok"; "reply-err" ] @ (List.map fst (List.filter (fun (_, b) -> !b) general_params))
 		| "request" :: [] -> !disable_request
@@ -56,6 +58,7 @@ let list t perms path =
 		| _ -> []
 
 let rm t perms path =
+	Perms.has perms Perms.CONFIGURE;
 	let f list key = list := List.filter (fun x -> x <> key) !list in
 	match Store.Path.to_string_list path with
 		| "request" :: x :: [] -> f disable_request x

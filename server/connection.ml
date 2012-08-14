@@ -266,6 +266,7 @@ module Interface = struct
 		| _ -> raise Store.Path.Doesnt_exist
 
 	let read t (perms: Perms.t) (path: Store.Path.t) =
+		Perms.has perms Perms.CONFIGURE;
 		match Store.Path.to_string_list path with
 		| "socket" :: [] -> ""
 		| "socket" :: x :: rest ->
@@ -295,6 +296,7 @@ module Interface = struct
 		| _ -> []
 
 	let list t perms path =
+		Perms.has perms Perms.CONFIGURE;
 		match Store.Path.to_string_list path with
 		| [] -> [ "socket"; "domain" ]
 		| [ "socket" ] ->

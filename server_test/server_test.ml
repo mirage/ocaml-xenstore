@@ -554,6 +554,15 @@ let test_quota_maxent () =
 		dom0, none, PathOp("/b", Write "hello"), Err "EQUOTA";
 	]
 
+let test_control_perms () =
+	let dom1 = Connection.create (Xs_packet.Domain 1) in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	run store [
+		dom1, none, PathOp("/quota/default/maxent", Write "1"), Err "EACCES";
+		dom1, none, PathOp("/log/reply-err/ENOENT", Write "1"), Err "EACCES";
+	]
+
 let _ =
   let verbose = ref false in
   Arg.parse [
@@ -586,5 +595,6 @@ let _ =
 		"test_quota_maxsize" >:: test_quota_maxsize;
 		"test_quota_maxent" >:: test_quota_maxent;
 		"test_watch_event_quota" >:: test_watch_event_quota;
+		"test_control_perms" >:: test_control_perms;
 	] in
   run_test_tt ~verbose:!verbose suite

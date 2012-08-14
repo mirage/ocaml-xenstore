@@ -3,6 +3,7 @@ include Namespace.Unsupported
 let ( |> ) a b = b a
 
 let read t (perms: Perms.t) (path: Store.Path.t) =
+	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
 	| "default" :: [] -> ""
 	| "domain" :: [] -> ""
@@ -50,6 +51,7 @@ let read t (perms: Perms.t) (path: Store.Path.t) =
 let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist -> false
 
 let write t creator perms path value =
+	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
 		| "default" :: "maxent" :: [] ->
 			Quota.maxent := int_of_string value
@@ -72,6 +74,7 @@ let write t creator perms path value =
 		| _ -> raise Store.Path.Doesnt_exist
 
 let list t perms path =
+	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
 	| [] -> [ "default"; "domain"; "maxent"; "maxwatch"; "maxtransaction"; "maxwatchevent" ]
 	| [ "default" ] -> [ "maxent"; "maxsize"; "maxwatch"; "maxtransaction"; "maxwatchevent" ]
@@ -90,6 +93,7 @@ let list t perms path =
 
 
 let rm t perms path =
+	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
 	| "maxent" :: domid :: [] ->
 		Quota.set_override Quota.maxent_overrides (int_of_string domid) None

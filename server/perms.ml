@@ -76,6 +76,7 @@ type permission =
 	| RELEASE
 	| SET_TARGET
 	| RESTRICT
+	| CONFIGURE
 
 let has (t: t) p =
 	if not(is_dom0 t) then raise Permission_denied
