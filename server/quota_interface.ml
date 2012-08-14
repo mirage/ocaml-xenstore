@@ -5,6 +5,7 @@ let ( |> ) a b = b a
 let read t (perms: Perms.t) (path: Store.Path.t) =
 	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
+	| [] -> ""
 	| "default" :: [] -> ""
 	| "domain" :: [] -> ""
 	| "maxent" :: [] -> ""

@@ -278,6 +278,7 @@ module Interface = struct
 	let read t (perms: Perms.t) (path: Store.Path.t) =
 		Perms.has perms Perms.CONFIGURE;
 		match Store.Path.to_string_list path with
+		| [] -> ""
 		| "socket" :: [] -> ""
 		| "socket" :: idx :: rest ->
 			let idx = int_of_string idx in
