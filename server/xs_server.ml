@@ -39,7 +39,7 @@ module type TRANSPORT = sig
   val read: t -> string -> int -> int -> int Lwt.t
   val write: t -> string -> int -> int -> int Lwt.t
   val destroy: t -> unit Lwt.t
-  val address_of: t -> Xs_packet.address
+  val address_of: t -> Xs_packet.address Lwt.t
 
   val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
 end
@@ -49,7 +49,7 @@ module Server = functor(T: TRANSPORT) -> struct
 
 	let handle_connection t =
 		debug "New connection";
-		let address = T.address_of t in
+		lwt address = T.address_of t in
 		let c = Connection.create address in
 		let channel = PS.make t in
 		try_lwt

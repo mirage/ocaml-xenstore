@@ -29,11 +29,18 @@ let destroy (fd, _) = Lwt_unix.close fd
 let read (fd, _) = Lwt_unix.read fd
 let write (fd, _) = Lwt_unix.write fd
 
-let counter = ref 0
-let address_of fd =
-	(* TODO: bind SO_PEERCRED to find out who this is *)
-	incr counter;
-	Xs_packet.Unix(string_of_int (!counter))
+let address_of (fd, _) =
+	let creds = Lwt_unix.get_credentials fd in
+	let pid = creds.Lwt_unix.cred_pid in
+	lwt filename =
+			Lwt_io.with_file ~mode:Lwt_io.input
+				(Printf.sprintf "/proc/%d/cmdline" pid)
+				(fun ic ->
+					lwt cmdline = Lwt_io.read_line_opt ic in
+					match cmdline with
+						| Some x -> return x
+						| None -> return "unknown") in
+	return (Xs_packet.Unix(Printf.sprintf "%d:%s" pid filename))
 
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr

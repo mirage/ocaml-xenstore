@@ -28,6 +28,7 @@ and t = {
 	address: Xs_packet.address;
 	domid: int;
 	domstr: string;
+	idx: int; (* unique counter *)
 	transactions: (int32, Transaction.t) Hashtbl.t;
 	mutable next_tid: int32;
 	watches: (Store.Name.t, watch list) Hashtbl.t;
@@ -39,7 +40,8 @@ and t = {
 	domainpath: Store.Path.t;
 }
 
-let domains : (Xs_packet.address, t) Hashtbl.t = Hashtbl.create 128
+let by_address : (Xs_packet.address, t) Hashtbl.t = Hashtbl.create 128
+let by_index   : (int,               t) Hashtbl.t = Hashtbl.create 128
 
 let watches : (string, watch list) Trie.t ref = ref (Trie.create ())
 
@@ -65,7 +67,7 @@ let anon_id_next = ref 1
 
 let destroy address =
 	try
-		let c = Hashtbl.find domains address in
+		let c = Hashtbl.find by_address address in
 		Logging.end_connection ~tid:Transaction.none ~con:c.domstr;
 		watches := Trie.map
 			(fun watches ->
@@ -73,12 +75,15 @@ let destroy address =
 				| [] -> None
 				| ws -> Some ws
 			) !watches;
-		Hashtbl.remove domains address
+		Hashtbl.remove by_address address;
+		Hashtbl.remove by_index c.idx;
 	with Not_found ->
 		error "Failed to remove connection for: %s" (Xs_packet.string_of_address address)
 
+let counter = ref 0
+
 let create address =
-	if Hashtbl.mem domains address then begin
+	if Hashtbl.mem by_address address then begin
 		info "Connection.create: found existing connection for %s: closing" (Xs_packet.string_of_address address);
 		destroy address
 	end;
@@ -87,6 +92,7 @@ let create address =
 	{
 		address = address;
 		domid = dom;
+		idx = !counter;
 		domstr = Xs_packet.string_of_address address;
 		transactions = Hashtbl.create 5;
 		next_tid = 1l;
@@ -98,9 +104,11 @@ let create address =
 		watch_events = Queue.create ();
 		domainpath = Store.Path.getdomainpath dom;
 	}
-	in 
+	in
+	incr counter;
 	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
-	Hashtbl.replace domains address con;
+	Hashtbl.replace by_address address con;
+	Hashtbl.replace by_index con.idx con;
 	con
 
 let restrict con domid =
@@ -238,6 +246,8 @@ module Interface = struct
 	let read_connection c = function
 		| [] ->
 			""
+		| "address" :: [] ->
+			Xs_packet.string_of_address c.address
 		| "transactions" :: [] ->
 			string_of_int (Hashtbl.length c.transactions)
 		| "operations" :: [] ->
@@ -269,16 +279,16 @@ module Interface = struct
 		Perms.has perms Perms.CONFIGURE;
 		match Store.Path.to_string_list path with
 		| "socket" :: [] -> ""
-		| "socket" :: x :: rest ->
-			let address = Xs_packet.Unix(x) in
-			if not(Hashtbl.mem domains address) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains address in
+		| "socket" :: idx :: rest ->
+			let idx = int_of_string idx in
+			if not(Hashtbl.mem by_index idx) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find by_index idx in
 			read_connection c rest
 		| "domain" :: [] -> ""
 		| "domain" :: domid :: rest ->
 			let address = Xs_packet.Domain(int_of_string domid) in
-			if not(Hashtbl.mem domains address) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains address in
+			if not(Hashtbl.mem by_address address) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find by_address address in
 			read_connection c rest
 		| _ -> raise Store.Path.Doesnt_exist
 
@@ -288,7 +298,7 @@ module Interface = struct
 
 	let list_connection c = function
 		| [] ->
-			[ "transactions"; "operations"; "watch"; "queued"; "dropped" ]
+			[ "address"; "transactions"; "operations"; "watch"; "queued"; "dropped" ]
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))
@@ -300,22 +310,22 @@ module Interface = struct
 		match Store.Path.to_string_list path with
 		| [] -> [ "socket"; "domain" ]
 		| [ "socket" ] ->
-			Hashtbl.fold (fun x _ acc -> match x with
-			| Xs_packet.Unix x -> x :: acc
-			| _ -> acc) domains []
+			Hashtbl.fold (fun x c acc -> match x with
+			| Xs_packet.Unix _ -> string_of_int c.idx :: acc
+			| _ -> acc) by_address []
 		| [ "domain" ] ->
 			Hashtbl.fold (fun x _ acc -> match x with
 			| Xs_packet.Domain x -> string_of_int x :: acc
-			| _ -> acc) domains []
+			| _ -> acc) by_address []
 		| "domain" :: domid :: rest ->
 			let address = Xs_packet.Domain(int_of_string domid) in
-			if not(Hashtbl.mem domains address) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains address in
+			if not(Hashtbl.mem by_address address) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find by_address address in
 			list_connection c rest
-		| "socket" :: x :: rest ->
-			let address = Xs_packet.Unix(x) in
-			if not(Hashtbl.mem domains address) then raise Store.Path.Doesnt_exist;
-			let c = Hashtbl.find domains address in
+		| "socket" :: idx :: rest ->
+			let idx = int_of_string idx in
+			if not(Hashtbl.mem by_index idx) then raise Store.Path.Doesnt_exist;
+			let c = Hashtbl.find by_index idx in
 			list_connection c rest
 		| _ -> []
 end

@@ -217,7 +217,7 @@ let reply_exn store c (request: t) : Response.payload =
 				(fun address c ->
 					if Xs_packet.domain_of_address address = mine
 					then c.Connection.perm <- Perms.set_target c.Connection.perm yours;
-				) Connection.domains;
+				) Connection.by_address;
 			Response.Set_target
 		| Request.Restrict domid ->
 			Perms.has c.Connection.perm Perms.RESTRICT;
