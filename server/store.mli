@@ -25,9 +25,6 @@ module Node : sig
 
 end
 
-exception Invalid_path
-(** Raised if the given path is too long, or has illegal characters *)
-
 module Name : sig
 
 	type t

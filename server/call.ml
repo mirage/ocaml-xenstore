@@ -244,7 +244,6 @@ let reply store c request =
 			let reply code =
 				Response.Error code in
 			begin match e with
-				| Store.Invalid_path               -> reply "EINVAL"
 				| Store.Path.Already_exist         -> reply "EEXIST"
 				| Store.Path.Doesnt_exist _        -> reply "ENOENT"
 				| Store.Path.Lookup_Doesnt_exist s -> reply "ENOENT"

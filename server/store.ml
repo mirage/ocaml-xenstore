@@ -92,24 +92,18 @@ let is_valid = List.for_all name_is_valid
 
 type path = string list
 
-exception Invalid_path
-
 let path_of_string = function
 	| "/" -> []
 	| path ->
-		if String.length path > 1024 then begin
-			error "paths larger than 1024 bytes are invalid";
-			raise Invalid_path
-		end;
+		if String.length path > 1024
+		then invalid_arg "paths larger than 1024 bytes are invalid";
 		begin match String.split '/' path with
 		| "" :: path ->
-			if not(is_valid path) then begin
-				error "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
-				raise Invalid_path
-			end;
+			if not(is_valid path)
+			then invalid_arg "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
 			path
 		| path ->
-			raise Invalid_path
+			invalid_arg "valid paths have a /-prefix"
 		end
 
 let path_to_string path = String.concat "/" ("" :: path)
@@ -133,18 +127,13 @@ module Name = struct
         | "@introduceDomain" -> IntroduceDomain
         | "@releaseDomain"   -> ReleaseDomain
         | "" ->
-                error "zero-length paths are invalid";
-                raise Invalid_path
+                invalid_arg "zero-length paths are invalid";
 		| path when path.[0] <> '/' ->
-			if String.length path > 1024 then begin
-				error "paths larger than 1024 bytes are invalid";
-				raise Invalid_path
-			end;
+			if String.length path > 1024
+			then invalid_arg "paths larger than 1024 bytes are invalid";
 			let path = String.split '/' path in
-            if not(is_valid path) then begin
-                error "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
-                raise Invalid_path
-            end;
+            if not(is_valid path)
+			then invalid_arg "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
             Relative path
 		| path -> Absolute (path_of_string path)
 
@@ -179,7 +168,7 @@ let create path connection_path =
 	match of_string path with
 	| Absolute path -> path
 	| Relative x -> connection_path @ x
-	| _ -> raise Invalid_path
+	| _ -> invalid_arg (Printf.sprintf "invalid path: %s" path)
 
 let to_name x = Name.Absolute x
 
@@ -237,7 +226,7 @@ let get_common_prefix p1 p2 =
 
 let rec lookup_modify node path fct =
 	match path with
-	| []      -> raise Invalid_path
+	| []      -> raise Not_found
 	| h :: [] -> fct node h
 	| h :: l  ->
 		let (n, c) =
@@ -270,7 +259,7 @@ let set_node rnode path nnode =
 (* read | ls | getperms use this *)
 let rec lookup node path fct =
 	match path with
-	| []      -> raise (Invalid_path)
+	| []      -> raise Not_found
 	| h :: [] -> fct node h
 	| h :: l  -> let cnode = Node.find node h in lookup cnode l fct
 
@@ -356,7 +345,7 @@ let path_setperms store perm path perms =
 let lookup node path =
 	let rec lookup_get node path =
 		match path with
-		| []      -> raise (Invalid_path)
+		| []      -> raise Not_found
 		| h :: [] ->
 			(try
 				 Node.find node h
@@ -383,7 +372,6 @@ let read store perm path =
 		) else
 			Path.apply store.root path do_read
 	with
-		| Invalid_path
 		| Not_found -> Path.doesnt_exist path
 
 let ls store perm path =
@@ -403,7 +391,6 @@ let ls store perm path =
 				Path.apply store.root path do_ls in
 		List.rev (List.map (fun n -> Symbol.to_string n.Node.name) children)
 	with
-		| Invalid_path
 		| Not_found -> Path.doesnt_exist path
 
 let getperms store perm path =
@@ -417,7 +404,6 @@ let getperms store perm path =
 				c.Node.perms in
 			Path.apply store.root path fct
 	with
-		| Invalid_path
 		| Not_found -> Path.doesnt_exist path
 
 let exists store path =
@@ -492,12 +478,11 @@ let rm store perm path =
 		match rmed_node with
 			| None -> ()
 			| Some node when node = store.root ->
-				raise (Invalid_argument "removing the root node is forbidden")
+				invalid_arg "removing the root node is forbidden"
 			| Some rmed_node ->
 				store.root <- path_rm store perm path;
 				Node.recurse (fun node -> Quota.decr store.quota (Node.get_creator node)) rmed_node
 	with
-		| Invalid_path
 		| Not_found -> Path.doesnt_exist path		
 
 let setperms store perm path nperms =
@@ -507,7 +492,6 @@ let setperms store perm path nperms =
 			| Some node ->
 				store.root <- path_setperms store perm path nperms
 	with
-		| Invalid_path
 		| Not_found -> Path.doesnt_exist path
 
 let create () = {
