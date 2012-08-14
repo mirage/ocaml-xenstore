@@ -317,6 +317,37 @@ let assert_watches c expected =
 	let got = List.rev (Queue.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
 	assert_equal ~msg:"watches" ~printer:string_of_watch_events expected got
 
+let test_watch_event_quota () =
+	(* Check that we can't exceed the per-domain watch event quota *)
+	let dom0 = Connection.create (Connection.Domain 0) in
+	let dom1 = Connection.create (Connection.Domain 1) in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	(* No watch events are generated without registering *)
+	run store [
+		dom0, none, PathOp("/quota/maxwatchevent/1", Write "1"), OK;
+		dom0, none, PathOp("/a", Mkdir), OK;
+		dom0, none, PathOp("/a", Setperms Xs_packet.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
+	];
+	assert_watches dom1 [];
+	run store [
+		dom1, none, Watch ("/a", "token"), OK;
+	];
+	assert_watches dom1 [ ("/a", "token") ];
+	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 0 dom1.Connection.nb_dropped_watches;
+	(* This watch will be dropped *)
+	run store [
+		dom0, none, PathOp("/a", Write "hello"), OK;
+	];
+	assert_watches dom1 [ ("/a", "token") ];
+	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 1 dom1.Connection.nb_dropped_watches;
+	run store [
+		dom0, none, PathOp("/quota/maxwatchevent/1", Write "2"), OK;
+		dom0, none, PathOp("/a", Write "there"), OK;
+	];
+	assert_watches dom1 [ ("/a", "token"); ("/a", "token") ];
+	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 1 dom1.Connection.nb_dropped_watches
+
 let test_simple_watches () =
 	(* Check that writes generate watches and reads do not *)
 	let dom0 = Connection.create (Connection.Domain 0) in
@@ -559,5 +590,6 @@ let _ =
 		"test_quota_setperms" >:: test_quota_setperms;
 		"test_quota_maxsize" >:: test_quota_maxsize;
 		"test_quota_maxent" >:: test_quota_maxent;
+		"test_watch_event_quota" >:: test_watch_event_quota;
 	] in
   run_test_tt ~verbose:!verbose suite

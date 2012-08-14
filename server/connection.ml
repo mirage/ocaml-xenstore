@@ -36,6 +36,7 @@ and t = {
 	mutable next_tid: int32;
 	watches: (Store.Name.t, watch list) Hashtbl.t;
 	mutable nb_watches: int;
+	mutable nb_dropped_watches: int;
 	mutable stat_nb_ops: int;
 	mutable perm: Perms.t;
 	watch_events: (string * string) Queue.t;
@@ -103,6 +104,7 @@ let create address =
 		next_tid = 1l;
 		watches = Hashtbl.create 8;
 		nb_watches = 0;
+		nb_dropped_watches = 0;
 		stat_nb_ops = 0;
 		perm = Perms.of_domain dom;
 		watch_events = Queue.create ();
@@ -179,8 +181,11 @@ let fire_one name watch =
 	let name = Store.Name.to_string name in
 	let open Xs_packet in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
-(*	Printf.fprintf stderr "Adding %s, %s to %s\n%!" name watch.token watch.con.domstr; *)
-	Queue.add (name, watch.token) watch.con.watch_events
+(*	Printf.fprintf stderr "Adding %s, %s to %s\n%!" name watch.token watch.con.domstr;*)
+	if Queue.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
+		error "domid %d reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid (Queue.length watch.con.watch_events) (Quota.maxwatchevent_of_domain watch.con.domid) name watch.token;
+		watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1
+	end else Queue.add (name, watch.token) watch.con.watch_events
 
 let fire (op, name) =
 	let key = Store.Name.to_key name in
@@ -251,6 +256,8 @@ module Interface = struct
 			string_of_int c.stat_nb_ops
 		| "queued" :: [] ->
 			string_of_int (Queue.length c.watch_events)
+		| "dropped" :: [] ->
+			string_of_int c.nb_dropped_watches
 		| "watch" :: [] ->
 			""
 		| "watch" :: n :: [] ->
@@ -292,7 +299,7 @@ module Interface = struct
 
 	let list_connection c = function
 		| [] ->
-			[ "transactions"; "operations"; "watch"; "queued" ]
+			[ "transactions"; "operations"; "watch"; "queued"; "dropped" ]
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))

@@ -27,13 +27,14 @@ let maxent = ref (10000)
 let maxsize = ref (4096)
 let maxwatch = ref 50
 let maxtransaction = ref 20
+let maxwatchevent = ref 256
 
 type overrides = (int, int) Hashtbl.t
 
-(* Per-domain maxent overrides *)
 let maxent_overrides = Hashtbl.create 10
 let maxwatch_overrides = Hashtbl.create 10
 let maxtransaction_overrides = Hashtbl.create 10
+let maxwatchevent_overrides = Hashtbl.create 10
 
 let get_override t domid =
 	if Hashtbl.mem t domid
@@ -55,6 +56,7 @@ let of_domain t default domid =
 let maxent_of_domain = of_domain maxent_overrides maxent
 let maxwatch_of_domain = of_domain maxwatch_overrides maxwatch
 let maxtransaction_of_domain = of_domain maxtransaction_overrides maxtransaction
+let maxwatchevent_of_domain = of_domain maxwatchevent_overrides maxwatchevent
 
 type t = {
 	cur: (domid, int) Hashtbl.t; (* current domains entry usage *)

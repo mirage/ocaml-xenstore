@@ -33,6 +33,9 @@ val maxwatch: int ref
 val maxtransaction: int ref
 (** The current global default maximum number of open transactions *)
 
+val maxwatchevent: int ref
+(** The current global maximum number of outstanding watch events *)
+
 type overrides
 
 val maxent_overrides: overrides
@@ -43,6 +46,9 @@ val maxwatch_overrides: overrides
 
 val maxtransaction_overrides: overrides
 (** Per-domain overrides for the maxtransaction limit *)
+
+val maxwatchevent_overrides: overrides
+(** Per-domain overrides for the maxwatchevent limit *)
 
 val set_override: overrides -> int -> int option -> unit
 (** [set_override kind t domid x] sets the [kind] override for [domid] to [x] *)
@@ -58,6 +64,10 @@ val maxwatch_of_domain: int -> int
 
 val maxtransaction_of_domain: int -> int
 (** [maxtransaction_of_domain domid] returns the max number of transactions for [domid] *)
+
+val maxwatchevent_of_domain: int -> int
+(** [maxwatchevent_of_domain domid] returns the max number of outstanding watch
+	events for [domid] *)
 
 type t
 (** Represents the current per-domain number of entries *)
