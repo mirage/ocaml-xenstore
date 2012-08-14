@@ -129,7 +129,6 @@ let transaction_replay store c t =
 		Logging.response ~tid ~con:("replay reply2: " ^ c.Connection.domstr) response';
 		Logging.response ~tid ~con response';
 		if response <> response' then begin
-			Printf.fprintf stderr "EAGAIN\n%!";
 			raise Transaction_again
 		end in
 	try

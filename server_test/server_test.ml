@@ -62,10 +62,7 @@ type result =
 	| Perms of (Xs_packet.ACL.t -> unit)
 	| Tid of (int32 -> unit)
 
-let check_result reply =
-	let ty = Xs_packet.get_ty reply in
-	let data = Xs_packet.get_data reply in
-	function
+let check_result reply = function
 	| OK ->
 		success ignore reply
 	| String which ->
@@ -219,7 +216,6 @@ let test_set_target () =
 	(* Check that dom0 can grant dom1 access to dom2's nodes,
 	   without which it wouldn't have access. *)
 	let dom0 = Connection.create (Connection.Domain 0) in
-	let dom3 = Connection.create (Connection.Domain 3) in
 	let dom7 = Connection.create (Connection.Domain 7) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
@@ -510,7 +506,6 @@ let test_quota_setperms () =
 	(* Check that one connection cannot exhaust another's quota *)
 	let dom0 = Connection.create (Connection.Domain 0) in
 	let dom1 = Connection.create (Connection.Domain 1) in
-	let dom2 = Connection.create (Connection.Domain 2) in
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	let dom1_quota = ref 0 in
