@@ -129,6 +129,6 @@ let listen () =
 
 let rec accept_forever stream process =
 	lwt address = Lwt_stream.next stream in
-	lwt d = create_domU address in
+	lwt d = if address.domid = 0 then create_dom0 () else create_domU address in
 	let (_: unit Lwt.t) = process d in
 	accept_forever stream process

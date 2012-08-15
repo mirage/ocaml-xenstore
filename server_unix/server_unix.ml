@@ -45,7 +45,11 @@ let main () =
 		(fun _ -> ())
 		"User-space xenstore service";
 	let (a: unit Lwt.t) = UnixServer.serve_forever () in
+	debug "Started server on unix domain socket";
 	let (b: unit Lwt.t) = DomainServer.serve_forever () in
+	debug "Started server on xen inter-domain transport";
+	Introduce.(introduce { domid = 0; mfn = 0n; remote_port = 0 });
+	debug "Introduced domain 0";
 	lwt () = a in
 	lwt () = b in
 	return ()
