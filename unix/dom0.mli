@@ -12,6 +12,24 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val read_port: unit -> int Lwt.t
+type address = {
+	domid: int;
+	mfn: nativeint;
+	remote_port: int;
+}
 
-val map_page: unit -> Cstruct.buf Lwt.t
+val introduce: address -> unit
+(** [introduce address] should be called whenever an introduce message
+	is received from the toolstack. *)
+
+type t
+
+val read: t -> string -> int -> int -> int Lwt.t
+val write: t -> string -> int -> int -> int Lwt.t
+val destroy: t -> unit Lwt.t
+val address_of: t -> Xs_packet.address Lwt.t
+
+type server
+
+val listen: unit -> server Lwt.t
+val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t

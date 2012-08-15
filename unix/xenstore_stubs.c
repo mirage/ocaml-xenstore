@@ -75,3 +75,80 @@ CAMLprim value lwt_map_foreign_job(value domid, value mfn)
   job->job.result = (lwt_unix_job_result)result_map_foreign;
   return lwt_unix_alloc_job(&job->job);
 }
+
+#include <xenctrl.h>
+#include <xen/io/xs_wire.h>
+
+static int xs_ring_read(void *buf,
+						char *buffer, int len)
+{
+  struct xenstore_domain_interface *intf = buf;
+  XENSTORE_RING_IDX cons, prod;
+  int to_read;
+
+  cons = intf->req_cons;
+  prod = intf->req_prod;
+  xen_mb();
+  if (prod == cons)
+	return 0;
+  if (MASK_XENSTORE_IDX(prod) > MASK_XENSTORE_IDX(cons)) 
+	to_read = prod - cons;
+  else
+	to_read = XENSTORE_RING_SIZE - MASK_XENSTORE_IDX(cons);
+  if (to_read < len)
+	len = to_read;
+  memcpy(buffer, intf->req + MASK_XENSTORE_IDX(cons), len);
+  xen_mb();
+  intf->req_cons += len;
+  return len;
+}
+
+static int xs_ring_write(void *buf,
+						 char *buffer, int len)
+{
+  struct xenstore_domain_interface *intf = buf;
+  XENSTORE_RING_IDX cons, prod;
+  int can_write;
+
+  cons = intf->rsp_cons;
+  prod = intf->rsp_prod;
+  xen_mb();
+  if ( (prod - cons) >= XENSTORE_RING_SIZE )
+	return 0;
+  if (MASK_XENSTORE_IDX(prod) >= MASK_XENSTORE_IDX(cons))
+	can_write = XENSTORE_RING_SIZE - MASK_XENSTORE_IDX(prod);
+  else 
+	can_write = MASK_XENSTORE_IDX(cons) - MASK_XENSTORE_IDX(prod);
+  if (can_write < len)
+	len = can_write;
+  memcpy(intf->rsp + MASK_XENSTORE_IDX(prod), buffer, len);
+  xen_mb();
+  intf->rsp_prod += len;
+  return len;
+}
+
+CAMLprim value ml_interface_read(value interface, value buffer, value ofs, value len)
+{
+  CAMLparam4(interface, buffer, ofs, len);
+  CAMLlocal1(result);
+  int res;
+
+  res = xs_ring_read(Data_bigarray_val(interface),
+					 String_val(buffer) + Int_val(ofs), Int_val(len));
+  if (res == -1)
+	caml_failwith("huh");
+  result = Val_int(res);
+  CAMLreturn(result);
+}
+
+CAMLprim value ml_interface_write(value interface, value buffer, value ofs, value len)
+{
+  CAMLparam4(interface, buffer, ofs, len);
+  CAMLlocal1(result);
+  int res;
+
+  res = xs_ring_write(Data_bigarray_val(interface),
+					  String_val(buffer) + Int_val(ofs), Int_val(len));
+  result = Val_int(res);
+  CAMLreturn(result);
+}
