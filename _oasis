@@ -27,7 +27,7 @@ Library xenstore_unix
   Modules: Xs_transport_unix, Dom0, Xenstore
   BuildDepends: lwt, xenstore
   CSources: xenstore_stubs.c
-  CCLib: -I .
+  CCOpt: -I. -I/usr/lib/ocaml/lwt/
 
 Library xenstore_server
   Path: server
