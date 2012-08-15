@@ -26,7 +26,8 @@ let string_of_date () =
 		tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
 		(int_of_float (1000.0 *. msec))
 
-module Server = Xs_server.Server(Xs_transport_unix)
+module UnixServer = Xs_server.Server(Xs_transport_unix)
+module DomainServer = Xs_server.Server(Xs_transport_xen)
 
 let rec logging_thread logger =
 	lwt lines = Logging.get logger in
@@ -43,7 +44,11 @@ let main () =
 		[ "-path", Arg.Set_string Xs_transport_unix.xenstored_socket, Printf.sprintf "Unix domain socket to listen on (default %s)" !Xs_transport_unix.xenstored_socket ]
 		(fun _ -> ())
 		"User-space xenstore service";
-	Server.serve_forever ()
+	let (a: unit Lwt.t) = UnixServer.serve_forever () in
+	let (b: unit Lwt.t) = DomainServer.serve_forever () in
+	lwt () = a in
+	lwt () = b in
+	return ()
 
 let _ =
 	Lwt_main.run (main ())
