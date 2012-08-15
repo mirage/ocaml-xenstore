@@ -184,9 +184,9 @@ let reply_exn store c (request: t) : Response.payload =
 					[]
 				| _ -> []
 				with _ -> [])
-		| Request.Introduce(domid, mfn, port) ->
+		| Request.Introduce(domid, mfn, remote_port) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
-			(* register domain *)
+			Introduce.(introduce { domid = domid; mfn = mfn; remote_port = remote_port });
 			Connection.fire (Xs_packet.Op.Write, Store.Name.introduceDomain);
 			Response.Introduce
 		| Request.Resume(domid) ->

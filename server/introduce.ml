@@ -12,14 +12,13 @@
  * GNU Lesser General Public License for more details.
  *)
 
-type t
+type address = {
+	domid: int;
+	mfn: nativeint;
+	remote_port: int;
+}
 
-val read: t -> string -> int -> int -> int Lwt.t
-val write: t -> string -> int -> int -> int Lwt.t
-val destroy: t -> unit Lwt.t
-val address_of: t -> Xs_packet.address Lwt.t
+let (stream: address Lwt_stream.t), introduce_fn = Lwt_stream.create ()
 
-type server
+let introduce x = introduce_fn (Some x)
 
-val listen: unit -> server Lwt.t
-val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t

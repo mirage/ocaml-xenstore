@@ -14,11 +14,7 @@
 
 open Lwt
 
-type address = {
-	domid: int;
-	mfn: nativeint;
-	remote_port: int;
-}
+open Introduce
 
 type t = {
 	address: address;
@@ -127,10 +123,6 @@ let address_of t =
 	return (Xs_packet.Domain t.address.domid)
 
 type server = address Lwt_stream.t
-
-let stream, introduce_fn = Lwt_stream.create ()
-
-let introduce x = introduce_fn (Some x)
 
 let listen () =
 	return stream

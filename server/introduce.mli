@@ -12,14 +12,16 @@
  * GNU Lesser General Public License for more details.
  *)
 
-type t
+type address = {
+	domid: int;
+	mfn: nativeint;
+	remote_port: int;
+}
+(** A remote domain address *)
 
-val read: t -> string -> int -> int -> int Lwt.t
-val write: t -> string -> int -> int -> int Lwt.t
-val destroy: t -> unit Lwt.t
-val address_of: t -> Xs_packet.address Lwt.t
+val introduce: address -> unit
+(** [introduce address] should be called whenever an introduce message
+	is received from the toolstack. *)
 
-type server
-
-val listen: unit -> server Lwt.t
-val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
+val stream: address Lwt_stream.t
+(** A stream of introduced addresses *)

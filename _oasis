@@ -25,7 +25,7 @@ Library xenstore_unix
   Findlibname: unix
   FindlibParent: xenstore
   Modules: Xs_transport_unix, Xs_transport_xen, Xenstore
-  BuildDepends: lwt, xenstore, xeneventchn
+  BuildDepends: lwt, xenstore, xenstore.server, xeneventchn
   CSources: xenstore_stubs.c
   CCOpt: -I. -I/usr/lib/ocaml/lwt/
 
@@ -33,7 +33,7 @@ Library xenstore_server
   Path: server
   Findlibname: server
   FindlibParent: xenstore
-  Modules: Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk
+  Modules: Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce
   BuildDepends: lwt, xenstore
 
 Executable xs_test

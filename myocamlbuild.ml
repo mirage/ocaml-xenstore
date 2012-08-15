@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: d2cab092693c33e464bf55a95cad6fcf) *)
+(* DO NOT EDIT (digest: 38ca2d40d7250d9175982ab639e71ec6) *)
 module OASISGettext = struct
 # 21 "/home/djs/.opam/3.12.1/build/oasis.0.3.0/src/oasis/OASISGettext.ml"
 
@@ -481,8 +481,8 @@ let package_default =
        [
           ("xenstore", ["core"]);
           ("xenstore_client", ["client"]);
-          ("xenstore_unix", ["unix"]);
-          ("xenstore_server", ["server"])
+          ("xenstore_server", ["server"]);
+          ("xenstore_unix", ["unix"])
        ];
      lib_c = [("xenstore_unix", "unix", [])];
      flags =
@@ -501,7 +501,7 @@ let package_default =
        ];
      includes =
        [
-          ("unix", ["core"]);
+          ("unix", ["core"; "server"]);
           ("server_unix", ["core"; "server"; "unix"]);
           ("server_test", ["core"; "server"]);
           ("server", ["core"]);
