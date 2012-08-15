@@ -24,7 +24,7 @@ Library xenstore_unix
   Path: unix
   Findlibname: unix
   FindlibParent: xenstore
-  Modules: Xs_transport_unix, Dom0, Xenstore
+  Modules: Xs_transport_unix, Xs_transport_xen, Xenstore
   BuildDepends: lwt, xenstore, xeneventchn
   CSources: xenstore_stubs.c
   CCOpt: -I. -I/usr/lib/ocaml/lwt/
