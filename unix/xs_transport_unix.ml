@@ -44,11 +44,14 @@ let address_of (fd, _) =
 	let filename =
 		try
 			let i = String.index cmdline '\000' in
-			String.sub cmdline 0 (i - 1)
+			String.sub cmdline 0 i
 		with Not_found -> cmdline in
 	let basename = Filename.basename filename in
-	let padto x y = String.make (y - (String.length x)) ' ' in
-	return (Xs_packet.Unix(Printf.sprintf "%d:%s%s" pid basename (padto basename 10)))
+	let padto x y =
+		if String.length x > y
+		then String.sub x 0 y
+		else x ^ (String.make (y - (String.length x)) ' ') in
+	return (Xs_packet.Unix(Printf.sprintf "%5d:%s" pid (padto basename 10)))
 
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr

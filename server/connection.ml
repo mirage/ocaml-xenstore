@@ -37,6 +37,7 @@ and t = {
 	mutable stat_nb_ops: int;
 	mutable perm: Perms.t;
 	watch_events: (string * string) Queue.t;
+	cvar: unit Lwt_condition.t;
 	domainpath: Store.Path.t;
 }
 
@@ -102,6 +103,7 @@ let create address =
 		stat_nb_ops = 0;
 		perm = Perms.of_domain dom;
 		watch_events = Queue.create ();
+		cvar = Lwt_condition.create ();
 		domainpath = Store.Path.getdomainpath dom;
 	}
 	in
@@ -181,7 +183,10 @@ let fire_one name watch =
 	if Queue.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
 		error "domid %d reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid (Queue.length watch.con.watch_events) (Quota.maxwatchevent_of_domain watch.con.domid) name watch.token;
 		watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1
-	end else Queue.add (name, watch.token) watch.con.watch_events
+	end else begin
+		Queue.add (name, watch.token) watch.con.watch_events;
+		Lwt_condition.signal watch.con.cvar ()
+	end
 
 let fire (op, name) =
 	let key = Store.Name.to_key name in

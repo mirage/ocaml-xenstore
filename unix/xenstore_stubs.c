@@ -152,3 +152,14 @@ CAMLprim value ml_interface_write(value interface, value buffer, value ofs, valu
   result = Val_int(res);
   CAMLreturn(result);
 }
+
+CAMLprim value ml_map_fd(value fd, value len)
+{
+  CAMLparam2(fd, len);
+
+  void *buf = mmap(NULL, Int_val(len), PROT_READ | PROT_WRITE, MAP_SHARED, Int_val(fd), 0);
+  if (buf == MAP_FAILED)
+	caml_failwith("map failed");
+  
+  CAMLreturn(alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, Int_val(len)));
+}	
