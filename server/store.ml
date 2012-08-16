@@ -122,6 +122,10 @@ module Name = struct
 		| Relative _ -> true
 		| _ -> false
 
+	let make_absolute t path = match t with
+		| Relative p -> Absolute (path_of_string path @ p)
+		| x -> x
+
 	let introduceDomain = IntroduceDomain
 	let releaseDomain = ReleaseDomain
 

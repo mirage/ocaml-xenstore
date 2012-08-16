@@ -385,6 +385,25 @@ let test_simple_watches () =
 	];
 	assert_watches dom0 []
 
+let test_relative_watches () =
+	(* Check that watches for relative paths *)
+	let dom0 = Connection.create (Xs_packet.Domain 0) in
+	let store = empty_store () in
+	let open Xs_packet.Request in
+	(* No watch events are generated without registering *)
+	run store [
+		dom0, none, PathOp("/local/domain/0/name", Write ""), OK;
+		dom0, none, PathOp("/local/domain/0/device", Write ""), OK;
+		dom0, none, Watch("device", "token"), OK;
+	];
+	assert_watches dom0 [ "device", "token" ];
+	Queue.clear dom0.Connection.watch_events;
+	assert_watches dom0 [];
+	run store [
+		dom0, none, PathOp("/local/domain/0/device/vbd", Write "hello"), OK;
+	];
+	assert_watches dom0 [ "device/vbd", "token" ]
+
 let test_watches_read_perm () =
 	(* Check that a connection only receives a watch if it
        can read the node that was modified. *)
@@ -587,6 +606,7 @@ let _ =
 		"device_create_coalesce" >:: test_device_create_coalesce;
 		"test_transactions_really_do_conflict" >:: test_transactions_really_do_conflict;
 		"test_simple_watches" >:: test_simple_watches;
+		"test_relative_watches" >:: test_relative_watches;
 (*		"test_watches_read_perm" >:: test_watches_read_perm; *)
 		"test_transaction_watches" >:: test_transaction_watches;
 		"test_introduce_watches" >:: test_introduce_watches;

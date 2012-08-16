@@ -131,7 +131,7 @@ let add_watch con name token =
 	con.nb_watches <- con.nb_watches + 1;
 
 	watches :=
-		(let key = Store.Name.to_key name in
+		(let key = Store.Name.(to_key (make_absolute name (Store.Path.to_string con.domainpath))) in
 		let ws =
             if Trie.mem !watches key
             then Trie.find !watches key
@@ -155,7 +155,7 @@ let del_watch con name token =
 	con.nb_watches <- con.nb_watches - 1;
 
 	watches :=
-        (let key = Store.Name.to_key name in
+		(let key = Store.Name.(to_key (make_absolute name (Store.Path.to_string con.domainpath))) in
 		let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
         if ws = [] then
                 Trie.unset !watches key

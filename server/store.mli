@@ -47,6 +47,10 @@ module Name : sig
 	val is_relative: t -> bool
 	(** [is_relative t] is true if [t] contains a relative path *)
 
+	val make_absolute: t -> string -> t
+	(** [make_absolute t basename] returns [t] as an absolute path,
+		treating paths relative to [basename] *)
+
 	val to_key: t -> string list
 	(** [to_key t] returns a key which can be used as a path in a Trie *)
 
