@@ -32,7 +32,7 @@ let write (fd, _) = Lwt_unix.write fd
 let address_of (fd, _) =
 	let creds = Lwt_unix.get_credentials fd in
 	let pid = creds.Lwt_unix.cred_pid in
-	lwt filename =
+	lwt cmdline =
 			Lwt_io.with_file ~mode:Lwt_io.input
 				(Printf.sprintf "/proc/%d/cmdline" pid)
 				(fun ic ->
@@ -40,7 +40,15 @@ let address_of (fd, _) =
 					match cmdline with
 						| Some x -> return x
 						| None -> return "unknown") in
-	return (Xs_packet.Unix(Printf.sprintf "%d:%s" pid filename))
+	(* Take only the binary name, stripped of directories *)
+	let filename =
+		try
+			let i = String.index cmdline '\000' in
+			String.sub cmdline 0 (i - 1)
+		with Not_found -> cmdline in
+	let basename = Filename.basename filename in
+	let padto x y = String.make (y - (String.length x)) ' ' in
+	return (Xs_packet.Unix(Printf.sprintf "%d:%s%s" pid basename (padto basename 10)))
 
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr
