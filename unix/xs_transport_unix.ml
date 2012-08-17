@@ -16,6 +16,8 @@
 
 open Lwt
 
+let error fmt = Logging.error "xs_transport_unix" fmt
+
 let xenstored_socket = ref "/var/run/xenstored/socket"
 
 (* Individual connections *)
@@ -27,7 +29,12 @@ let create () =
   return (fd, sockaddr)
 let destroy (fd, _) = Lwt_unix.close fd
 let read (fd, _) = Lwt_unix.read fd
-let write (fd, _) = Lwt_unix.write fd
+let write (fd, _) bufs ofs len =
+	lwt n = Lwt_unix.write fd bufs ofs len in
+	if n <> len then begin
+		error "Short write (%d<%d)" n len;
+		fail End_of_file
+	end else return ()
 
 let address_of (fd, _) =
 	let creds = Lwt_unix.get_credentials fd in

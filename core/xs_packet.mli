@@ -83,7 +83,7 @@ end
 module type CHANNEL = sig
   type t
   val read: t -> string -> int -> int -> int Lwt.t
-  val write: t -> string -> int -> int -> int Lwt.t
+  val write: t -> string -> int -> int -> unit Lwt.t
 end
 
 exception Unknown_xenstore_operation of int32

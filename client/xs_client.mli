@@ -17,7 +17,7 @@ module type TRANSPORT = sig
   val create: unit -> t Lwt.t
   val destroy: t -> unit Lwt.t
   val read: t -> string -> int -> int -> int Lwt.t
-  val write: t -> string -> int -> int -> int Lwt.t
+  val write: t -> string -> int -> int -> unit Lwt.t
 end
 
 exception Malformed_watch_event

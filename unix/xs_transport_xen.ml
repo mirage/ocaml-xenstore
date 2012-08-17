@@ -45,7 +45,7 @@ let map_page () =
 		Unix.close fd;
 		page
 	with e ->
-		Printf.fprintf stderr "error: %s\n%!" (Printexc.to_string e);
+		debug "map_page error: %s" (Printexc.to_string e);
 		Unix.close fd;
 		raise e
 
@@ -92,11 +92,9 @@ let create_dom0 () =
 	lwt remote_port = read_port () in
 	debug "map_page";
 	let page = map_page () in
-Printf.fprintf stderr "bind_interdomain\n%!";
 	let port = Xeneventchn.bind_interdomain eventchn 0 remote_port in
-	Printf.fprintf stderr "create_dom0 remote_port = %d; port = %d\n%!" remote_port port;
+	debug "create_dom0 remote_port = %d; port = %d" remote_port port;
 	Xeneventchn.notify eventchn port;
-Printf.fprintf stderr "create structure\n%!";
 	let d = {
 		address = {
 			domid = 0;
@@ -126,24 +124,29 @@ let create_domU address =
 	return d
 
 let rec read t buf ofs len =
-	Printf.fprintf stderr "read ofs=%d len=%d\n%!" ofs len;
+	debug "read ofs=%d len=%d" ofs len;
 	let n = Xenstore.unsafe_read t.page buf ofs len in
 	if n = 0
 	then begin
-		Printf.fprintf stderr "blocking\n%!";
+		debug "  0 bytes ready; blocking on port %d" t.port;
 		lwt () = Lwt_condition.wait t.c in
 		read t buf ofs len
 	end else begin
-		Printf.fprintf stderr "notifying\n%!";
+		debug "  %d bytes read: [%s]" n (Junk.hexify (String.sub buf ofs n));
 		Xeneventchn.notify eventchn t.port;
 		return n
 	end
 
-let write t buf ofs len =
-	Printf.fprintf stderr "write ofs=%d len=%d\n%!" ofs len;
+let rec write t buf ofs len =
+	debug "write ofs=%d len=%d: [%s]" ofs len (Junk.hexify (String.sub buf ofs len));
 	let n = Xenstore.unsafe_write t.page buf ofs len in
 	if n > 0 then Xeneventchn.notify eventchn t.port;
-	return n
+	if n < len then begin
+		debug "  %d more bytes needed; blocking on port %d" (len - n) t.port;
+		lwt () = Lwt_condition.wait t.c in
+		write t buf (ofs + n) (len - n)
+	end else return ()
+
 
 let destroy t =
 	Xeneventchn.unbind eventchn t.port;

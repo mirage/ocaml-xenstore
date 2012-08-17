@@ -236,7 +236,7 @@ end
 module type CHANNEL = sig
   type t
   val read: t -> string -> int -> int -> int Lwt.t
-  val write: t -> string -> int -> int -> int Lwt.t    
+  val write: t -> string -> int -> int -> unit Lwt.t
 end
 
 exception Unknown_xenstore_operation of int32
@@ -277,9 +277,10 @@ module PacketStream = functor(C: CHANNEL) -> struct
   (* [send client pkt] sends [pkt] and returns (), or fails *)
   let send t request =
     let req = to_string request in
-    lwt n = Lwt_mutex.with_lock t.outgoing_mutex
-        (fun () -> C.write t.channel req 0 (String.length req)) in
-    return ()
+    Lwt_mutex.with_lock t.outgoing_mutex
+        (fun () ->
+			C.write t.channel req 0 (String.length req)
+		)
 end
 
 
