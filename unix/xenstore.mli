@@ -1,5 +1,6 @@
 
 val map_foreign: int -> nativeint -> Cstruct.buf Lwt.t
+val unmap_foreign: Cstruct.buf -> unit
 
 val map_fd: Unix.file_descr -> int -> Cstruct.buf
 
@@ -12,4 +13,4 @@ type info = {
 	shutdown: bool;
 }
 
-val domain_infolist: int -> int -> info list Lwt.t
+val domain_infolist: unit -> info list Lwt.t

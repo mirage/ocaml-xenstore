@@ -15,7 +15,7 @@
 open Lwt
 open Xs_packet
 
-let debug = Logging.debug "server_unix"
+let debug fmt = Logging.debug "server_unix" fmt
 
 let string_of_date () =
 	let time = Unix.gettimeofday () in

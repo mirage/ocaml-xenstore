@@ -23,7 +23,11 @@ type t = {
     page: Cstruct.buf;
     port: int;
 	c: unit Lwt_condition.t;
+	mutable shutdown: bool;
 }
+
+(* Thrown when an attempt is made to read or write to a closed ring *)
+exception Ring_shutdown
 
 let domains : (int, t) Hashtbl.t = Hashtbl.create 128
 let by_port : (int, t) Hashtbl.t = Hashtbl.create 128
@@ -67,7 +71,30 @@ let eventchn =
 				Lwt_condition.signal d.c ()
 			end;
 			if port = virq_port then begin
-				(* signal someone *)
+				(* Check to see if any of our domains have shutdown *)
+				lwt dis = Xenstore.domain_infolist () in
+				let dis_by_domid = Hashtbl.create 128 in
+				List.iter (fun di -> Hashtbl.add dis_by_domid di.Xenstore.domid di) dis;
+				(* Connections to domains which are missing or 'dying' should be closed *)
+				let to_close = Hashtbl.fold (fun domid _ acc ->
+					if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).Xenstore.dying
+					then domid :: acc else acc) domains [] in
+				(* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
+				let release_domain = Hashtbl.fold (fun domid _ acc ->
+					acc || (not(Hashtbl.mem dis_by_domid domid) ||
+						(let di = Hashtbl.find dis_by_domid domid in
+						di.Xenstore.shutdown || di.Xenstore.dying))
+				) domains false in
+				(* Set the connections to "closing", wake up any readers/writers *)
+				List.iter
+					(fun domid ->
+						debug "closing connection to domid: %d" domid;
+						let t = Hashtbl.find domains domid in
+						t.shutdown <- true;
+						Lwt_condition.broadcast t.c ()
+					) to_close;
+				if release_domain
+				then Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);                                                                                                                                                        
 				return ()
 			end else return ()
 		done in
@@ -103,6 +130,7 @@ let create_dom0 () =
 		page = page;
 		port = port;
 		c = Lwt_condition.create ();
+		shutdown = false;
 	} in
 	Hashtbl.add domains 0 d;
 	Hashtbl.add by_port port d;
@@ -117,6 +145,7 @@ let create_domU address =
 		page = page;
 		port = port;
 		c = Lwt_condition.create ();
+		shutdown = false;
 	} in
 	Hashtbl.add domains address.domid d;
 	Hashtbl.add by_port port d;
@@ -124,32 +153,39 @@ let create_domU address =
 
 let rec read t buf ofs len =
 	debug "read ofs=%d len=%d" ofs len;
-	let n = Xenstore.unsafe_read t.page buf ofs len in
-	if n = 0
-	then begin
-		debug "  0 bytes ready; blocking on port %d" t.port;
-		lwt () = Lwt_condition.wait t.c in
-		read t buf ofs len
-	end else begin
-		debug "  %d bytes read: [%s]" n (Junk.hexify (String.sub buf ofs n));
-		Xeneventchn.notify eventchn t.port;
-		return n
-	end
+	if t.shutdown
+	then fail Ring_shutdown
+	else
+		let n = Xenstore.unsafe_read t.page buf ofs len in
+		if n = 0
+		then begin
+			debug "  0 bytes ready; blocking on port %d" t.port;
+			lwt () = Lwt_condition.wait t.c in
+			read t buf ofs len
+		end else begin
+			debug "  %d bytes read: [%s]" n (Junk.hexify (String.sub buf ofs n));
+			Xeneventchn.notify eventchn t.port;
+			return n
+		end
 
 let rec write t buf ofs len =
 	debug "write ofs=%d len=%d: [%s]" ofs len (Junk.hexify (String.sub buf ofs len));
-	let n = Xenstore.unsafe_write t.page buf ofs len in
-	if n > 0 then Xeneventchn.notify eventchn t.port;
-	if n < len then begin
-		debug "  %d more bytes needed; blocking on port %d" (len - n) t.port;
-		lwt () = Lwt_condition.wait t.c in
-		write t buf (ofs + n) (len - n)
-	end else return ()
-
+	if t.shutdown
+	then fail Ring_shutdown
+	else
+		let n = Xenstore.unsafe_write t.page buf ofs len in
+		if n > 0 then Xeneventchn.notify eventchn t.port;
+		if n < len then begin
+			debug "  %d more bytes needed; blocking on port %d" (len - n) t.port;
+			lwt () = Lwt_condition.wait t.c in
+			write t buf (ofs + n) (len - n)
+		end else return ()
 
 let destroy t =
 	Xeneventchn.unbind eventchn t.port;
+	Xenstore.unmap_foreign t.page;
 	Hashtbl.remove domains t.address.domid;
+	Hashtbl.remove by_port t.port;
 	return ()
 
 let address_of t =

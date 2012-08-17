@@ -190,6 +190,18 @@ CAMLprim value lwt_map_foreign_job(value domid, value mfn)
   return lwt_unix_alloc_job(&job->job);
 }
 
+CAMLprim value ml_unmap(value ba)
+{
+  CAMLparam1(ba);
+  CAMLlocal1(arg);
+  int ret = munmap(Data_bigarray_val(ba), 4096);
+  if (ret != 0){
+	arg = caml_copy_string(NULL);
+	unix_error(ret, "munmap", arg);
+  }
+  CAMLreturn(Val_unit);
+}
+
 #include <xenctrl.h>
 #include <xen/io/xs_wire.h>
 
