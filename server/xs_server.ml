@@ -28,7 +28,7 @@ let store =
 			let p = Store.Path.create path (Store.Path.getdomainpath 0) in
 			if not (Store.exists store p)
 			then Store.mkdir store 0 (Perms.of_domain 0) p
-		) [ "/local"; "/local/domain"; "/quota"; "/connection"; "/log" ];
+		) [ "/local"; "/local/domain"; "/quota"; "/connection"; "/log"; "/memory" ];
 	store
 
 module type TRANSPORT = sig
