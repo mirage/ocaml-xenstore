@@ -1,5 +1,7 @@
 include Namespace.Unsupported
 
+let debug fmt = Logging.debug "memory_interface" fmt
+
 let ( |> ) a b = b a
 
 let read t (perms: Perms.t) (path: Store.Path.t) =
@@ -19,3 +21,5 @@ let list t perms path =
 	match Store.Path.to_string_list path with
 	| [] -> [ "heap_words"; "live_words"; "free_words"; "symbols" ]
 	| _ -> []
+
+

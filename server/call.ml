@@ -230,7 +230,18 @@ let reply_exn store c (request: t) : Response.payload =
 	then Transaction.get_paths t |> List.rev |> List.iter Connection.fire;
 	response_payload
 
+let gc store =
+	if Symbol.created () > 1000 || Symbol.used () > 20000
+	then begin
+		debug "Started symbol GC";
+		Symbol.mark_all_as_unused ();
+		Store.mark_symbols store;
+		Hashtbl.iter (fun _ c -> Connection.mark_symbols c) Connection.by_address;
+		Symbol.garbage ()
+	end
+
 let reply store c request =
+	gc store;
 	let tid = get_tid request in
 	let rid = get_rid request in
 	let response_payload, info =
