@@ -86,7 +86,6 @@ let eventchn =
 	let (_: unit Lwt.t) = virq_thread () in
 	e
 
-
 let create_dom0 () =
 	debug "read_port";
 	lwt remote_port = read_port () in

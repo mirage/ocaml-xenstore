@@ -31,6 +31,120 @@
 #include <caml/bigarray.h>
 #include <lwt/lwt_unix.h>
 
+struct job_domain_infolist{
+  struct lwt_unix_job job;
+  /* Inputs */
+  xc_domaininfo_t *result;
+  uint32_t lowest_domid;
+  uint32_t number_requested;
+  /* Outputs */
+  int errno_copy;
+  const xc_error *error;
+  uint32_t number_found;
+};
+
+static void worker_domain_infolist(struct job_domain_infolist *job)
+{
+  xc_interface *xch;
+  int ret;
+
+  job->errno_copy = 0;
+  job->error = NULL;
+  job->number_found = 0;
+
+  xch = xc_interface_open(NULL, NULL, 0);
+  job->errno_copy = errno;
+  if (xch){
+	ret = xc_domain_getinfolist(xch, job->lowest_domid, job->number_requested, job->result);
+	if (ret < 0) {
+	  job->error = xc_get_last_error(xch);
+	} else {
+	  job->number_found = ret;
+	}
+	xc_interface_close(xch);
+  }
+}
+
+#define ERROR_STRLEN 1024
+
+static value result_domain_infolist(struct job_domain_infolist *job)
+{
+  static char error_str[ERROR_STRLEN];
+  uint32_t number_found = job->number_found;
+  int err = job->errno_copy;
+
+  if ((job->errno_copy == 0) && (job->error == NULL)){
+	lwt_unix_free_job(&job->job);
+	return Val_int(number_found);
+  }
+  if ((job->error) && (job->error->code != XC_ERROR_NONE)) {
+	snprintf(error_str, ERROR_STRLEN, "%d: %s: %s",
+			 job->error->code,
+			 xc_error_code_to_desc(job->error->code),
+			 job->error->message);
+  } else {
+	snprintf(error_str, ERROR_STRLEN, "%d: %s", job->errno_copy, strerror(job->errno_copy));
+  }
+  lwt_unix_free_job(&job->job);
+  value arg = caml_copy_string(error_str);
+  unix_error(err, "xc_domain_getinfolist", arg);
+}
+
+CAMLprim value lwt_domain_infolist_job(value lowest_domid, value number_requested, value buf)
+{
+  struct job_domain_infolist* job =
+    (struct job_domain_infolist*)lwt_unix_new(struct job_domain_infolist);
+  job->lowest_domid = Int_val(lowest_domid);
+  job->number_requested = Int_val(number_requested);
+  job->result = Data_bigarray_val(buf);
+  job->job.worker = (lwt_unix_job_worker)worker_domain_infolist;
+  job->job.result = (lwt_unix_job_result)result_domain_infolist;
+  return lwt_unix_alloc_job(&job->job);
+}
+
+CAMLprim value ml_sizeof_xc_domaininfo_t(value unit)
+{
+  CAMLparam1(unit);
+  CAMLreturn(Val_int(sizeof(xc_domaininfo_t)));
+}
+
+CAMLprim value ml_alloc_page_aligned(value bytes)
+{
+  CAMLparam1(bytes);
+  CAMLlocal1(result);
+  int toalloc = Int_val(bytes);
+  int ret;
+  void *buf;
+
+  toalloc = toalloc | 0xfff;
+  ret = posix_memalign((void **) ((void *) &buf), 4096, toalloc);
+  if (ret)
+	caml_raise_out_of_memory ();
+
+  result = alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, bytes);
+  CAMLreturn(result);
+}
+
+CAMLprim value ml_free_page_aligned(value ba)
+{
+  CAMLparam1(ba);
+  free(Data_bigarray_val(ba));
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value ml_domain_infolist_parse(value buf)
+{
+  CAMLparam1(buf);
+  CAMLlocal1(result);
+  xc_domaininfo_t *di = Data_bigarray_val(buf);
+  result = caml_alloc_tuple(3);
+  Store_field(result, 0, Val_int(di->domain));
+  Store_field(result, 1, Val_bool(di->flags & XEN_DOMINF_dying));
+  Store_field(result, 2, Val_bool(di->flags & XEN_DOMINF_shutdown));
+
+  CAMLreturn(result);
+}
+
 struct job_map_foreign{
   struct lwt_unix_job job;
   void *result;
