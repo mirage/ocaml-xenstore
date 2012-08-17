@@ -29,9 +29,14 @@ let string_of_date () =
 module UnixServer = Xs_server.Server(Xs_transport_unix)
 module DomainServer = Xs_server.Server(Xs_transport_xen)
 
+let syslog = Lwt_log.syslog ~facility:`Local3 ()
+
 let rec logging_thread logger =
 	lwt lines = Logging.get logger in
-	lwt () = Lwt_list.iter_s (Lwt_io.write_line Lwt_io.stdout) lines in
+	lwt () = Lwt_list.iter_s
+			(fun x ->
+				Lwt_log.log ~logger:syslog ~level:Lwt_log.Info x
+			) lines in
 	logging_thread logger
 
 let main () =
