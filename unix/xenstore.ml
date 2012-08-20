@@ -10,6 +10,18 @@ external unmap_foreign: Cstruct.buf -> unit = "ml_unmap"
 external unsafe_read: Cstruct.buf -> string -> int -> int -> int = "ml_interface_read"
 external unsafe_write: Cstruct.buf -> string -> int -> int -> int = "ml_interface_write"
 
+type channel_state = {
+	cons: int;
+	prod: int;
+	data: int;
+}
+type ring_state = {
+	request: channel_state;
+	response: channel_state;
+}
+
+external get_ring_state: Cstruct.buf -> ring_state = "xs_ring_state"
+
 external sizeof_xc_domaininfo_t: unit -> int = "ml_sizeof_xc_domaininfo_t"
 
 external alloc_page_aligned: int -> Cstruct.buf = "ml_alloc_page_aligned"

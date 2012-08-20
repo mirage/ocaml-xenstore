@@ -7,6 +7,18 @@ val map_fd: Unix.file_descr -> int -> Cstruct.buf
 val unsafe_read: Cstruct.buf -> string -> int -> int -> int
 val unsafe_write: Cstruct.buf -> string -> int -> int -> int
 
+type channel_state = {
+	cons: int;
+	prod: int;
+	data: int;
+}
+type ring_state = {
+	request: channel_state;
+	response: channel_state;
+}
+
+val get_ring_state: Cstruct.buf -> ring_state
+
 type info = {
 	domid: int;
 	dying: bool;

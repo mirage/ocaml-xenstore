@@ -235,6 +235,49 @@ static int xs_ring_read(void *buf,
   return len;
 }
 
+CAMLprim value xs_ring_state(value interface)
+{
+  CAMLparam1(interface);
+  CAMLlocal2(result, tuple);
+  struct xenstore_domain_interface *intf = Data_bigarray_val(interface);
+  XENSTORE_RING_IDX cons, prod;
+  int len;
+
+  cons = intf->req_cons;
+  prod = intf->req_prod;
+
+  result = caml_alloc_tuple(2);
+
+  tuple = caml_alloc_tuple(3);
+  Store_field(result, 0, tuple);
+  Store_field(tuple, 0, Val_int(MASK_XENSTORE_IDX(cons)));
+  Store_field(tuple, 1, Val_int(MASK_XENSTORE_IDX(prod)));
+  if (prod == cons)
+	len = 0;
+  else if (MASK_XENSTORE_IDX(prod) > MASK_XENSTORE_IDX(cons)) 
+	len = prod - cons;
+  else
+	len = XENSTORE_RING_SIZE - MASK_XENSTORE_IDX(cons);
+  Store_field(tuple, 2, Val_int(len));
+
+  cons = intf->rsp_cons;
+  prod = intf->rsp_prod;
+
+  tuple = caml_alloc_tuple(3);
+  Store_field(result, 1, tuple);
+  Store_field(tuple, 0, Val_int(MASK_XENSTORE_IDX(cons)));
+  Store_field(tuple, 1, Val_int(MASK_XENSTORE_IDX(prod)));
+  if ( (prod - cons) >= XENSTORE_RING_SIZE )
+	len = 0;
+  else if (MASK_XENSTORE_IDX(prod) >= MASK_XENSTORE_IDX(cons))
+	len = XENSTORE_RING_SIZE - MASK_XENSTORE_IDX(prod);
+  else 
+	len = MASK_XENSTORE_IDX(cons) - MASK_XENSTORE_IDX(prod);
+  Store_field(tuple, 2, Val_int(len));
+
+  CAMLreturn(result);
+}
+
 static int xs_ring_write(void *buf,
 						 char *buffer, int len)
 {

@@ -208,17 +208,38 @@ let namespace_of t =
 	let module Interface = struct
 		include Namespace.Unsupported
 
-	let read t (perms: Perms.t) (path: Store.Path.t) =
+	let read _ (perms: Perms.t) (path: Store.Path.t) =
 		Perms.has perms Perms.CONFIGURE;
 		match Store.Path.to_string_list path with
 		| [] -> ""
+		| [ "mfn" ] -> Nativeint.to_string t.address.mfn
+		| [ "local-port" ] -> string_of_int t.port
+		| [ "remote-port" ] -> string_of_int t.address.remote_port
+		| [ "shutdown" ] -> string_of_bool t.shutdown
+		| [ "wakeup" ] -> ""
+		| [ "request"; "cons" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.cons))
+		| [ "request"; "prod" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.prod))
+		| [ "request"; "data" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.data))
+		| [ "response"; "cons" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.cons))
+		| [ "response"; "prod" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.prod))
+		| [ "response"; "data" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.data))
 		| _ -> Store.Path.doesnt_exist path
+
+	let write _ _ perms path v =
+		Perms.has perms Perms.CONFIGURE;
+		match Store.Path.to_string_list path with
+		| [ "wakeup" ] ->
+			Lwt_condition.broadcast t.c ()
+		| _ -> raise Perms.Permission_denied
 
 	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
 
 	let list t perms path =
 		Perms.has perms Perms.CONFIGURE;
 		match Store.Path.to_string_list path with
+		| [] -> [ "mfn"; "local-port"; "remote-port"; "shutdown"; "wakeup"; "request"; "response" ]
+		| [ "request" ]
+		| [ "response" ] -> [ "cons"; "prod"; "data" ]
 		| _ -> []
 
 	end in
