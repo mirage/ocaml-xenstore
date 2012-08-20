@@ -81,5 +81,28 @@ let rec accept_forever fd process =
   let (_: unit Lwt.t list) = List.map process conns in
   accept_forever fd process
 
-let namespace_of _ = None
+let namespace_of (fd, _) =
+	let module Interface = struct
+		include Namespace.Unsupported
+
+	let read t (perms: Perms.t) (path: Store.Path.t) =
+		Perms.has perms Perms.CONFIGURE;
+		match Store.Path.to_string_list path with
+		| [] -> ""
+		| [ "readable" ] ->
+			if Lwt_unix.readable fd then "1" else "0"
+		| [ "writable" ] ->
+			if Lwt_unix.writable fd then "1" else "0"
+		| _ -> Store.Path.doesnt_exist path
+
+	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
+
+	let list t perms path =
+		Perms.has perms Perms.CONFIGURE;
+		match Store.Path.to_string_list path with
+		| [] -> [ "readable"; "writable" ]
+		| _ -> []
+
+	end in
+	Some (module Interface: Namespace.IO)
 

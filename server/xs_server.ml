@@ -51,7 +51,8 @@ module Server = functor(T: TRANSPORT) -> struct
 
 	let handle_connection t =
 		lwt address = T.address_of t in
-		let c = Connection.create address in
+		let interface = T.namespace_of t in
+		let c = Connection.create address interface in
 		let channel = PS.make t in
 		let m = Lwt_mutex.create () in
 		let take_watch_events () =
