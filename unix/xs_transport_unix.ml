@@ -81,5 +81,5 @@ let rec accept_forever fd process =
   let (_: unit Lwt.t list) = List.map process conns in
   accept_forever fd process
 
-
+let namespace_of _ = None
 

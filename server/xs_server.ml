@@ -41,6 +41,8 @@ module type TRANSPORT = sig
   val destroy: t -> unit Lwt.t
   val address_of: t -> Xs_packet.address Lwt.t
 
+  val namespace_of: t -> (module Namespace.IO) option
+
   val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
 end
 

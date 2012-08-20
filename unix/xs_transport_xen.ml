@@ -54,17 +54,17 @@ let map_page () =
 		raise e
 
 let eventchn =
-	let e = Xeneventchn.init () in
+	let e = Xenstore.xc_evtchn_open () in
 
 	let virq_thread () =
-		let virq_port = Xeneventchn.bind_dom_exc_virq e in
+		let virq_port = Xenstore.xc_evtchn_bind_virq_dom_exc e in
 		debug "Bound virq_port = %d" virq_port;
-		let fd = Lwt_unix.of_unix_file_descr ~set_flags:false (Xeneventchn.fd e) in
+		let fd = Lwt_unix.of_unix_file_descr ~set_flags:false (Xenstore.xc_evtchn_fd e) in
 		while_lwt true do
             lwt () = Lwt_unix.wait_read fd in
-			let port = Xeneventchn.pending e in
+			let port = Xenstore.xc_evtchn_pending e in
 			debug "Event on port %d" port;
-			Xeneventchn.unmask e port;
+			Xenstore.xc_evtchn_unmask e port;
 			if Hashtbl.mem by_port port then begin
 				let d = Hashtbl.find by_port port in
 				debug "Waking domid %d" d.address.domid;
@@ -118,9 +118,9 @@ let create_dom0 () =
 	lwt remote_port = read_port () in
 	debug "map_page";
 	let page = map_page () in
-	let port = Xeneventchn.bind_interdomain eventchn 0 remote_port in
+	let port = Xenstore.xc_evtchn_bind_interdomain eventchn 0 remote_port in
 	debug "create_dom0 remote_port = %d; port = %d" remote_port port;
-	Xeneventchn.notify eventchn port;
+	Xenstore.xc_evtchn_notify eventchn port;
 	let d = {
 		address = {
 			domid = 0;
@@ -138,7 +138,7 @@ let create_dom0 () =
 
 let create_domU address =
 	lwt page = Xenstore.map_foreign address.domid address.mfn in
-	let port = Xeneventchn.bind_interdomain eventchn address.domid address.remote_port in
+	let port = Xenstore.xc_evtchn_bind_interdomain eventchn address.domid address.remote_port in
 	debug "create_domU remote_port = %d; port = %d" address.remote_port port;
 	let d = {
 		address = address;
@@ -164,7 +164,7 @@ let rec read t buf ofs len =
 			read t buf ofs len
 		end else begin
 			debug "  %d bytes read: [%s]" n (Junk.hexify (String.sub buf ofs n));
-			Xeneventchn.notify eventchn t.port;
+			Xenstore.xc_evtchn_notify eventchn t.port;
 			return n
 		end
 
@@ -174,7 +174,7 @@ let rec write t buf ofs len =
 	then fail Ring_shutdown
 	else
 		let n = Xenstore.unsafe_write t.page buf ofs len in
-		if n > 0 then Xeneventchn.notify eventchn t.port;
+		if n > 0 then Xenstore.xc_evtchn_notify eventchn t.port;
 		if n < len then begin
 			debug "  %d more bytes needed; blocking on port %d" (len - n) t.port;
 			lwt () = Lwt_condition.wait t.c in
@@ -182,7 +182,7 @@ let rec write t buf ofs len =
 		end else return ()
 
 let destroy t =
-	Xeneventchn.unbind eventchn t.port;
+	Xenstore.xc_evtchn_unbind eventchn t.port;
 	Xenstore.unmap_foreign t.page;
 	Hashtbl.remove domains t.address.domid;
 	Hashtbl.remove by_port t.port;
@@ -203,3 +203,5 @@ let rec accept_forever stream process =
 	lwt d = if address.domid = 0 then create_dom0 () else create_domU address in
 	let (_: unit Lwt.t) = process d in
 	accept_forever stream process
+
+let namespace_of _ = None

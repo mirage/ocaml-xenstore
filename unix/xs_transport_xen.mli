@@ -23,3 +23,5 @@ type server
 
 val listen: unit -> server Lwt.t
 val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
+
+val namespace_of: t -> (module Namespace.IO) option

@@ -25,9 +25,10 @@ Library xenstore_unix
   Findlibname: unix
   FindlibParent: xenstore
   Modules: Xs_transport_unix, Xs_transport_xen, Xenstore
-  BuildDepends: lwt, xenstore, xenstore.server, xeneventchn
+  BuildDepends: lwt, xenstore, xenstore.server
   CSources: xenstore_stubs.c
-  CCOpt: -I. -I/usr/lib/ocaml/lwt/
+  CCOpt: -I. -I/home/djs/.opam/system/lib -I/home/djs/.opam/system/lib/lwt
+  CClib: -lxenctrl
 
 Library xenstore_server
   Path: server
@@ -43,7 +44,7 @@ Executable xs_test
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, oUnit
+  BuildDepends:       lwt, lwt.unix, xenstore, oUnit
 
 Executable server_test
   Path:               server_test
@@ -52,7 +53,7 @@ Executable server_test
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.server, oUnit
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, oUnit
 
 Executable server_unix
   Path:               server_unix
@@ -60,7 +61,7 @@ Executable server_unix
   Custom:             true
   CompiledObject:     best
   Install:            true
-  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.server, xenstore.unix
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, xenstore.unix
 
 Executable xs
   Path:               cli
@@ -68,7 +69,7 @@ Executable xs
   Custom:             true
   CompiledObject:     best
   Install:            true
-  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.client, xenstore.unix
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.client, xenstore.unix
 
 Executable xsbench
   Path:               bench
@@ -76,7 +77,7 @@ Executable xsbench
   Custom:             true
   CompiledObject:     best
   Install:            true
-  BuildDepends:       lwt, lwt.unix, bitstring, xenstore, xenstore.client, xenstore.unix
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.client, xenstore.unix
 
 Flag tests
   Description:        Build and run tests

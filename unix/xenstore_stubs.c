@@ -31,6 +31,8 @@
 #include <caml/bigarray.h>
 #include <lwt/lwt_unix.h>
 
+/* xc_domain_getinfolist async binding **************************************/
+
 struct job_domain_infolist{
   struct lwt_unix_job job;
   /* Inputs */
@@ -145,6 +147,8 @@ CAMLprim value ml_domain_infolist_parse(value buf)
   CAMLreturn(result);
 }
 
+/* xc_map_foreign_range async binding ***************************************/
+
 struct job_map_foreign{
   struct lwt_unix_job job;
   void *result;
@@ -201,6 +205,8 @@ CAMLprim value ml_unmap(value ba)
   }
   CAMLreturn(Val_unit);
 }
+
+/* xenstore shared memory interface *****************************************/
 
 #include <xenctrl.h>
 #include <xen/io/xs_wire.h>
@@ -289,3 +295,126 @@ CAMLprim value ml_map_fd(value fd, value len)
   
   CAMLreturn(alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, Int_val(len)));
 }	
+
+/* /dev/xen/eventchn handling ***********************************************/
+
+#define _H(__h) ((xc_interface *)(__h))
+
+CAMLprim value stub_xc_evtchn_open(void)
+{
+  CAMLparam0();
+  CAMLlocal1(result);
+
+  xc_interface *xce = xc_evtchn_open(NULL, XC_OPENFLAG_NON_REENTRANT);
+  if (xce == NULL)
+	caml_failwith("xc_evtchn_open failed");
+
+  result = (value)xce;
+  CAMLreturn(result);
+}
+
+CAMLprim value stub_xc_evtchn_close(value xce)
+{
+  CAMLparam1(xce);
+
+  int ret = xc_evtchn_close(_H(xce));
+  if (ret == -1)
+	caml_failwith("xc_evtchn_close failed");
+
+  CAMLreturn(Val_unit);
+}
+
+
+CAMLprim value stub_xc_evtchn_fd(value xce)
+{
+  CAMLparam1(xce);
+  CAMLlocal1(result);
+  int fd;
+
+  fd = xc_evtchn_fd(_H(xce));
+  if (fd == -1)
+	caml_failwith("evtchn fd failed");
+
+  result = Val_int(fd);
+
+  CAMLreturn(result);
+}
+
+CAMLprim value stub_xc_evtchn_notify(value xce, value port)
+{
+  CAMLparam2(xce, port);
+  int rc;
+
+  rc = xc_evtchn_notify(_H(xce), Int_val(port));
+  if (rc == -1)
+	caml_failwith("evtchn notify failed");
+
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value stub_xc_evtchn_bind_interdomain(value xce, value domid,
+                                               value remote_port)
+{
+  CAMLparam3(xce, domid, remote_port);
+  CAMLlocal1(port);
+  evtchn_port_or_error_t rc;
+
+  rc = xc_evtchn_bind_interdomain(_H(xce), Int_val(domid), Int_val(remote_port));
+  if (rc == -1)
+	caml_failwith("evtchn bind_interdomain failed");
+  port = Val_int(rc);
+
+  CAMLreturn(port);
+}
+
+CAMLprim value stub_xc_evtchn_bind_virq_dom_exc(value xce)
+{
+  CAMLparam1(xce);
+  CAMLlocal1(port);
+  evtchn_port_or_error_t rc;
+
+  rc = xc_evtchn_bind_virq(_H(xce), VIRQ_DOM_EXC);
+  if (rc == -1)
+	caml_failwith("evtchn bind_dom_exc_virq failed");
+  port = Val_int(rc);
+
+  CAMLreturn(port);
+}
+
+CAMLprim value stub_xc_evtchn_unbind(value xce, value port)
+{
+  CAMLparam2(xce, port);
+  int rc;
+
+  rc = xc_evtchn_unbind(_H(xce), Int_val(port));
+  if (rc == -1)
+	caml_failwith("evtchn unbind failed");
+
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value stub_xc_evtchn_pending(value xce)
+{
+  CAMLparam1(xce);
+  CAMLlocal1(result);
+  evtchn_port_or_error_t port;
+
+  port = xc_evtchn_pending(_H(xce));
+  if (port == -1)
+	caml_failwith("evtchn pending failed");
+  result = Val_int(port);
+
+  CAMLreturn(result);
+}
+
+CAMLprim value stub_xc_evtchn_unmask(value xce, value _port)
+{
+  CAMLparam2(xce, _port);
+  evtchn_port_t port;
+
+  port = Int_val(_port);
+  if (xc_evtchn_unmask(_H(xce), port))
+	caml_failwith("evtchn unmask failed");
+  CAMLreturn(Val_unit);
+}
+
