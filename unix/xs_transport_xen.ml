@@ -68,7 +68,7 @@ let eventchn =
 			if Hashtbl.mem by_port port then begin
 				let d = Hashtbl.find by_port port in
 				debug "Waking domid %d" d.address.domid;
-				Lwt_condition.signal d.c ()
+				Lwt_condition.broadcast d.c ()
 			end;
 			if port = virq_port then begin
 				(* Check to see if any of our domains have shutdown *)
