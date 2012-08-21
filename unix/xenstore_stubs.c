@@ -206,10 +206,9 @@ CAMLprim value ml_unmap(value ba)
   CAMLparam1(ba);
   CAMLlocal1(arg);
   int ret = munmap(Data_bigarray_val(ba), 4096);
-  if (ret != 0){
-	arg = caml_copy_string(NULL);
-	unix_error(ret, "munmap", arg);
-  }
+  if (ret != 0)
+	syslog(LOG_ERR, "munmap %x = %d:%s", Data_bigarray_val(ba), errno, strerror(errno));
+
   CAMLreturn(Val_unit);
 }
 
@@ -317,8 +316,6 @@ CAMLprim value ml_interface_read(value interface, value buffer, value ofs, value
 
   res = xs_ring_read(Data_bigarray_val(interface),
 					 String_val(buffer) + Int_val(ofs), Int_val(len));
-  if (res == -1)
-	caml_failwith("huh");
   result = Val_int(res);
   CAMLreturn(result);
 }
