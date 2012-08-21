@@ -27,7 +27,7 @@ Library xenstore_unix
   Modules: Xs_transport_unix, Xs_transport_xen, Xenstore
   BuildDepends: lwt, xenstore, xenstore.server
   CSources: xenstore_stubs.c
-  CCOpt: -I. -I/home/djs/.opam/system/lib -I/home/djs/.opam/system/lib/lwt
+  CCOpt: -I. -I/home/djs/.opam/system/lib -I/home/djs/.opam/system/lib/lwt -I/usr/lib/ocaml/lwt
   CClib: -lxenctrl
 
 Library xenstore_server
