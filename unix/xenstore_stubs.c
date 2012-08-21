@@ -20,6 +20,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <errno.h>
+#include <syslog.h>
 #include <xenctrl.h>
 
 #include <caml/mlvalues.h>
@@ -73,7 +74,6 @@ static value result_domain_infolist(struct job_domain_infolist *job)
 {
   static char error_str[ERROR_STRLEN];
   uint32_t number_found = job->number_found;
-  int err = job->errno_copy;
 
   if ((job->errno_copy == 0) && (job->error == NULL)){
 	lwt_unix_free_job(&job->job);
@@ -88,8 +88,8 @@ static value result_domain_infolist(struct job_domain_infolist *job)
 	snprintf(error_str, ERROR_STRLEN, "%d: %s", job->errno_copy, strerror(job->errno_copy));
   }
   lwt_unix_free_job(&job->job);
-  value arg = caml_copy_string(error_str);
-  unix_error(err, "xc_domain_getinfolist", arg);
+  syslog(LOG_ERR, "xc_domain_getinfolist: %s", error_str);
+  return Val_int(0);
 }
 
 CAMLprim value lwt_domain_infolist_job(value lowest_domid, value number_requested, value buf)
