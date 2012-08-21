@@ -54,12 +54,25 @@ let eventchn =
 		| Some e -> e in
 
 	let virq_thread () =
-		let virq_port = Xenstore.xc_evtchn_bind_virq_dom_exc e in
+		let virq_port = match Xenstore.xc_evtchn_bind_virq_dom_exc e with
+			| Some x -> x
+			| None ->
+				debug "Failed to bind VIRQ DOM_EXC";
+				failwith "DOM_EXC VIRQ" in
 		debug "Bound virq_port = %d" virq_port;
-		let fd = Lwt_unix.of_unix_file_descr ~set_flags:false (Xenstore.xc_evtchn_fd e) in
+		let fd = match Xenstore.xc_evtchn_fd e with
+			| Some x -> x
+			| None ->
+				debug "Failed to extract evtchn fd";
+				failwith "xc_evtchn_fd" in
+		let fd = Lwt_unix.of_unix_file_descr ~set_flags:false fd in
 		while_lwt true do
             lwt () = Lwt_unix.wait_read fd in
-			let port = Xenstore.xc_evtchn_pending e in
+			let port = match Xenstore.xc_evtchn_pending e with
+				| Some x -> x
+				| None ->
+					debug "xc_evtchn_pending failed";
+					failwith "xc_evtchn_pending" in
 			debug "Event on port %d: %s" port
 				(if port = virq_port then "DOM_ESC VIRQ"
 				else if Hashtbl.mem by_port port
@@ -134,7 +147,11 @@ let create_dom0 () =
 	debug "map_page";
 	match map_page () with
 		| Some page ->
-			let port = Xenstore.xc_evtchn_bind_interdomain eventchn 0 remote_port in
+			let port = match Xenstore.xc_evtchn_bind_interdomain eventchn 0 remote_port with
+				| Some x -> x
+				| None ->
+					debug "xc_evtchn_bind_interdomain failed";
+					failwith "xc_evtchn_bind_interdomain" in
 			debug "create_dom0 remote_port = %d; port = %d" remote_port port;
 			Xenstore.xc_evtchn_notify eventchn port;
 			let d = {
@@ -157,7 +174,11 @@ let create_dom0 () =
 
 let create_domU address =
 	lwt page = Xenstore.map_foreign address.domid address.mfn in
-	let port = Xenstore.xc_evtchn_bind_interdomain eventchn address.domid address.remote_port in
+	let port = match Xenstore.xc_evtchn_bind_interdomain eventchn address.domid address.remote_port with
+		| Some x -> x
+		| None ->
+			debug "xc_evtchn_bind_interdomain failed";
+			failwith "xc_evtchn_bind_interdomain" in
 	debug "create_domU remote_port = %d; port = %d" address.remote_port port;
 	let d = {
 		address = address;

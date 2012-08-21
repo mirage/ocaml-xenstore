@@ -83,16 +83,16 @@ external xc_evtchn_open: unit -> xc_evtchn option = "stub_xc_evtchn_open"
 
 external xc_evtchn_close: destroy: xc_evtchn -> unit = "stub_xc_evtchn_close"
 
-external xc_evtchn_fd: xc_evtchn -> Unix.file_descr = "stub_xc_evtchn_fd"
+external xc_evtchn_fd: xc_evtchn -> Unix.file_descr option = "stub_xc_evtchn_fd"
 
 external xc_evtchn_notify: xc_evtchn -> int -> unit = "stub_xc_evtchn_notify"
 
-external xc_evtchn_bind_interdomain: xc_evtchn -> int -> int -> int = "stub_xc_evtchn_bind_interdomain"
+external xc_evtchn_bind_interdomain: xc_evtchn -> int -> int -> int option = "stub_xc_evtchn_bind_interdomain"
 
-external xc_evtchn_bind_virq_dom_exc: xc_evtchn -> int = "stub_xc_evtchn_bind_virq_dom_exc"
+external xc_evtchn_bind_virq_dom_exc: xc_evtchn -> int option = "stub_xc_evtchn_bind_virq_dom_exc"
 
 external xc_evtchn_unbind: xc_evtchn -> int -> unit = "stub_xc_evtchn_unbind"
 
-external xc_evtchn_pending: xc_evtchn -> int = "stub_xc_evtchn_pending"
+external xc_evtchn_pending: xc_evtchn -> int option = "stub_xc_evtchn_pending"
 
 external xc_evtchn_unmask: xc_evtchn -> int -> unit = "stub_xc_evtchn_unmask"
