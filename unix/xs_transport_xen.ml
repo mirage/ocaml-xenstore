@@ -49,7 +49,9 @@ let map_page () =
 	page_opt
 
 let eventchn =
-	let e = Xenstore.xc_evtchn_open () in
+	let e = match Xenstore.xc_evtchn_open () with
+		| None -> failwith "xc_evtchn_open failed"
+		| Some e -> e in
 
 	let virq_thread () =
 		let virq_port = Xenstore.xc_evtchn_bind_virq_dom_exc e in

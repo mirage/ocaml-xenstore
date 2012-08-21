@@ -79,7 +79,7 @@ let domain_infolist () =
 	loop 0
 
 type xc_evtchn
-external xc_evtchn_open: unit -> xc_evtchn = "stub_xc_evtchn_open"
+external xc_evtchn_open: unit -> xc_evtchn option = "stub_xc_evtchn_open"
 
 external xc_evtchn_close: destroy: xc_evtchn -> unit = "stub_xc_evtchn_close"
 

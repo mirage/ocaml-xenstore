@@ -359,10 +359,13 @@ CAMLprim value stub_xc_evtchn_open(void)
   CAMLlocal1(result);
 
   xc_interface *xce = xc_evtchn_open(NULL, 0);
-  if (xce == NULL)
-	caml_failwith("xc_evtchn_open failed");
-
-  result = (value)xce;
+  if (xce == NULL) {
+	syslog(LOG_ERR, "xc_evtchn_open(NULL, 0) = %d:%s", errno, strerror(errno));
+	result = Val_int(0);
+  } else {
+	result = caml_alloc_tuple(1);
+	Store_field(result, 0, (value)xce);
+  }
   CAMLreturn(result);
 }
 
