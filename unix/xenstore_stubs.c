@@ -61,10 +61,13 @@ static void worker_domain_infolist(struct job_domain_infolist *job)
 	ret = xc_domain_getinfolist(xch, job->lowest_domid, job->number_requested, job->result);
 	if (ret < 0) {
 	  job->error = xc_get_last_error(xch);
+	  syslog(LOG_ERR, "xc_domain_getinfolist(%x, %d, %d, %x) = %d:%s", xch, job->lowest_domid, job->number_requested, job->result, job->error->code, job->error->message);
 	} else {
 	  job->number_found = ret;
 	}
 	xc_interface_close(xch);
+  } else {
+	syslog(LOG_ERR, "xc_interface_open: %d:%s", errno, strerror(errno));
   }
 }
 
@@ -113,17 +116,21 @@ CAMLprim value ml_sizeof_xc_domaininfo_t(value unit)
 CAMLprim value ml_alloc_page_aligned(value bytes)
 {
   CAMLparam1(bytes);
-  CAMLlocal1(result);
+  CAMLlocal2(result, some);
   int toalloc = Int_val(bytes);
   int ret;
   void *buf;
 
   toalloc = toalloc | 0xfff;
   ret = posix_memalign((void **) ((void *) &buf), 4096, toalloc);
-  if (ret)
-	caml_raise_out_of_memory ();
-
-  result = alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, bytes);
+  if (ret) {
+	syslog(LOG_ERR, "posix_memalign(%x, 4096, %d) = %d:%s", &buf, toalloc, errno, strerror(errno));
+	result = Atom(0);
+  } else {
+	some = alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, bytes);
+	result = caml_alloc_tuple(1);
+	Store_field(result, 0, some);
+  }
   CAMLreturn(result);
 }
 

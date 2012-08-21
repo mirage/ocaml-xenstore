@@ -78,36 +78,41 @@ let eventchn =
 			if port = virq_port then begin
 				(* Check to see if any of our domains have shutdown *)
 				lwt dis = Xenstore.domain_infolist () in
-				debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.Xenstore.domid :: acc) [] dis));
-				List.iter (fun di ->
-					if di.Xenstore.dying || di.Xenstore.shutdown
-					then debug "domid %d: %s%s%s" di.Xenstore.domid
-						(if di.Xenstore.dying then "dying" else "")
-						(if di.Xenstore.dying && di.Xenstore.shutdown then " and " else "")
-						(if di.Xenstore.shutdown then "shutdown" else "")
-				) dis;
-				let dis_by_domid = Hashtbl.create 128 in
-				List.iter (fun di -> Hashtbl.add dis_by_domid di.Xenstore.domid di) dis;
-				(* Connections to domains which are missing or 'dying' should be closed *)
-				let to_close = Hashtbl.fold (fun domid _ acc ->
-					if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).Xenstore.dying
-					then domid :: acc else acc) domains [] in
-				(* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
-				let release_domain = Hashtbl.fold (fun domid _ acc ->
-					acc || (not(Hashtbl.mem dis_by_domid domid) ||
-						(let di = Hashtbl.find dis_by_domid domid in
-						di.Xenstore.shutdown || di.Xenstore.dying))
-				) domains false in
-				(* Set the connections to "closing", wake up any readers/writers *)
-				List.iter
-					(fun domid ->
-						debug "closing connection to domid: %d" domid;
-						let t = Hashtbl.find domains domid in
-						t.shutdown <- true;
-						Lwt_condition.broadcast t.c ()
-					) to_close;
-				if release_domain
-				then Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);                                                                                                                                                        
+				begin match dis with
+					| None ->
+						debug "xc_domain_getinfolist failed"
+					| Some dis ->
+						debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.Xenstore.domid :: acc) [] dis));
+						List.iter (fun di ->
+							if di.Xenstore.dying || di.Xenstore.shutdown
+							then debug "domid %d: %s%s%s" di.Xenstore.domid
+								(if di.Xenstore.dying then "dying" else "")
+								(if di.Xenstore.dying && di.Xenstore.shutdown then " and " else "")
+								(if di.Xenstore.shutdown then "shutdown" else "")
+						) dis;
+						let dis_by_domid = Hashtbl.create 128 in
+						List.iter (fun di -> Hashtbl.add dis_by_domid di.Xenstore.domid di) dis;
+						(* Connections to domains which are missing or 'dying' should be closed *)
+						let to_close = Hashtbl.fold (fun domid _ acc ->
+							if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).Xenstore.dying
+							then domid :: acc else acc) domains [] in
+						(* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
+						let release_domain = Hashtbl.fold (fun domid _ acc ->
+							acc || (not(Hashtbl.mem dis_by_domid domid) ||
+								(let di = Hashtbl.find dis_by_domid domid in
+								di.Xenstore.shutdown || di.Xenstore.dying))
+						) domains false in
+						(* Set the connections to "closing", wake up any readers/writers *)
+						List.iter
+							(fun domid ->
+								debug "closing connection to domid: %d" domid;
+								let t = Hashtbl.find domains domid in
+								t.shutdown <- true;
+								Lwt_condition.broadcast t.c ()
+							) to_close;
+						if release_domain
+						then Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);                                               
+				end;
 				return ()
 			end else return ()
 		done in

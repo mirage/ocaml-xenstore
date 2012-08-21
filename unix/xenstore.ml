@@ -24,7 +24,7 @@ external get_ring_state: Cstruct.buf -> ring_state = "xs_ring_state"
 
 external sizeof_xc_domaininfo_t: unit -> int = "ml_sizeof_xc_domaininfo_t"
 
-external alloc_page_aligned: int -> Cstruct.buf = "ml_alloc_page_aligned"
+external alloc_page_aligned: int -> Cstruct.buf option = "ml_alloc_page_aligned"
 
 external free_page_aligned: Cstruct.buf -> unit = "ml_free_page_aligned"
 
@@ -45,29 +45,37 @@ let batch_size = 512 (* number of domains to query in one hypercall *)
 let xc_domain_getinfolist lowest_domid =
 	let sizeof = sizeof_xc_domaininfo_t () in
 	let buf = alloc_page_aligned (batch_size * sizeof) in
-	try_lwt
-		lwt number_found = Lwt_unix.run_job (domain_infolist_job lowest_domid batch_size buf) in
-		let rec parse buf n acc =
-			if n = number_found
-			then acc
-			else parse (Cstruct.shift buf sizeof) (n + 1) (xc_domaininfo_t_parse buf :: acc) in
-		return (parse buf 0 [])
-	finally
-		return (free_page_aligned buf)
+	match buf with
+		| None -> return None
+		| Some buf ->
+			try_lwt
+				lwt number_found = Lwt_unix.run_job (domain_infolist_job lowest_domid batch_size buf) in
+				let rec parse buf n acc =
+					if n = number_found
+					then acc
+					else parse (Cstruct.shift buf sizeof) (n + 1) (xc_domaininfo_t_parse buf :: acc) in
+				return (Some(parse buf 0 []))
+			finally
+				return (free_page_aligned buf)
 
 let domain_infolist () =
 	let rec loop from =
 		lwt first = xc_domain_getinfolist from in
-		(* If we returned less than a batch then there are no more. *)
-		if List.length first < batch_size
-		then return first
-		else match first with
-			| [] -> return []
-			| x :: xs ->
-				(* Don't assume the last entry has the highest domid *)
-				let largest_domid = List.fold_left (fun domid di -> max domid di.domid) x.domid xs in
-				lwt rest = loop (largest_domid + 1) in
-				return (first @ rest) in
+		match first with
+			| None -> return None
+			| Some first ->
+				(* If we returned less than a batch then there are no more. *)
+				if List.length first < batch_size
+				then return (Some first)
+				else match first with
+					| [] -> return (Some [])
+					| x :: xs ->
+						(* Don't assume the last entry has the highest domid *)
+						let largest_domid = List.fold_left (fun domid di -> max domid di.domid) x.domid xs in
+						lwt rest = loop (largest_domid + 1) in
+						match rest with
+							| None -> return None
+							| Some rest -> return (Some (first @ rest)) in
 	loop 0
 
 type xc_evtchn

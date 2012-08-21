@@ -25,7 +25,7 @@ type info = {
 	shutdown: bool;
 }
 
-val domain_infolist: unit -> info list Lwt.t
+val domain_infolist: unit -> info list option Lwt.t
 
 type xc_evtchn
 val xc_evtchn_open: unit -> xc_evtchn
