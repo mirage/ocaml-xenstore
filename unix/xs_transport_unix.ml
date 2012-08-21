@@ -36,6 +36,11 @@ let write (fd, _) bufs ofs len =
 		fail End_of_file
 	end else return ()
 
+let int_of_file_descr fd =
+	let fd = Lwt_unix.unix_file_descr fd in
+	let (fd: int) = Obj.magic fd in
+	fd
+
 let address_of (fd, _) =
 	let creds = Lwt_unix.get_credentials fd in
 	let pid = creds.Lwt_unix.cred_pid in
@@ -54,11 +59,12 @@ let address_of (fd, _) =
 			String.sub cmdline 0 i
 		with Not_found -> cmdline in
 	let basename = Filename.basename filename in
+	let name = Printf.sprintf "%d:%s:%d" pid basename (int_of_file_descr fd) in
 	let padto x y =
 		if String.length x > y
 		then String.sub x 0 y
 		else x ^ (String.make (y - (String.length x)) ' ') in
-	return (Xs_packet.Unix(Printf.sprintf "%5d:%s" pid (padto basename 10)))
+	return (Xs_packet.Unix(padto name 16))
 
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr
