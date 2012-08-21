@@ -63,7 +63,12 @@ let eventchn =
 		while_lwt true do
             lwt () = Lwt_unix.wait_read fd in
 			let port = Xenstore.xc_evtchn_pending e in
-			debug "Event on port %d" port;
+			debug "Event on port %d: %s" port
+				(if port = virq_port then "DOM_ESC VIRQ"
+				else if Hashtbl.mem by_port port
+				then Printf.sprintf "ring for domid %d" (Hashtbl.find by_port port).address.domid
+				else "UNKNOWN");
+
 			Xenstore.xc_evtchn_unmask e port;
 			if Hashtbl.mem by_port port then begin
 				let d = Hashtbl.find by_port port in
@@ -73,6 +78,14 @@ let eventchn =
 			if port = virq_port then begin
 				(* Check to see if any of our domains have shutdown *)
 				lwt dis = Xenstore.domain_infolist () in
+				debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.Xenstore.domid :: acc) [] dis));
+				List.iter (fun di ->
+					if di.Xenstore.dying || di.Xenstore.shutdown
+					then debug "domid %d: %s%s%s" di.Xenstore.domid
+						(if di.Xenstore.dying then "dying" else "")
+						(if di.Xenstore.dying && di.Xenstore.shutdown then " and " else "")
+						(if di.Xenstore.shutdown then "shutdown" else "")
+				) dis;
 				let dis_by_domid = Hashtbl.create 128 in
 				List.iter (fun di -> Hashtbl.add dis_by_domid di.Xenstore.domid di) dis;
 				(* Connections to domains which are missing or 'dying' should be closed *)
