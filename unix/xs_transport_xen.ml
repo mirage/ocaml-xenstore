@@ -44,14 +44,9 @@ let read_port () =
 
 let map_page () =
 	let fd = Unix.openfile xenstored_proc_kva [ Lwt_unix.O_RDWR ] 0o0 in
-	try
-		let page = Xenstore.map_fd fd 4096 in
-		Unix.close fd;
-		page
-	with e ->
-		debug "map_page error: %s" (Printexc.to_string e);
-		Unix.close fd;
-		raise e
+	let page_opt = Xenstore.map_fd fd 4096 in
+	Unix.close fd;
+	page_opt
 
 let eventchn =
 	let e = Xenstore.xc_evtchn_open () in
@@ -135,24 +130,28 @@ let create_dom0 () =
 	debug "read_port";
 	lwt remote_port = read_port () in
 	debug "map_page";
-	let page = map_page () in
-	let port = Xenstore.xc_evtchn_bind_interdomain eventchn 0 remote_port in
-	debug "create_dom0 remote_port = %d; port = %d" remote_port port;
-	Xenstore.xc_evtchn_notify eventchn port;
-	let d = {
-		address = {
-			domid = 0;
-			mfn = Nativeint.zero;
-			remote_port = remote_port;
-		};
-		page = page;
-		port = port;
-		c = Lwt_condition.create ();
-		shutdown = false;
-	} in
-	Hashtbl.add domains 0 d;
-	Hashtbl.add by_port port d;
-	return d
+	match map_page () with
+		| Some page ->
+			let port = Xenstore.xc_evtchn_bind_interdomain eventchn 0 remote_port in
+			debug "create_dom0 remote_port = %d; port = %d" remote_port port;
+			Xenstore.xc_evtchn_notify eventchn port;
+			let d = {
+				address = {
+					domid = 0;
+					mfn = Nativeint.zero;
+					remote_port = remote_port;
+				};
+				page = page;
+				port = port;
+				c = Lwt_condition.create ();
+				shutdown = false;
+			} in
+			Hashtbl.add domains 0 d;
+			Hashtbl.add by_port port d;
+			return (Some d)
+		| None ->
+			debug "failed to create connection to dom0";
+			return None
 
 let create_domU address =
 	lwt page = Xenstore.map_foreign address.domid address.mfn in
@@ -167,7 +166,7 @@ let create_domU address =
 	} in
 	Hashtbl.add domains address.domid d;
 	Hashtbl.add by_port port d;
-	return d
+	return (Some d)
 
 let rec read t buf ofs len =
 	debug "read ofs=%d len=%d" ofs len;
@@ -219,7 +218,13 @@ let rec accept_forever stream process =
 	lwt address = Lwt_stream.next stream in
 	debug "xen got domid %d" address.domid;
 	lwt d = if address.domid = 0 then create_dom0 () else create_domU address in
-	let (_: unit Lwt.t) = process d in
+	begin match d with
+		| Some d ->
+			let (_: unit Lwt.t) = process d in
+			()
+		 | None ->
+			()
+	end;
 	accept_forever stream process
 
 let namespace_of t =

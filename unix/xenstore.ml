@@ -3,7 +3,7 @@ external map_foreign_job: int -> nativeint -> Cstruct.buf Lwt_unix.job = "lwt_ma
 
 let map_foreign domid mfn = Lwt_unix.run_job (map_foreign_job domid mfn)
 
-external map_fd: Unix.file_descr -> int -> Cstruct.buf = "ml_map_fd"
+external map_fd: Unix.file_descr -> int -> Cstruct.buf option = "ml_map_fd"
 
 external unmap_foreign: Cstruct.buf -> unit = "ml_unmap"
 

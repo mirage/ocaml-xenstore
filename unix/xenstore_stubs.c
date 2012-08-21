@@ -125,7 +125,7 @@ CAMLprim value ml_alloc_page_aligned(value bytes)
   ret = posix_memalign((void **) ((void *) &buf), 4096, toalloc);
   if (ret) {
 	syslog(LOG_ERR, "posix_memalign(%x, 4096, %d) = %d:%s", &buf, toalloc, errno, strerror(errno));
-	result = Atom(0);
+	result = Val_int(0);
   } else {
 	some = alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, bytes);
 	result = caml_alloc_tuple(1);
@@ -335,12 +335,18 @@ CAMLprim value ml_interface_write(value interface, value buffer, value ofs, valu
 CAMLprim value ml_map_fd(value fd, value len)
 {
   CAMLparam2(fd, len);
+  CAMLlocal2(result, some);
 
   void *buf = mmap(NULL, Int_val(len), PROT_READ | PROT_WRITE, MAP_SHARED, Int_val(fd), 0);
-  if (buf == MAP_FAILED)
-	caml_failwith("map failed");
-  
-  CAMLreturn(alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, Int_val(len)));
+  if (buf == MAP_FAILED) {
+	syslog(LOG_ERR, "mmap(NULL, %d, PROT_READ | PROT_WRITE, MAP_SHARED, %d, 0) = %d:%s", Int_val(len), Int_val(fd), errno, strerror(errno));
+	result = Val_int(0);
+  } else {
+	result = caml_alloc_tuple(1);
+	some = alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, Int_val(len));
+	Store_field(result, 0, some);
+  };
+  CAMLreturn(result);
 }	
 
 /* /dev/xen/eventchn handling ***********************************************/
