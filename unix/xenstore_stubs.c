@@ -56,7 +56,6 @@ static void worker_domain_infolist(struct job_domain_infolist *job)
   job->number_found = 0;
 
   xch = xc_interface_open(NULL, NULL, 0);
-  job->errno_copy = errno;
   if (xch){
 	ret = xc_domain_getinfolist(xch, job->lowest_domid, job->number_requested, job->result);
 	if (ret < 0) {
@@ -68,6 +67,7 @@ static void worker_domain_infolist(struct job_domain_infolist *job)
 	xc_interface_close(xch);
   } else {
 	syslog(LOG_ERR, "xc_interface_open: %d:%s", errno, strerror(errno));
+	job->errno_copy = errno;
   }
 }
 
