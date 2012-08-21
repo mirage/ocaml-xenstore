@@ -348,7 +348,7 @@ CAMLprim value stub_xc_evtchn_open(void)
   CAMLparam0();
   CAMLlocal1(result);
 
-  xc_interface *xce = xc_evtchn_open(NULL, XC_OPENFLAG_NON_REENTRANT);
+  xc_interface *xce = xc_evtchn_open(NULL, 0);
   if (xce == NULL)
 	caml_failwith("xc_evtchn_open failed");
 
