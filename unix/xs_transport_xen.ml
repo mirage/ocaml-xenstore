@@ -216,7 +216,9 @@ let namespace_of t =
 		| [ "local-port" ] -> string_of_int t.port
 		| [ "remote-port" ] -> string_of_int t.address.remote_port
 		| [ "shutdown" ] -> string_of_bool t.shutdown
-		| [ "wakeup" ] -> ""
+		| [ "wakeup" ]
+		| [ "request" ]
+		| [ "response" ] -> ""
 		| [ "request"; "cons" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.cons))
 		| [ "request"; "prod" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.prod))
 		| [ "request"; "data" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.data))
