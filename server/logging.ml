@@ -129,9 +129,13 @@ let disable_newconn = ref false
 let disable_endconn = ref false
 let disable_transaction = ref false
 
-let disable_request = ref []
-let disable_reply_ok = ref []
-let disable_reply_err = ref []
+let disable_request = ref [ "read" ]
+let disable_reply_ok = ref [
+	"read"; "directory"; "getperms"; "watch"; "unwatch"; "transaction_start"; "transaction_end";
+	"introduce"; "release"; "getdomainpath"; "write"; "mkdir"; "rm"; "setperms"; (* "watchevent"; *)
+	"isintroduced"; "resume"; "set_target"; "restrict"
+]
+let disable_reply_err = ref [ "read" ]
 
 let access_type_disabled = function
 	| Coalesce -> !disable_coalesce
