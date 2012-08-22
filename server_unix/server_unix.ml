@@ -51,4 +51,5 @@ let main () =
 	return ()
 
 let _ =
+	Lwt_daemon.daemonize ();
 	Lwt_main.run (main ())
