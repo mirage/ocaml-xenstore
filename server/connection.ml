@@ -22,6 +22,7 @@ type watch = {
 	con: t;
 	token: string;
 	name: Store.Name.t;
+	mutable count: int;
 }
 
 and t = {
@@ -57,7 +58,8 @@ let list_of_watches () =
 let watch_create ~con ~name ~token = { 
 	con = con; 
 	token = token; 
-	name = name; 
+	name = name;
+	count = 0;
 }
 
 let get_con w = w.con
@@ -181,6 +183,7 @@ let fire_one name watch =
 	let name = Store.Name.to_string name in
 	let open Xs_packet in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
+	watch.count <- watch.count + 1;
 (*	Printf.fprintf stderr "Adding %s, %s to %s\n%!" name watch.token watch.con.domstr;*)
 	if Queue.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
 		error "domid %d reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid (Queue.length watch.con.watch_events) (Quota.maxwatchevent_of_domain watch.con.domid) name watch.token;
@@ -280,6 +283,11 @@ module Interface = struct
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			if n > (List.length all) then Store.Path.doesnt_exist path;
 			(List.nth all n).token
+		| "watch" :: n :: "count" :: [] ->
+			let n = int_of_string n in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			if n > (List.length all) then Store.Path.doesnt_exist path;
+			string_of_int (List.nth all n).count
 		| "backend" :: rest ->
 			begin match c.interface with
 			| None -> Store.Path.doesnt_exist path
@@ -342,7 +350,7 @@ module Interface = struct
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))
-		| [ "watch"; n ] -> [ "name"; "token" ]
+		| [ "watch"; n ] -> [ "name"; "token"; "count" ]
 		| "backend" :: rest ->
 			begin match c.interface with
 			| None -> []
