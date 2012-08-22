@@ -67,8 +67,6 @@ let logger = create 512
 (* Operation logging *)
 let access_logger = create 512
 
-let string_of_date = ref (fun () -> "unknown")
-
 type level = Debug | Info | Warn | Error | Null
 
 let log_level = ref Warn
@@ -82,9 +80,8 @@ let string_of_level = function
 	| Error -> "error" | Null -> "null"
 
 let log level key (fmt: (_,_,_,_) format4) =
-	let date = !string_of_date() in
 	let level = string_of_level level in
-	Printf.ksprintf logger.push ("[%s|%5s|%s] " ^^ fmt) date level key
+	Printf.ksprintf logger.push ("[%5s|%s] " ^^ fmt) level key
 
 let debug key = log Debug key
 let info key = log Info key
@@ -169,11 +166,10 @@ let sanitize_data data =
 
 let access_logging ~con ~tid ?(data="") access_type =
 	if access_type_enabled access_type then begin
-		let date = !string_of_date() in
 		let tid = string_of_tid ~con tid in
 		let access_type = string_of_access_type access_type in
 		let data = sanitize_data data in
-		Printf.ksprintf logger.push "[%s] %s %s %s" date tid access_type data
+		Printf.ksprintf logger.push "%s %s %s" tid access_type data
 	end
 
 let new_connection = access_logging Newconn

@@ -17,15 +17,6 @@ open Xs_packet
 
 let debug fmt = Logging.debug "server_unix" fmt
 
-let string_of_date () =
-	let time = Unix.gettimeofday () in
-	let tm = Unix.gmtime time in
-	let msec = time -. (floor time) in
-	Printf.sprintf "%d%.2d%.2dT%.2d:%.2d:%.2d.%.3dZ"
-		(1900 + tm.Unix.tm_year) (tm.Unix.tm_mon + 1) tm.Unix.tm_mday
-		tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
-		(int_of_float (1000.0 *. msec))
-
 module UnixServer = Xs_server.Server(Xs_transport_unix)
 module DomainServer = Xs_server.Server(Xs_transport_xen)
 
@@ -41,7 +32,6 @@ let rec logging_thread logger =
 	logging_thread logger
 
 let main () =
-	Logging.string_of_date := string_of_date;
 	debug "Unix xenstored starting";
 	let (_: 'a) = logging_thread Logging.logger in
 	let (_: 'a) = logging_thread Logging.access_logger in
