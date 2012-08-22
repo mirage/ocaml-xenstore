@@ -232,8 +232,6 @@ let get_transaction con tid =
 		error "Failed to find transaction %lu on %s" tid con.domstr;
 		raise e
 
-let incr_ops con = con.stat_nb_ops <- con.stat_nb_ops + 1
-
 let mark_symbols con =
 	Hashtbl.iter (fun _ t -> Store.mark_symbols (Transaction.get_store t)) con.transactions
 

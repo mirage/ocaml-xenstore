@@ -242,6 +242,7 @@ let gc store =
 
 let reply store c request =
 	gc store;
+	c.Connection.stat_nb_ops <- c.Connection.stat_nb_ops + 1;
 	let tid = get_tid request in
 	let rid = get_rid request in
 	let response_payload, info =
