@@ -127,17 +127,6 @@ let eventchn =
 			end else return ()
 		done in
 
-	let rec wake_everyone_thread () =
-		lwt () = Lwt_unix.sleep 5. in
-		debug "heartbeat";
-		Hashtbl.iter
-			(fun domid t ->
-				debug "Waking domid %d" domid;
-				Lwt_condition.signal t.c ()
-			) domains;
-		wake_everyone_thread () in
-	let (_: unit Lwt.t) = wake_everyone_thread () in
-
 	let (_: unit Lwt.t) = virq_thread () in
 	e
 
