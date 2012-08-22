@@ -144,10 +144,6 @@ let add_watch con name token =
             else []
         in
         Trie.set !watches key (watch :: ws));
-(*
-	Printf.fprintf stderr "Watches:\n";
-	List.iter (Printf.fprintf stderr "%s\n%!") (list_of_watches ());
-*)
 	watch
 
 let del_watch con name token =
@@ -184,7 +180,6 @@ let fire_one name watch =
 	let open Xs_packet in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
 	watch.count <- watch.count + 1;
-(*	Printf.fprintf stderr "Adding %s, %s to %s\n%!" name watch.token watch.con.domstr;*)
 	if Queue.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
 		error "domid %d reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid (Queue.length watch.con.watch_events) (Quota.maxwatchevent_of_domain watch.con.domid) name watch.token;
 		watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1
@@ -195,7 +190,6 @@ let fire_one name watch =
 
 let fire (op, name) =
 	let key = Store.Name.to_key name in
-(*	Printf.fprintf stderr "Looking for watches on: %s (key = [ %s ])\n%!" (String.concat "/" key) (String.concat ", " key); *)
 	Trie.iter_path
 		(fun _ w -> match w with
 		| None -> ()

@@ -73,16 +73,17 @@ let eventchn =
 				| None ->
 					debug "xc_evtchn_pending failed";
 					failwith "xc_evtchn_pending" in
+(*
 			debug "Event on port %d: %s" port
 				(if port = virq_port then "DOM_ESC VIRQ"
 				else if Hashtbl.mem by_port port
 				then Printf.sprintf "ring for domid %d" (Hashtbl.find by_port port).address.domid
 				else "UNKNOWN");
-
+*)
 			Xenstore.xc_evtchn_unmask e port;
 			if Hashtbl.mem by_port port then begin
 				let d = Hashtbl.find by_port port in
-				debug "Waking domid %d" d.address.domid;
+(*				debug "Waking domid %d" d.address.domid; *)
 				Lwt_condition.broadcast d.c ()
 			end;
 			if port = virq_port then begin
@@ -92,7 +93,7 @@ let eventchn =
 					| None ->
 						debug "xc_domain_getinfolist failed"
 					| Some dis ->
-						debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.Xenstore.domid :: acc) [] dis));
+(*						debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.Xenstore.domid :: acc) [] dis)); *)
 						List.iter (fun di ->
 							if di.Xenstore.dying || di.Xenstore.shutdown
 							then debug "domid %d: %s%s%s" di.Xenstore.domid
@@ -131,9 +132,7 @@ let eventchn =
 	e
 
 let create_dom0 () =
-	debug "read_port";
 	lwt remote_port = read_port () in
-	debug "map_page";
 	match map_page () with
 		| Some page ->
 			let port = match Xenstore.xc_evtchn_bind_interdomain eventchn 0 remote_port with
@@ -141,7 +140,6 @@ let create_dom0 () =
 				| None ->
 					debug "xc_evtchn_bind_interdomain failed";
 					failwith "xc_evtchn_bind_interdomain" in
-			debug "create_dom0 remote_port = %d; port = %d" remote_port port;
 			Xenstore.xc_evtchn_notify eventchn port;
 			let d = {
 				address = {
@@ -168,7 +166,6 @@ let create_domU address =
 		| None ->
 			debug "xc_evtchn_bind_interdomain failed";
 			failwith "xc_evtchn_bind_interdomain" in
-	debug "create_domU remote_port = %d; port = %d" address.remote_port port;
 	let d = {
 		address = address;
 		page = page;
@@ -181,31 +178,26 @@ let create_domU address =
 	return (Some d)
 
 let rec read t buf ofs len =
-	debug "read ofs=%d len=%d" ofs len;
 	if t.shutdown
 	then fail Ring_shutdown
 	else
 		let n = Xenstore.unsafe_read t.page buf ofs len in
 		if n = 0
 		then begin
-			debug "  0 bytes ready; blocking on port %d" t.port;
 			lwt () = Lwt_condition.wait t.c in
 			read t buf ofs len
 		end else begin
-			debug "  %d bytes read: [%s]" n (Junk.hexify (String.sub buf ofs n));
 			Xenstore.xc_evtchn_notify eventchn t.port;
 			return n
 		end
 
 let rec write t buf ofs len =
-	debug "write ofs=%d len=%d: [%s]" ofs len (Junk.hexify (String.sub buf ofs len));
 	if t.shutdown
 	then fail Ring_shutdown
 	else
 		let n = Xenstore.unsafe_write t.page buf ofs len in
 		if n > 0 then Xenstore.xc_evtchn_notify eventchn t.port;
 		if n < len then begin
-			debug "  %d more bytes needed; blocking on port %d" (len - n) t.port;
 			lwt () = Lwt_condition.wait t.c in
 			write t buf (ofs + n) (len - n)
 		end else return ()
@@ -226,9 +218,7 @@ let listen () =
 	return stream
 
 let rec accept_forever stream process =
-	debug "xen: accept forever";
 	lwt address = Lwt_stream.next stream in
-	debug "xen got domid %d" address.domid;
 	lwt d = if address.domid = 0 then create_dom0 () else create_domU address in
 	begin match d with
 		| Some d ->
