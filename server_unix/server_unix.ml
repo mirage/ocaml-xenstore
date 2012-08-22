@@ -35,8 +35,7 @@ let rec logging_thread logger =
 	lwt lines = Logging.get logger in
 	lwt () = Lwt_list.iter_s
 			(fun x ->
-				lwt () = Lwt_log.log ~logger:syslog ~level:Lwt_log.Info x in
-				lwt () = Lwt_io.write_line Lwt_io.stdout x in
+				lwt () = Lwt_log.log ~logger:syslog ~level:Lwt_log.Notice x in
 				return ()
 			) lines in
 	logging_thread logger
