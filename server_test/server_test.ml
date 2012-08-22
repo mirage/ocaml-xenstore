@@ -496,29 +496,29 @@ let test_quota () =
 		assert_equal ~msg:"quota" ~printer:string_of_int (!start + n) (int_of_string (List.hd x)) in
 
 	run store [
-(*		dom0, none, PathOp("/quota/domain/0", Read), StringList (fun x -> start := int_of_string (List.hd x)); *)
+(*		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (fun x -> start := int_of_string (List.hd x)); *)
 		dom0, none, PathOp("/a", Write "hello"), OK;
-		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 1);
+		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (expect 1);
 		(* Implicit creation of 2 elements *)
 		dom0, none, PathOp("/a/b/c", Write "hello"), OK;
-		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 3);
+		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (expect 3);
 		(* Remove one element *)
 		dom0, none, PathOp("/a/b/c", Rm), OK;
-		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 2);
+		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (expect 2);
 		(* Recursive remove of 2 elements *)
 		dom0, none, PathOp("/a", Rm), OK;
-		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 0);
+		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (expect 0);
 		(* Remove an already removed element *)
 		dom0, none, PathOp("/a", Rm), OK;
-		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 0);
+		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (expect 0);
 		(* Remove a missing element: *)
 		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, PathOp("/a", Rm), OK;
-		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 0);
+		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (expect 0);
 		(* Removing the root node is forbidden *)
 		dom0, none, PathOp("/", Rm), Err "EINVAL";
-		dom0, none, PathOp("/quota/domain/0", Read), StringList (expect 0);
+		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (expect 0);
 	]
 
 let test_quota_setperms () =
@@ -535,15 +535,15 @@ let test_quota_setperms () =
 		dom0, none, PathOp("/local/domain/1", Mkdir), OK;
 		dom0, none, PathOp("/local/domain/1", Setperms Xs_packet.ACL.({owner = 1; other = NONE; acl = []})), OK;
 		dom1, none, PathOp("/local/domain/1/private", Mkdir), OK;
-		dom0, none, PathOp("/quota/domain/1", Read), StringList (fun x -> dom1_quota := int_of_string (List.hd x));
-		dom0, none, PathOp("/quota/domain/2", Read), StringList (fun x -> dom2_quota := int_of_string (List.hd x));
+		dom0, none, PathOp("/quota/entries-per-domain/1", Read), StringList (fun x -> dom1_quota := int_of_string (List.hd x));
+		dom0, none, PathOp("/quota/entries-per-domain/2", Read), StringList (fun x -> dom2_quota := int_of_string (List.hd x));
 		dom1, none, PathOp("/local/domain/1/private/foo", Write "hello"), OK;
-		dom0, none, PathOp("/quota/domain/1", Read), StringList (expect dom1_quota 1);
-		dom0, none, PathOp("/quota/domain/2", Read), StringList (expect dom2_quota 0);
+		dom0, none, PathOp("/quota/entries-per-domain/1", Read), StringList (expect dom1_quota 1);
+		dom0, none, PathOp("/quota/entries-per-domain/2", Read), StringList (expect dom2_quota 0);
 		(* Hand this node to domain 2 (who doesn't want it) *)
 		dom1, none, PathOp("/local/domain/1/private/foo", Setperms Xs_packet.ACL.({owner = 2; other = NONE; acl = []})), OK;
 		(* Domain 2's quota shouldn't be affected: *)
-		dom0, none, PathOp("/quota/domain/2", Read), StringList (expect dom2_quota 0);
+		dom0, none, PathOp("/quota/entries-per-domain/2", Read), StringList (expect dom2_quota 0);
 	]
 
 let test_quota_maxsize () =
