@@ -96,9 +96,9 @@ let namespace_of (fd, _) =
 		match Store.Path.to_string_list path with
 		| [] -> ""
 		| [ "readable" ] ->
-			if Lwt_unix.readable fd then "1" else "0"
+			string_of_bool (Lwt_unix.readable fd)
 		| [ "writable" ] ->
-			if Lwt_unix.writable fd then "1" else "0"
+			string_of_bool (Lwt_unix.writable fd)
 		| _ -> Store.Path.doesnt_exist path
 
 	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false

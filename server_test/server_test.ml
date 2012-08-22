@@ -321,7 +321,7 @@ let test_watch_event_quota () =
 	let open Xs_packet.Request in
 	(* No watch events are generated without registering *)
 	run store [
-		dom0, none, PathOp("/quota/maxwatchevent/1", Write "1"), OK;
+		dom0, none, PathOp("/quota/number-of-queued-watch-events/1", Write "1"), OK;
 		dom0, none, PathOp("/a", Mkdir), OK;
 		dom0, none, PathOp("/a", Setperms Xs_packet.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
 	];
@@ -338,7 +338,7 @@ let test_watch_event_quota () =
 	assert_watches dom1 [ ("/a", "token") ];
 	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 1 dom1.Connection.nb_dropped_watches;
 	run store [
-		dom0, none, PathOp("/quota/maxwatchevent/1", Write "2"), OK;
+		dom0, none, PathOp("/quota/number-of-queued-watch-events/1", Write "2"), OK;
 		dom0, none, PathOp("/a", Write "there"), OK;
 	];
 	assert_watches dom1 [ ("/a", "token"); ("/a", "token") ];
@@ -551,10 +551,10 @@ let test_quota_maxsize () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom0, none, PathOp("/quota/default/maxsize", Write "5"), OK;
+		dom0, none, PathOp("/quota/default/entry-length", Write "5"), OK;
 		dom0, none, PathOp("/a", Write "hello"), OK;
 		dom0, none, PathOp("/a", Write "hello2"), Err "E2BIG";
-		dom0, none, PathOp("/quota/default/maxsize", Write "6"), OK;
+		dom0, none, PathOp("/quota/default/entry-length", Write "6"), OK;
 		dom0, none, PathOp("/a", Write "hello2"), OK;
 	]
 
@@ -565,9 +565,9 @@ let test_quota_maxent () =
 	run store [
 		(* Side effect creates the quota entry *)
 		dom0, none, PathOp("/first", Write "post"), OK;
-		dom0, none, PathOp("/quota/default/maxent", Write "1"), OK;
+		dom0, none, PathOp("/quota/default/number-of-entries", Write "1"), OK;
 		dom0, none, PathOp("/a", Write "hello"), Err "EQUOTA";
-		dom0, none, PathOp("/quota/maxent/0", Write "2"), OK;
+		dom0, none, PathOp("/quota/number-of-entries/0", Write "2"), OK;
 		dom0, none, PathOp("/a", Write "hello"), OK;
 		dom0, none, PathOp("/a", Write "there"), OK;
 		dom0, none, PathOp("/b", Write "hello"), Err "EQUOTA";
@@ -578,7 +578,7 @@ let test_control_perms () =
 	let store = empty_store () in
 	let open Xs_packet.Request in
 	run store [
-		dom1, none, PathOp("/quota/default/maxent", Write "1"), Err "EACCES";
+		dom1, none, PathOp("/quota/default/number-of-entries", Write "1"), Err "EACCES";
 		dom1, none, PathOp("/log/reply-err/ENOENT", Write "1"), Err "EACCES";
 	]
 

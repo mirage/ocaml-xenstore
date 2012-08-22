@@ -256,13 +256,13 @@ module Interface = struct
 			""
 		| "address" :: [] ->
 			Xs_packet.string_of_address c.address
-		| "transactions" :: [] ->
+		| "current-transactions" :: [] ->
 			string_of_int (Hashtbl.length c.transactions)
-		| "operations" :: [] ->
+		| "total-operations" :: [] ->
 			string_of_int c.stat_nb_ops
-		| "queued" :: [] ->
+		| "current-watch-queue-length" :: [] ->
 			string_of_int (Queue.length c.watch_events)
-		| "dropped" :: [] ->
+		| "total-dropped-watches" :: [] ->
 			string_of_int c.nb_dropped_watches
 		| "watch" :: [] ->
 			""
@@ -281,7 +281,7 @@ module Interface = struct
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			if n > (List.length all) then Store.Path.doesnt_exist path;
 			(List.nth all n).token
-		| "watch" :: n :: "count" :: [] ->
+		| "watch" :: n :: "total-events" :: [] ->
 			let n = int_of_string n in
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			if n > (List.length all) then Store.Path.doesnt_exist path;
@@ -344,11 +344,11 @@ module Interface = struct
 
 	let list_connection t perms c = function
 		| [] ->
-			[ "address"; "transactions"; "operations"; "watch"; "queued"; "dropped"; "backend" ]
+			[ "address"; "current-transactions"; "total-operations"; "watch"; "current-watch-queue-length"; "total-dropped-watches"; "backend" ]
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))
-		| [ "watch"; n ] -> [ "name"; "token"; "count" ]
+		| [ "watch"; n ] -> [ "name"; "token"; "total-events" ]
 		| "backend" :: rest ->
 			begin match c.interface with
 			| None -> []
