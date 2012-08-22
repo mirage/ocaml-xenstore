@@ -248,24 +248,24 @@ let reply store c request =
 		try
 			reply_exn store c request, None
 		with e ->
-			let reply code =
-				Response.Error code in
+			let default = Some (Printexc.to_string e) in
+			let reply code = Response.Error code in
 			begin match e with
-				| Store.Already_exists _           -> reply "EEXIST"
-				| Store.Path.Doesnt_exist _        -> reply "ENOENT"
-				| Perms.Permission_denied          -> reply "EACCES"
-				| Not_found                        -> reply "ENOENT"
-				| Parse_failure                    -> reply "EINVAL"
-				| Invalid_argument i               -> reply "EINVAL"
-				| Transaction_again                -> reply "EAGAIN"
-				| Transaction_nested               -> reply "EBUSY"
-				| Quota.Limit_reached              -> reply "EQUOTA"
-				| Quota.Data_too_big               -> reply "E2BIG"
-				| Quota.Transaction_opened         -> reply "EQUOTA"
-				| (Failure "int_of_string")        -> reply "EINVAL"
-				| Namespace.Unsupported            -> reply "ENOTSUP"
-				| _                                -> reply "EIO"
-			end, Some (Printexc.to_string e) in
+				| Store.Already_exists p           -> reply "EEXIST", Some p
+				| Store.Path.Doesnt_exist p        -> reply "ENOENT", Some p
+				| Perms.Permission_denied          -> reply "EACCES", default
+				| Not_found                        -> reply "ENOENT", default
+				| Parse_failure                    -> reply "EINVAL", default
+				| Invalid_argument i               -> reply "EINVAL", Some i
+				| Transaction_again                -> reply "EAGAIN", default
+				| Transaction_nested               -> reply "EBUSY",  default
+				| Quota.Limit_reached              -> reply "EQUOTA", default
+				| Quota.Data_too_big               -> reply "E2BIG",  default
+				| Quota.Transaction_opened         -> reply "EQUOTA", default
+				| (Failure "int_of_string")        -> reply "EINVAL", default
+				| Namespace.Unsupported            -> reply "ENOTSUP",default
+				| _                                -> reply "EIO",    default
+			end in
 	Logging.response ~tid ~con:c.Connection.domstr ?info response_payload;
 
 	Response.print response_payload tid rid
