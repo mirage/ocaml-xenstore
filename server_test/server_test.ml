@@ -579,7 +579,7 @@ let test_control_perms () =
 	let open Xs_packet.Request in
 	run store [
 		dom1, none, PathOp("/quota/default/number-of-entries", Write "1"), Err "EACCES";
-		dom1, none, PathOp("/log/reply-err/ENOENT", Write "1"), Err "EACCES";
+		dom1, none, PathOp("/tool/xenstored/log/reply-err/ENOENT", Write "1"), Err "EACCES";
 	]
 
 let _ =
