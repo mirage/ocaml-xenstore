@@ -37,6 +37,14 @@ Library xenstore_server
   Modules: Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Memory_interface
   BuildDepends: lwt, xenstore
 
+Executable xen_stubdom
+  Path: xen
+  MainIs: sleep.ml
+  Custom: true
+  CompiledObject: best
+  Install: false
+  BuildDepends: lwt, xenstore, xenstore.server, mirage
+
 Executable xs_test
   Path:               lib_test
   MainIs:             xs_test.ml

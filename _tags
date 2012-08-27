@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 72a6696e28350e9768355f1ca9bae699)
+# DO NOT EDIT (digest: e54ce439d15652a51fc3d80047e9baaa)
 # Library xenstore
 "core": include
 <core/*.ml{,i}>: pkg_lwt
@@ -69,6 +69,20 @@
 <server_unix/*.ml{,i}>: pkg_cstruct.syntax
 <server_unix/*.ml{,i}>: pkg_cstruct
 <server_unix/server_unix.{native,byte}>: custom
+# Executable xen_stubdom
+<xen/sleep.{native,byte}>: use_xenstore_server
+<xen/sleep.{native,byte}>: use_xenstore
+<xen/sleep.{native,byte}>: pkg_mirage
+<xen/sleep.{native,byte}>: pkg_lwt
+<xen/sleep.{native,byte}>: pkg_cstruct.syntax
+<xen/sleep.{native,byte}>: pkg_cstruct
+<xen/*.ml{,i}>: use_xenstore_server
+<xen/*.ml{,i}>: use_xenstore
+<xen/*.ml{,i}>: pkg_mirage
+<xen/*.ml{,i}>: pkg_lwt
+<xen/*.ml{,i}>: pkg_cstruct.syntax
+<xen/*.ml{,i}>: pkg_cstruct
+<xen/sleep.{native,byte}>: custom
 # Executable xs
 <cli/xs_client_cli.{native,byte}>: use_xenstore_client
 <cli/xs_client_cli.{native,byte}>: use_xenstore_unix
