@@ -1,8 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: ceb0abd4a6c447706c1381a235ac063b)
+# DO NOT EDIT (digest: 5001429814e8d29bf1a400a60c7b9f57)
 version = "0.9-dev"
 description = "Xenstore protocol library"
-requires = "lwt cstruct cstruct.syntax lwt"
+requires = "lwt cstruct cstruct.syntax"
 archive(byte) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
 exists_if = "xenstore.cma"

@@ -11,7 +11,7 @@ Library xenstore
   Path: core
   Findlibname: xenstore
   Modules: Xs_packet
-  BuildDepends:	lwt, cstruct, cstruct.syntax, lwt
+  BuildDepends:	lwt, cstruct, cstruct.syntax
 
 Library xenstore_client
   Path: client
@@ -21,6 +21,7 @@ Library xenstore_client
   BuildDepends: lwt, xenstore
 
 Library xenstore_unix
+  Build$:             flag(unix)
   Path: unix
   Findlibname: unix
   FindlibParent: xenstore
@@ -38,12 +39,13 @@ Library xenstore_server
   BuildDepends: lwt, xenstore
 
 Executable xen_stubdom
+  Build$:             flag(xen)
   Path: xen
   MainIs: sleep.ml
   Custom: true
   CompiledObject: best
   Install: false
-  BuildDepends: lwt, xenstore, xenstore.server, mirage
+  BuildDepends: lwt, xenstore, xenstore.server, cstruct, mirage
 
 Executable xs_test
   Path:               lib_test
@@ -52,7 +54,7 @@ Executable xs_test
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, oUnit
+  BuildDepends:       lwt, xenstore, oUnit
 
 Executable server_test
   Path:               server_test
@@ -61,9 +63,10 @@ Executable server_test
   Custom:             true
   CompiledObject:     best
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, oUnit
+  BuildDepends:       lwt, xenstore, xenstore.server, oUnit, mirage
 
 Executable server_unix
+  Build$:             flag(unix)
   Path:               server_unix
   MainIs:             server_unix.ml
   Custom:             true
@@ -72,6 +75,7 @@ Executable server_unix
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, xenstore.unix
 
 Executable xs
+  Build$:             flag(unix)
   Path:               cli
   MainIs:             xs_client_cli.ml
   Custom:             true
@@ -80,6 +84,7 @@ Executable xs
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.client, xenstore.unix
 
 Executable xsbench
+  Build$:             flag(unix)
   Path:               bench
   MainIs:             xs_bench.ml
   Custom:             true
@@ -89,6 +94,14 @@ Executable xsbench
 
 Flag tests
   Description:        Build and run tests
+  Default:            false
+
+Flag unix
+  Description:        Build Unix executables
+  Default:            false
+
+Flag xen
+  Description:        Build xen kernels
   Default:            true
 
 Test xs_test

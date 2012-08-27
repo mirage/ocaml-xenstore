@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e54ce439d15652a51fc3d80047e9baaa)
+# DO NOT EDIT (digest: 007aac8e18b23e2d1f4a0c5a81bee2a9)
 # Library xenstore
 "core": include
 <core/*.ml{,i}>: pkg_lwt
@@ -41,14 +41,14 @@
 <server_test/server_test.{native,byte}>: use_xenstore_server
 <server_test/server_test.{native,byte}>: use_xenstore
 <server_test/server_test.{native,byte}>: pkg_oUnit
-<server_test/server_test.{native,byte}>: pkg_lwt.unix
+<server_test/server_test.{native,byte}>: pkg_mirage
 <server_test/server_test.{native,byte}>: pkg_lwt
 <server_test/server_test.{native,byte}>: pkg_cstruct.syntax
 <server_test/server_test.{native,byte}>: pkg_cstruct
 <server_test/*.ml{,i}>: use_xenstore_server
 <server_test/*.ml{,i}>: use_xenstore
 <server_test/*.ml{,i}>: pkg_oUnit
-<server_test/*.ml{,i}>: pkg_lwt.unix
+<server_test/*.ml{,i}>: pkg_mirage
 <server_test/*.ml{,i}>: pkg_lwt
 <server_test/*.ml{,i}>: pkg_cstruct.syntax
 <server_test/*.ml{,i}>: pkg_cstruct
@@ -104,13 +104,11 @@
 # Executable xs_test
 <lib_test/xs_test.{native,byte}>: use_xenstore
 <lib_test/xs_test.{native,byte}>: pkg_oUnit
-<lib_test/xs_test.{native,byte}>: pkg_lwt.unix
 <lib_test/xs_test.{native,byte}>: pkg_lwt
 <lib_test/xs_test.{native,byte}>: pkg_cstruct.syntax
 <lib_test/xs_test.{native,byte}>: pkg_cstruct
 <lib_test/*.ml{,i}>: use_xenstore
 <lib_test/*.ml{,i}>: pkg_oUnit
-<lib_test/*.ml{,i}>: pkg_lwt.unix
 <lib_test/*.ml{,i}>: pkg_lwt
 <lib_test/*.ml{,i}>: pkg_cstruct.syntax
 <lib_test/*.ml{,i}>: pkg_cstruct
