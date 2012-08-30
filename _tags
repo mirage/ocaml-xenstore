@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0cd259e54fe6ab4630e83d41602a57d9)
+# DO NOT EDIT (digest: 8d26d6ce5149b4e291dbf94b61e029b5)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -52,12 +52,22 @@
 "unix/xenstore_stubs.c": pkg_cstruct.syntax
 # Library xenstore_server_domain
 "xen/xenstore_server_domain.cmxs": use_xenstore_server_domain
+# Executable server_xen
+"xen/server_xen.native,nobj.o": use_xenstore_server_domain
+"xen/server_xen.native,nobj.o": use_xenstore_server
+"xen/server_xen.native,nobj.o": use_xenstore
+"xen/server_xen.native,nobj.o": pkg_lwt
+"xen/server_xen.native,nobj.o": pkg_mirage
+"xen/server_xen.native,nobj.o": pkg_cstruct
+"xen/server_xen.native,nobj.o": pkg_cstruct.syntax
+<xen/*.ml{,i}>: use_xenstore_server_domain
 <xen/*.ml{,i}>: use_xenstore_server
 <xen/*.ml{,i}>: use_xenstore
 <xen/*.ml{,i}>: pkg_lwt
 <xen/*.ml{,i}>: pkg_mirage
 <xen/*.ml{,i}>: pkg_cstruct
 <xen/*.ml{,i}>: pkg_cstruct.syntax
+"xen/server_xen.native,nobj.o": custom
 # Executable xs_test
 "lib_test/xs_test.native,nobj.o": use_xenstore
 "lib_test/xs_test.native,nobj.o": pkg_lwt

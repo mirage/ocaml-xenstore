@@ -51,6 +51,15 @@ Library xenstore_server_domain
   Modules: Xs_transport_domain
   BuildDepends: lwt, xenstore, xenstore.server, cstruct, mirage
 
+Executable server_xen
+  Build$:             flag(xen)
+  CompiledObject: native
+  Path: xen
+  MainIs: server_xen.ml
+  Install: false
+  Custom: true
+  BuildDepends: lwt, xenstore, xenstore.server, xenstore.domain, cstruct, mirage
+
 Executable xs_test
   CompiledObject: native
   Path:               lib_test

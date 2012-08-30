@@ -16,6 +16,8 @@ open Lwt
 open Xs_protocol
 
 let debug fmt = Logging.debug "server_unix" fmt
+let warn  fmt = Logging.warn  "server_unix" fmt
+let error fmt = Logging.error "server_unix" fmt
 
 module DomainServer = Xs_server.Server(Xs_transport_domain)
 
@@ -30,8 +32,8 @@ let rec logging_thread logger =
 
 let introduce_dom0 () =
 	(* the cmd_line should have --event %d set by init-xenstore-domain.c *)
-	let cmd_line = (Start_info.((get ()).cmd_line)) in
-	let bits = Junk.split ' ' cmd_line in
+	let cmd_line = (OS.Start_info.((get ()).cmd_line)) in
+	let bits = Junk.String.split ' ' cmd_line in
 	let rec loop = function
 		| "--event" :: e :: _ ->
 			Some (int_of_string e)
@@ -44,7 +46,7 @@ let introduce_dom0 () =
 		error "Failed to find --event <port> on the commandline: %s" cmd_line;
 		()
 	| Some port ->
-		Introduce.(introduce { domid = 0; page = 0n; remote_port = port });
+		Introduce.(introduce { domid = 0; mfn = 0n; remote_port = port });
 		debug "Introduced domain 0"
 
 let main () =
