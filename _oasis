@@ -53,6 +53,7 @@ Library xenstore_server_domain
 
 Executable server_xen
   Build$:             flag(xen)
+  Target: xen
   CompiledObject: native
   Path: xen
   MainIs: server_xen.ml
