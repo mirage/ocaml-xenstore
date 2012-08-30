@@ -12,9 +12,13 @@
  * GNU Lesser General Public License for more details.
  *)
 
+type page =
+| Mfn of nativeint
+| Grant of int32
+
 type address = {
 	domid: int;
-	mfn: nativeint;
+	page: page;
 	remote_port: int;
 }
 

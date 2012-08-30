@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 902c30ad0dba0f17ba02a8f1a1b3617c)
+# DO NOT EDIT (digest: 236718f87601a7c9ef0eaec0111df28d)
 version = "0.9-dev"
 description = "Xenstore protocol library"
 requires = "lwt cstruct cstruct.syntax"
@@ -28,6 +28,16 @@ package "server" (
  archive(native) = "xenstore_server.cmxa"
  archive(native, plugin) = "xenstore_server.cmxs"
  exists_if = "xenstore_server.cma"
+ package "xen" (
+  version = "0.9-dev"
+  description = "Xenstore protocol library"
+  requires = "lwt xenstore xenstore.server cstruct mirage"
+  archive(byte) = "xenstore_server_xen.cma"
+  archive(byte, plugin) = "xenstore_server_xen.cma"
+  archive(native) = "xenstore_server_xen.cmxa"
+  archive(native, plugin) = "xenstore_server_xen.cmxs"
+  exists_if = "xenstore_server_xen.cma"
+ )
 )
 
 package "client" (
