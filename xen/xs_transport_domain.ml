@@ -76,7 +76,7 @@ let rec virq_thread port =
 				Lwt_condition.broadcast t.c ()
 			) to_close;
 		if release_domain
-		then Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);
+		then Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
 	end;
 	virq_thread port
 
@@ -155,7 +155,7 @@ let destroy t =
 	return ()
 
 let address_of t =
-	return (Xs_packet.Domain t.address.domid)
+	return (Xs_protocol.Domain t.address.domid)
 
 type server = address Lwt_stream.t
 
@@ -188,12 +188,14 @@ let namespace_of t =
 		| [ "wakeup" ]
 		| [ "request" ]
 		| [ "response" ] -> ""
+(*
 		| [ "request"; "cons" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.cons))
 		| [ "request"; "prod" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.prod))
 		| [ "request"; "data" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.data))
 		| [ "response"; "cons" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.cons))
 		| [ "response"; "prod" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.prod))
 		| [ "response"; "data" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.data))
+*)
 		| _ -> Store.Path.doesnt_exist path
 
 	let write _ _ perms path v =

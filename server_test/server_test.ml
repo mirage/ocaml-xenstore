@@ -23,30 +23,30 @@ let empty_store () = Store.create ()
 let none = Transaction.none
 
 let success f reply =
-	match Xs_packet.get_ty reply with
-		| Xs_packet.Op.Error ->
-			failwith (Printf.sprintf "Error: %s" (Xs_packet.get_data reply))
+	match Xs_protocol.get_ty reply with
+		| Xs_protocol.Op.Error ->
+			failwith (Printf.sprintf "Error: %s" (Xs_protocol.get_data reply))
 		| _ -> f reply
 
 let failure f reply =
-	match Xs_packet.get_ty reply with
-		| Xs_packet.Op.Error -> f reply
+	match Xs_protocol.get_ty reply with
+		| Xs_protocol.Op.Error -> f reply
 		| _ ->
-			failwith (Printf.sprintf "Expected failure, got success: %s" (Junk.hexify(Xs_packet.to_string reply)))
+			failwith (Printf.sprintf "Expected failure, got success: %s" (Junk.hexify(Xs_protocol.to_string reply)))
 
-let list f reply = match Xs_packet.Unmarshal.list reply with
+let list f reply = match Xs_protocol.Unmarshal.list reply with
 	| Some x -> f x
 	| None -> failwith "Failed to unmarshal string list"
 
-let string f reply = match Xs_packet.Unmarshal.string reply with
+let string f reply = match Xs_protocol.Unmarshal.string reply with
 	| Some x -> f x
 	| None -> failwith "Failed to unmarshal string"
 
-let acl f reply = match Xs_packet.Unmarshal.acl reply with
+let acl f reply = match Xs_protocol.Unmarshal.acl reply with
 	| Some x -> f x
 	| None -> failwith "Failed to unmarshal acl"
 
-let int32 f reply = match Xs_packet.Unmarshal.int32 reply with
+let int32 f reply = match Xs_protocol.Unmarshal.int32 reply with
 	| Some x -> f x
 	| None -> failwith "Failed to unmarshal int32"
 
@@ -59,7 +59,7 @@ type result =
 	| Err of string
 	| String of string
 	| StringList of (string list -> unit)
-	| Perms of (Xs_packet.ACL.t -> unit)
+	| Perms of (Xs_protocol.ACL.t -> unit)
 	| Tid of (int32 -> unit)
 
 let check_result reply = function
@@ -77,10 +77,10 @@ let check_result reply = function
 		(success ++ int32) f reply
 
 let rpc store c tid payload =
-	let request = Xs_packet.Request.print payload tid in
+	let request = Xs_protocol.Request.print payload tid in
 	Call.reply store c request
 
-let run store (payloads: (Connection.t * int32 * Xs_packet.Request.payload * result) list) =
+let run store (payloads: (Connection.t * int32 * Xs_protocol.Request.payload * result) list) =
 	List.iter
 		(fun (c, tid, payload, expected_result) ->
 			check_result (rpc store c tid payload) expected_result
@@ -88,10 +88,10 @@ let run store (payloads: (Connection.t * int32 * Xs_packet.Request.payload * res
 
 let test_implicit_create () =
 	(* Write a path and check the parent nodes can be read *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
-	let domU = Connection.create (Xs_packet.Domain 1) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let domU = Connection.create (Xs_protocol.Domain 1) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		(* If a node doesn't exist, everyone gets ENOENT: *)
 		dom0, none, PathOp("/a", Read), Err "ENOENT";
@@ -108,9 +108,9 @@ let test_implicit_create () =
 let test_directory_order () =
 	(* Create nodes in a particular order and check 'directory'
 	   preserves the ordering *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/a/1", Write ""), OK;
 		dom0, none, PathOp("/a/2/foo", Write ""), OK;
@@ -119,44 +119,44 @@ let test_directory_order () =
 	]
 
 let example_acl =
-	let open Xs_packet.ACL in
+	let open Xs_protocol.ACL in
     { owner = 5; other = READ; acl = [ 2, WRITE; 3, RDWR ] }
 
 let test_setperms_getperms () =
 	(* Check that getperms(setperms(x)) = x *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/foo", Write ""), OK;
 		dom0, none, PathOp("/foo", Setperms example_acl), OK;
-		dom0, none, PathOp("/foo", Getperms), Perms (fun x -> assert_equal ~msg:"perms /foo" ~printer:Xs_packet.ACL.to_string x example_acl);
+		dom0, none, PathOp("/foo", Getperms), Perms (fun x -> assert_equal ~msg:"perms /foo" ~printer:Xs_protocol.ACL.to_string x example_acl);
 	]
 
 let test_setperms_owner () =
 	(* Check that only the owner of a node can setperms even
 	   if another domain has read/write access *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
-	let dom2 = Connection.create (Xs_packet.Domain 2) None in
-	let dom5 = Connection.create (Xs_packet.Domain 5) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let dom2 = Connection.create (Xs_protocol.Domain 2) None in
+	let dom5 = Connection.create (Xs_protocol.Domain 5) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/foo", Write ""), OK;
 		dom0, none, PathOp("/foo", Setperms example_acl), OK;
 		(* owned by dom5, so dom2 can't setperms *)
-		dom2, none, PathOp("/foo", Setperms { example_acl with Xs_packet.ACL.owner = 2 }), Err "EACCES";
+		dom2, none, PathOp("/foo", Setperms { example_acl with Xs_protocol.ACL.owner = 2 }), Err "EACCES";
 		(* dom5 sets the owner to dom2 *)
-		dom5, none, PathOp("/foo", Setperms { example_acl with Xs_packet.ACL.owner = 2 }), OK;
+		dom5, none, PathOp("/foo", Setperms { example_acl with Xs_protocol.ACL.owner = 2 }), OK;
 		(* dom2 sets the owner back to dom5 *)
-		dom2, none, PathOp("/foo", Setperms { example_acl with Xs_packet.ACL.owner = 5 }), OK;
+		dom2, none, PathOp("/foo", Setperms { example_acl with Xs_protocol.ACL.owner = 5 }), OK;
 	]
 
 let test_mkdir () =
 	(* Check that mkdir creates usable nodes *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/a/b", Read), Err "ENOENT";
 		dom0, none, PathOp("/a", Read), Err "ENOENT";
@@ -171,9 +171,9 @@ let test_mkdir () =
 
 let test_empty () =
 	(* Check that I can read an empty value *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/a", Write ""), OK;
 		dom0, none, PathOp("/a", Read), OK;
@@ -185,9 +185,9 @@ let test_directory () =
 let test_rm () =
 	(* rm of a missing node from an existing parent should succeed *)
 	(* rm of a missing node from a missing parent should ENOENT *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/a", Rm), OK;
 		dom0, none, PathOp("/a/b", Rm), Err "ENOENT";
@@ -198,11 +198,11 @@ let test_rm () =
 let test_restrict () =
 	(* Check that only dom0 can restrict to another domain
 	   and that it loses access to dom0-only nodes. *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
-	let dom3 = Connection.create (Xs_packet.Domain 3) None in
-	let dom7 = Connection.create (Xs_packet.Domain 7) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let dom3 = Connection.create (Xs_protocol.Domain 3) None in
+	let dom7 = Connection.create (Xs_protocol.Domain 7) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/foo", Write "bar"), OK;
 		dom0, none, PathOp("/foo", Setperms example_acl), OK;
@@ -215,10 +215,10 @@ let test_restrict () =
 let test_set_target () =
 	(* Check that dom0 can grant dom1 access to dom2's nodes,
 	   without which it wouldn't have access. *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
-	let dom7 = Connection.create (Xs_packet.Domain 7) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let dom7 = Connection.create (Xs_protocol.Domain 7) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/foo", Write "bar"), OK;
 		dom0, none, PathOp("/foo", Setperms example_acl), OK;
@@ -230,9 +230,9 @@ let test_set_target () =
 let test_transactions_are_isolated () =
 	(* Check that other connections cannot see the nodes created
 	   within an uncommitted transaction *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 
 	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
 
@@ -246,9 +246,9 @@ let test_transactions_are_isolated () =
 let test_independent_transactions_coalesce () =
 	(* Check that two parallel, unrelated transactions can be
 	   coalesced properly *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 
 	run store [
 		dom0, none, PathOp("/a/b", Mkdir), OK;
@@ -267,9 +267,9 @@ let test_independent_transactions_coalesce () =
 
 let test_device_create_coalesce () =
 	(* Check that two parallel, device-creating transactions can coalesce *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/local/domain/0/backend/vbd", Mkdir), OK;
 		dom0, none, PathOp("/local/domain/1/device/vbd", Mkdir), OK;
@@ -290,9 +290,9 @@ let test_device_create_coalesce () =
 
 let test_transactions_really_do_conflict () =
 	(* Check that transactions that really can't interleave are aborted *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/a", Mkdir), OK;
 	];
@@ -315,15 +315,15 @@ let assert_watches c expected =
 
 let test_watch_event_quota () =
 	(* Check that we can't exceed the per-domain watch event quota *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
-	let dom1 = Connection.create (Xs_packet.Domain 1) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let dom1 = Connection.create (Xs_protocol.Domain 1) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	(* No watch events are generated without registering *)
 	run store [
 		dom0, none, PathOp("/tool/xenstored/quota/number-of-queued-watch-events/1", Write "1"), OK;
 		dom0, none, PathOp("/a", Mkdir), OK;
-		dom0, none, PathOp("/a", Setperms Xs_packet.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
+		dom0, none, PathOp("/a", Setperms Xs_protocol.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
 	];
 	assert_watches dom1 [];
 	run store [
@@ -346,14 +346,14 @@ let test_watch_event_quota () =
 
 let test_simple_watches () =
 	(* Check that writes generate watches and reads do not *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
-	let dom1 = Connection.create (Xs_packet.Domain 1) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let dom1 = Connection.create (Xs_protocol.Domain 1) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	(* No watch events are generated without registering *)
 	run store [
 		dom0, none, PathOp("/a", Mkdir), OK;
-		dom0, none, PathOp("/a", Setperms Xs_packet.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
+		dom0, none, PathOp("/a", Setperms Xs_protocol.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
 	];
 	assert_watches dom0 [];
 	run store [
@@ -387,9 +387,9 @@ let test_simple_watches () =
 
 let test_relative_watches () =
 	(* Check that watches for relative paths *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	(* No watch events are generated without registering *)
 	run store [
 		dom0, none, PathOp("/local/domain/0/name", Write ""), OK;
@@ -407,10 +407,10 @@ let test_relative_watches () =
 let test_watches_read_perm () =
 	(* Check that a connection only receives a watch if it
        can read the node that was modified. *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
-	let dom1 = Connection.create (Xs_packet.Domain 1) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let dom1 = Connection.create (Xs_protocol.Domain 1) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom1, none, Watch ("/a", "token"), OK;
 	];
@@ -426,9 +426,9 @@ let test_watches_read_perm () =
 let test_transaction_watches () =
 	(* Check that watches only appear on transaction commit
 	   and not at all in the case of abort *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, Watch ("/a", "token"), OK;
 	];
@@ -456,9 +456,9 @@ let test_transaction_watches () =
 
 let test_introduce_watches () =
 	(* Check that @introduceDomain watches appear on introduce *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, Watch ("@introduceDomain", "token"), OK;
 	];
@@ -488,9 +488,9 @@ let test_bounded_watch_events () =
 
 let test_quota () =
 	(* Check that node creation and destruction changes a quota *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	let start = ref 0 in
 	let expect n x =
 		assert_equal ~msg:"quota" ~printer:string_of_int (!start + n) (int_of_string (List.hd x)) in
@@ -523,17 +523,17 @@ let test_quota () =
 
 let test_quota_setperms () =
 	(* Check that one connection cannot exhaust another's quota *)
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
-	let dom1 = Connection.create (Xs_packet.Domain 1) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let dom1 = Connection.create (Xs_protocol.Domain 1) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	let dom1_quota = ref 0 in
 	let dom2_quota = ref 0 in
 	let expect quota n x =
 		assert_equal ~msg:"quota" ~printer:string_of_int (!quota + n) (int_of_string (List.hd x)) in
 	run store [
 		dom0, none, PathOp("/local/domain/1", Mkdir), OK;
-		dom0, none, PathOp("/local/domain/1", Setperms Xs_packet.ACL.({owner = 1; other = NONE; acl = []})), OK;
+		dom0, none, PathOp("/local/domain/1", Setperms Xs_protocol.ACL.({owner = 1; other = NONE; acl = []})), OK;
 		dom1, none, PathOp("/local/domain/1/private", Mkdir), OK;
 		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (fun x -> dom1_quota := int_of_string (List.hd x));
 		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (fun x -> dom2_quota := int_of_string (List.hd x));
@@ -541,15 +541,15 @@ let test_quota_setperms () =
 		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (expect dom1_quota 1);
 		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (expect dom2_quota 0);
 		(* Hand this node to domain 2 (who doesn't want it) *)
-		dom1, none, PathOp("/local/domain/1/private/foo", Setperms Xs_packet.ACL.({owner = 2; other = NONE; acl = []})), OK;
+		dom1, none, PathOp("/local/domain/1/private/foo", Setperms Xs_protocol.ACL.({owner = 2; other = NONE; acl = []})), OK;
 		(* Domain 2's quota shouldn't be affected: *)
 		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (expect dom2_quota 0);
 	]
 
 let test_quota_maxsize () =
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "5"), OK;
 		dom0, none, PathOp("/a", Write "hello"), OK;
@@ -559,9 +559,9 @@ let test_quota_maxsize () =
 	]
 
 let test_quota_maxent () =
-	let dom0 = Connection.create (Xs_packet.Domain 0) None in
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		(* Side effect creates the quota entry *)
 		dom0, none, PathOp("/first", Write "post"), OK;
@@ -574,9 +574,9 @@ let test_quota_maxent () =
 	]
 
 let test_control_perms () =
-	let dom1 = Connection.create (Xs_packet.Domain 1) None in
+	let dom1 = Connection.create (Xs_protocol.Domain 1) None in
 	let store = empty_store () in
-	let open Xs_packet.Request in
+	let open Xs_protocol.Request in
 	run store [
 		dom1, none, PathOp("/quota/default/number-of-entries", Write "1"), Err "EACCES";
 		dom1, none, PathOp("/tool/xenstored/log/reply-err/ENOENT", Write "1"), Err "EACCES";

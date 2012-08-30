@@ -17,7 +17,7 @@ type t
 val read: t -> string -> int -> int -> int Lwt.t
 val write: t -> string -> int -> int -> unit Lwt.t
 val destroy: t -> unit Lwt.t
-val address_of: t -> Xs_packet.address Lwt.t
+val address_of: t -> Xs_protocol.address Lwt.t
 
 type server
 

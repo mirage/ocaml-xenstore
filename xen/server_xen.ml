@@ -13,7 +13,7 @@
  *)
 
 open Lwt
-open Xs_packet
+open Xs_protocol
 
 let debug fmt = Logging.debug "server_unix" fmt
 

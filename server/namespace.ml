@@ -6,8 +6,8 @@ module type IO = sig
 	val write: Transaction.t -> int -> Perms.t -> Store.Path.t -> string -> unit
 	val list: Transaction.t -> Perms.t -> Store.Path.t -> string list
 	val rm: Transaction.t -> Perms.t -> Store.Path.t -> unit
-	val getperms: Transaction.t -> Perms.t -> Store.Path.t -> Xs_packet.ACL.t
-	val setperms: Transaction.t -> Perms.t -> Store.Path.t -> Xs_packet.ACL.t -> unit
+	val getperms: Transaction.t -> Perms.t -> Store.Path.t -> Xs_protocol.ACL.t
+	val setperms: Transaction.t -> Perms.t -> Store.Path.t -> Xs_protocol.ACL.t -> unit
 end
 
 exception Unsupported

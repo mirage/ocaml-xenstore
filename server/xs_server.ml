@@ -13,7 +13,7 @@
  *)
 
 open Lwt
-open Xs_packet
+open Xs_protocol
 
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
@@ -39,7 +39,7 @@ module type TRANSPORT = sig
   val read: t -> string -> int -> int -> int Lwt.t
   val write: t -> string -> int -> int -> unit Lwt.t
   val destroy: t -> unit Lwt.t
-  val address_of: t -> Xs_packet.address Lwt.t
+  val address_of: t -> Xs_protocol.address Lwt.t
 
   val namespace_of: t -> (module Namespace.IO) option
 
@@ -62,7 +62,7 @@ module Server = functor(T: TRANSPORT) -> struct
 		let flush_watch_events q =
 			Lwt_list.iter_s
 				(fun (path, token) ->
-					PS.send channel (Xs_packet.(Response.(print (Watchevent(path, token)) 0l 0l)))
+					PS.send channel (Xs_protocol.(Response.(print (Watchevent(path, token)) 0l 0l)))
 				) q in
 		let (background_watch_event_flusher: unit Lwt.t) =
 			while_lwt true do

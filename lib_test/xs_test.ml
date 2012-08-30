@@ -22,7 +22,7 @@ let unbox = function
 	| Some x -> x
 
 let op_ids _ =
-  let open Xs_packet.Op in
+  let open Xs_protocol.Op in
   for i = 0 to 100 do (* higher than the highest ID *)
     let i' = Int32.of_int i in
     match of_int32 i' with
@@ -31,11 +31,11 @@ let op_ids _ =
   done
 
 let example_acl =
-	let open Xs_packet.ACL in
+	let open Xs_protocol.ACL in
     { owner = 5; other = READ; acl = [ 2, WRITE; 3, RDWR ] }
 
 let acl_parser _ =
-  let open Xs_packet.ACL in
+  let open Xs_protocol.ACL in
   let ts = [
     { owner = 5; other = READ; acl = [ 2, WRITE; 3, RDWR ] };
     { owner = 1; other = WRITE; acl = [] };
@@ -50,7 +50,7 @@ let acl_parser _ =
     (List.combine (List.map (fun x -> Some x) ts) ts')
 
 let test_packet_parser choose pkt () =
-    let open Xs_packet in
+    let open Xs_protocol in
     let p = ref (Parser.start ()) in
     let s = to_string pkt in
     let i = ref 0 in
@@ -80,19 +80,19 @@ let test _ =
   Lwt_main.run t
 
 type example_packet = {
-	op: Xs_packet.Op.t;
-	packet: Xs_packet.t;
+	op: Xs_protocol.Op.t;
+	packet: Xs_protocol.t;
 	wire_fmt: string;
 }
 let make_example_request op payload tid wire_fmt = {
 		op = op;
-		packet = Xs_packet.Request.print payload tid;
+		packet = Xs_protocol.Request.print payload tid;
 		wire_fmt = wire_fmt;
 	}
 
 let example_request_packets =
-	let open Xs_packet in
-	let open Xs_packet.Request in [
+	let open Xs_protocol in
+	let open Xs_protocol.Request in [
 		make_example_request Op.Directory (PathOp("/whatever/whenever", Directory)) 5l
 			"\x01\x00\x00\x00\x0f\x00\x00\x00\x05\x00\x00\x00\x13\x00\x00\x00\x2f\x77\x68\x61\x74\x65\x76\x65\x72\x2f\x77\x68\x65\x6e\x65\x76\x65\x72\x00";
 		make_example_request Op.Read (PathOp("/a/b/c", Read)) 6l
@@ -119,9 +119,9 @@ let example_request_packets =
 			"\x12\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x33\x00";
 		make_example_request Op.Getdomainpath (Getdomainpath 3) 0l
 			"\x0a\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x33\x00";
-		make_example_request Op.Watch (Watch("/foo/bar", (Xs_packet.Token.(to_string(of_user_string "something"))))) 0l
+		make_example_request Op.Watch (Watch("/foo/bar", (Xs_protocol.Token.(to_string(of_user_string "something"))))) 0l
 			"\x04\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x15\x00\x00\x00\x2f\x66\x6f\x6f\x2f\x62\x61\x72\x00\x31\x3a\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x00";
-		make_example_request Op.Unwatch (Unwatch("/foo/bar", (Xs_packet.Token.(to_string(of_user_string "somethinglse"))))) 0l
+		make_example_request Op.Unwatch (Unwatch("/foo/bar", (Xs_protocol.Token.(to_string(of_user_string "somethinglse"))))) 0l
 			"\x05\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00\x2f\x66\x6f\x6f\x2f\x62\x61\x72\x00\x30\x3a\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x6c\x73\x65\x00";
 		make_example_request Op.Debug (Debug [ "a"; "b"; "something" ]) 0l
 			"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x61\x00\x62\x00\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x00"
@@ -129,22 +129,22 @@ let example_request_packets =
 
 let make_example_response op response wire_fmt =
 	let request = List.find (fun x -> x.op = op) example_request_packets in
-	let tid = Xs_packet.get_tid request.packet in
-	let rid = Xs_packet.get_rid request.packet in {
+	let tid = Xs_protocol.get_tid request.packet in
+	let rid = Xs_protocol.get_rid request.packet in {
 		op = op;
-		packet = Xs_packet.Response.print response tid rid;
+		packet = Xs_protocol.Response.print response tid rid;
 		wire_fmt = wire_fmt;
 	}
 
 (* We use the example requests to generate example responses *)
 let example_response_packets =
-	let open Xs_packet in
-	let open Xs_packet.Response in [
+	let open Xs_protocol in
+	let open Xs_protocol.Response in [
 		make_example_response Op.Read (Read "theresult")
 			"\x02\x00\x00\x00\x0e\x00\x00\x00\x06\x00\x00\x00\x09\x00\x00\x00\x74\x68\x65\x72\x65\x73\x75\x6c\x74";
 		make_example_response Op.Read (Read "")
 			"\x02\x00\x00\x00\x0e\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00";
-		make_example_response Op.Getperms (Getperms (Xs_packet.ACL.( { owner = 2; other = READ; acl = [ 4, NONE ] } )))
+		make_example_response Op.Getperms (Getperms (Xs_protocol.ACL.( { owner = 2; other = READ; acl = [ 4, NONE ] } )))
 			"\x03\x00\x00\x00\x0d\x00\x00\x00\x07\x00\x00\x00\x06\x00\x00\x00\x72\x32\x00\x6e\x34\x00";
 		make_example_response Op.Getdomainpath (Getdomainpath "/local/domain/4")
 			"\x0a\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x2f\x6c\x6f\x63\x61\x6c\x2f\x64\x6f\x6d\x61\x69\x6e\x2f\x34\x00";
@@ -190,7 +190,7 @@ let hexstring x =
 
 (*
 let error_unmarshal _ =
-  let open Xs_packet.Response in
+  let open Xs_protocol.Response in
   let enoent = 
 *)
 let _ =
@@ -204,14 +204,14 @@ let _ =
     let f = test_packet_parser choose in
     "packet_parsing" >:::
 		(List.map (fun example ->
-			let description = Xs_packet.Op.to_string example.op in
+			let description = Xs_protocol.Op.to_string example.op in
 			description >:: f example.packet
 		) example_packets) in
   let packet_printing =
 	  "packet_printing" >:::
 		  (List.map (fun example ->
-			  let description = Xs_packet.Op.to_string example.op in
-			  description >:: (fun () -> assert_equal ~msg:description ~printer:hexstring (Xs_packet.to_string example.packet) example.wire_fmt)
+			  let description = Xs_protocol.Op.to_string example.op in
+			  description >:: (fun () -> assert_equal ~msg:description ~printer:hexstring (Xs_protocol.to_string example.packet) example.wire_fmt)
 		  ) example_packets) in
   let suite = "xenstore" >:::
     [

@@ -62,7 +62,7 @@ module Client : functor(T: TRANSPORT) -> sig
   val mkdir : handle -> string -> unit Lwt.t
   (** [mkdir h k] creates the node [k] with an empty value *)
 
-  val setperms : handle -> string -> Xs_packet.ACL.t -> unit Lwt.t
+  val setperms : handle -> string -> Xs_protocol.ACL.t -> unit Lwt.t
   (** [setperms h k acl] sets the permissions of [k] to [acl] *)
 
   val debug : handle -> string list -> string list Lwt.t
@@ -75,10 +75,10 @@ module Client : functor(T: TRANSPORT) -> sig
   val getdomainpath : handle -> int -> string Lwt.t
   (** [getdomainpath domid] returns the local directory of domain [domid] *)
 
-  val watch : handle -> string -> Xs_packet.Token.t -> unit Lwt.t
+  val watch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
   (** [watch h path token] registers a manual watch at [path] with [token] *)
 
-  val unwatch : handle -> string -> Xs_packet.Token.t -> unit Lwt.t
+  val unwatch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
   (** [unwatch h path token] unregisters a manual watch at [path] with [token] *)
 
 end

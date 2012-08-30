@@ -13,7 +13,7 @@
  *)
 
 open Lwt
-open Xs_packet
+open Xs_protocol
 module Client = Xs_client.Client(Xs_transport_unix)
 open Client
 

@@ -99,8 +99,8 @@ type access_type =
 	| Debug of string
 	| Start_transaction
 	| End_transaction
-	| Request of Xs_packet.Request.payload
-	| Response of Xs_packet.Response.payload * string option
+	| Request of Xs_protocol.Request.payload
+	| Response of Xs_protocol.Response.payload * string option
 
 let string_of_tid ~con tid =
 	if tid = 0l
@@ -116,8 +116,8 @@ let string_of_access_type = function
 	| Debug x                 -> "         " ^ x
 	| Start_transaction       -> "t start  "
 	| End_transaction         -> "t end    "
-	| Request r               -> " <- in   " ^ (Xs_packet.Request.prettyprint_payload r)
-	| Response (r, info_opt)  -> " -> out  " ^ (Xs_packet.Response.prettyprint_payload r) ^ (match info_opt with Some x -> " (" ^ x ^ ")" | None -> "")
+	| Request r               -> " <- in   " ^ (Xs_protocol.Request.prettyprint_payload r)
+	| Response (r, info_opt)  -> " -> out  " ^ (Xs_protocol.Response.prettyprint_payload r) ^ (match info_opt with Some x -> " (" ^ x ^ ")" | None -> "")
 
 let disable_coalesce = ref false
 let disable_conflict = ref false
@@ -143,14 +143,14 @@ let access_type_disabled = function
 	| Debug _  -> false
 	| Start_transaction
 	| End_transaction   -> !disable_transaction
-	| Request r -> List.mem (Xs_packet.(Op.to_string (Request.ty_of_payload r))) !disable_request
+	| Request r -> List.mem (Xs_protocol.(Op.to_string (Request.ty_of_payload r))) !disable_request
 	| Response (r, _) ->
 		begin match r with
-			| Xs_packet.Response.Error x ->
+			| Xs_protocol.Response.Error x ->
 				List.mem x !disable_reply_err
 			| _ ->
-				let ty = Xs_packet.Response.ty_of_payload r in
-				List.mem (Xs_packet.Op.to_string ty) !disable_reply_ok
+				let ty = Xs_protocol.Response.ty_of_payload r in
+				List.mem (Xs_protocol.Op.to_string ty) !disable_reply_ok
 		end
 
 let access_type_enabled x = not(access_type_disabled x)

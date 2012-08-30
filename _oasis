@@ -11,7 +11,7 @@ Library xenstore
   CompiledObject: native
   Path: core
   Findlibname: xenstore
-  Modules: Xs_packet
+  Modules: Xs_protocol
   BuildDepends:	lwt, cstruct, cstruct.syntax
 
 Library xenstore_client

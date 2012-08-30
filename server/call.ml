@@ -13,7 +13,7 @@
  *)
 
 open Lwt
-open Xs_packet
+open Xs_protocol
 open Junk
 
 let ( |> ) a b = b a
@@ -143,9 +143,9 @@ let reply_exn store c (request: t) : Response.payload =
 		if tid = Transaction.none
 		then Transaction.make tid store
 		else Connection.get_transaction c tid in
-	let payload : Xs_packet.Request.payload = match Xs_packet.Request.parse (request: t) with
+	let payload : Xs_protocol.Request.payload = match Xs_protocol.Request.parse (request: t) with
 		| None ->
- 			error "Failed to parse request: got %s" (hexify (Xs_packet.to_string request));
+ 			error "Failed to parse request: got %s" (hexify (Xs_protocol.to_string request));
 			raise Parse_failure
 		| Some x -> x in
 
@@ -189,7 +189,7 @@ let reply_exn store c (request: t) : Response.payload =
 		| Request.Introduce(domid, mfn, remote_port) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
 			Introduce.(introduce { domid = domid; mfn = mfn; remote_port = remote_port });
-			Connection.fire (Xs_packet.Op.Write, Store.Name.introduceDomain);
+			Connection.fire (Xs_protocol.Op.Write, Store.Name.introduceDomain);
 			Response.Introduce
 		| Request.Resume(domid) ->
 			Perms.has c.Connection.perm Perms.RESUME;
@@ -198,13 +198,13 @@ let reply_exn store c (request: t) : Response.payload =
 		| Request.Release(domid) ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
-			Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);
+			Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
 			Response.Release
 		| Request.Set_target(mine, yours) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;
 			Hashtbl.iter
 				(fun address c ->
-					if Xs_packet.domain_of_address address = mine
+					if Xs_protocol.domain_of_address address = mine
 					then c.Connection.perm <- Perms.set_target c.Connection.perm yours;
 				) Connection.by_address;
 			Response.Set_target

@@ -21,7 +21,7 @@ exception Permission_denied
 type domid = int
 
 (* permission of connections *)
-open Xs_packet.ACL
+open Xs_protocol.ACL
 
 type elt = domid * (perm list)
 type t =
@@ -82,30 +82,30 @@ let has (t: t) p =
 	if not(is_dom0 t) then raise Permission_denied
 
 (* check if owner of the current connection and of the current node are the same *)
-let check_owner (connection:t) (node:Xs_packet.ACL.t) =
+let check_owner (connection:t) (node:Xs_protocol.ACL.t) =
 	if not (is_dom0 connection)
-	then is_owner connection node.Xs_packet.ACL.owner
+	then is_owner connection node.Xs_protocol.ACL.owner
 	else true
 
 (* check if the current connection has the requested perm on the current node *)
-let check (connection:t) request (node:Xs_packet.ACL.t) =
+let check (connection:t) request (node:Xs_protocol.ACL.t) =
 	let check_acl domainid =
 		let perm =
-			if List.mem_assoc domainid node.Xs_packet.ACL.acl
-			then List.assoc domainid node.Xs_packet.ACL.acl
-			else node.Xs_packet.ACL.other
+			if List.mem_assoc domainid node.Xs_protocol.ACL.acl
+			then List.assoc domainid node.Xs_protocol.ACL.acl
+			else node.Xs_protocol.ACL.other
 		in
 		match perm, request with
-		| Xs_packet.ACL.NONE, _ ->
+		| Xs_protocol.ACL.NONE, _ ->
 			info "Permission denied: Domain %d has no permission" domainid;
 			false
-		| Xs_packet.ACL.RDWR, _ -> true
-		| Xs_packet.ACL.READ, READ -> true
-		| Xs_packet.ACL.WRITE, WRITE -> true
-		| Xs_packet.ACL.READ, _ ->
+		| Xs_protocol.ACL.RDWR, _ -> true
+		| Xs_protocol.ACL.READ, READ -> true
+		| Xs_protocol.ACL.WRITE, WRITE -> true
+		| Xs_protocol.ACL.READ, _ ->
 			info "Permission denied: Domain %d has read only access" domainid;
 			false
-		| Xs_packet.ACL.WRITE, _ ->
+		| Xs_protocol.ACL.WRITE, _ ->
 			info "Permission denied: Domain %d has write only access" domainid;
 			false
 	in
