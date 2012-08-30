@@ -19,10 +19,12 @@ open Lwt
 open Introduce
 
 let debug fmt = Logging.debug "xs_transport_domain" fmt
+let warn  fmt = Logging.warn  "xs_transport_domain" fmt
+let error fmt = Logging.error "xs_transport_domain" fmt
 
 type t = {
 	address: address;
-    page: Cstruct.buf;
+	ring: Ring.Xenstore.t;
     port: int;
 	c: unit Lwt_condition.t;
 	mutable closing: bool;
@@ -32,7 +34,9 @@ type t = {
 exception Ring_shutdown
 
 let domains : (int, t) Hashtbl.t = Hashtbl.create 128
-let by_port : (int, t) Hashtbl.t = Hashtbl.create 128
+let threads : (int, unit Lwt.t) Hashtbl.t = Hashtbl.create 128
+
+let grant_handles : (int, Gnttab.h) Hashtbl.t = Hashtbl.create 128
 
 (* Handle the DOM_EXC VIRQ *)
 let rec virq_thread port =
@@ -71,10 +75,8 @@ let rec virq_thread port =
 				t.closing <- true;
 				Lwt_condition.broadcast t.c ()
 			) to_close;
-(*
 		if release_domain
-		then Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);                                               
-*)
+		then Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);
 	end;
 	virq_thread port
 
@@ -85,35 +87,37 @@ let (_: 'a Lwt.t) =
 
 let create_domain address =
 	let page = Io_page.get () in
-	match address.page with
-	| Mfn _ ->
-		error "Cannot use xc_map_foreign_range in a unpriviledged domain: cannot connect to domid %d" address.domid;
-		None
-	| Grant g ->
-		begin match Gnttab.map_grant address.domid ~perm:Gnttab.RW g page with
-		| Some h ->
-			Hashtbl.replace grant_handles domid h;
-			let port = Evtchn.bind_interdomain address.domid address.remote_port in
-			let d = {
-				address = address;
-				page = page;
-				port = port;
-				c = Lwt_condition.create ();
-				closing = false;
-			} in
-			Hashtbl.add domains address.domid d;
-			Hashtbl.add by_port port d;
-			Some d
-		| None ->
-			error "Failed to map grant reference: cannot connect to domid %d" address.domid;
-			None
-		end
+	match Gnttab.map_grant ~domid:address.domid ~perm:Gnttab.RW Gnttab.xenstore page with
+	| Some h ->
+		Hashtbl.replace grant_handles address.domid h;
+		let port = Evtchn.bind_interdomain address.domid address.remote_port in
+		let d = {
+			address = address;
+			ring = Ring.Xenstore.of_buf page;
+			port = port;
+			c = Lwt_condition.create ();
+			closing = false;
+		} in
+		let (background_thread: unit Lwt.t) =
+			while_lwt true do
+				lwt () = Activations.wait port in
+				debug "Waking domid %d" d.address.domid;
+				Lwt_condition.broadcast d.c ();
+				return ()
+ 			done >> return () in
 
+		Hashtbl.add domains address.domid d;
+		Hashtbl.add threads port background_thread;
+		Some d
+	| None ->
+		error "Failed to map grant reference: cannot connect to domid %d" address.domid;
+		None
+ 
 let rec read t buf ofs len =
 	if t.closing
 	then fail Ring_shutdown
 	else
-		let n = Xenstore.unsafe_read t.page buf ofs len in
+		let n = Ring.Xenstore.unsafe_read t.ring buf (* ofs *) len in
 		if n = 0
 		then begin
 			lwt () = Lwt_condition.wait t.c in
@@ -127,7 +131,7 @@ let rec write t buf ofs len =
 	if t.closing
 	then fail Ring_shutdown
 	else
-		let n = Xenstore.unsafe_write t.page buf ofs len in
+		let n = Ring.Xenstore.unsafe_write t.ring buf (* ofs *) len in
 		if n > 0 then Evtchn.notify t.port;
 		if n < len then begin
 			lwt () = Lwt_condition.wait t.c in
@@ -135,10 +139,19 @@ let rec write t buf ofs len =
 		end else return ()
 
 let destroy t =
-	Xenstore.xc_evtchn_unbind eventchn t.port;
-	Xenstore.unmap_foreign t.page;
+	Evtchn.unbind t.port;
+	if Hashtbl.mem grant_handles t.address.domid then begin
+		let h = Hashtbl.find grant_handles t.address.domid in
+		if not(Gnttab.unmap_grant h)
+		then error "Failed to unmap grant for domid: %d" t.address.domid;
+		Hashtbl.remove grant_handles t.address.domid
+	end;
+	if Hashtbl.mem threads t.address.domid then begin
+		let th = Hashtbl.find threads t.address.domid in
+		Lwt.cancel th;
+		Hashtbl.remove threads t.address.domid
+	end;
 	Hashtbl.remove domains t.address.domid;
-	Hashtbl.remove by_port t.port;
 	return ()
 
 let address_of t =
@@ -151,8 +164,7 @@ let listen () =
 
 let rec accept_forever stream process =
 	lwt address = Lwt_stream.next stream in
-	lwt d = if address.domid = 0 then create_dom0 () else create_domU address in
-	begin match d with
+	begin match create_domain address with
 		| Some d ->
 			let (_: unit Lwt.t) = process d in
 			()

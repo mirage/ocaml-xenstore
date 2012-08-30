@@ -8,12 +8,14 @@ Plugins:     META (0.2)
 BuildTools:  ocamlbuild
 
 Library xenstore
+  CompiledObject: native
   Path: core
   Findlibname: xenstore
   Modules: Xs_packet
   BuildDepends:	lwt, cstruct, cstruct.syntax
 
 Library xenstore_client
+  CompiledObject: native
   Path: client
   Findlibname: client
   FindlibParent: xenstore
@@ -22,6 +24,7 @@ Library xenstore_client
 
 Library xenstore_unix
   Build$:             flag(unix)
+  CompiledObject: native
   Path: unix
   Findlibname: unix
   FindlibParent: xenstore
@@ -32,61 +35,64 @@ Library xenstore_unix
   CClib: -lxenctrl
 
 Library xenstore_server
+  CompiledObject: native
   Path: server
   Findlibname: server
   FindlibParent: xenstore
   Modules: Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Memory_interface
   BuildDepends: lwt, xenstore
 
-Library xenstore_server_xen
+Library xenstore_server_domain
+  Build$:             flag(xen)
+  CompiledObject: native
   Path: xen
-  Findlibname: xen
-  FindlibParent: xenstore_server
+  Findlibname: domain
+  FindlibParent: xenstore
   Modules: Xs_transport_domain
   BuildDepends: lwt, xenstore, xenstore.server, cstruct, mirage
 
 Executable xs_test
+  CompiledObject: native
   Path:               lib_test
   MainIs:             xs_test.ml
   Build$:             flag(tests)
   Custom:             true
-  CompiledObject:     best
   Install:            false
   BuildDepends:       lwt, xenstore, oUnit
 
 Executable server_test
+  CompiledObject: native
   Path:               server_test
   MainIs:             server_test.ml
   Build$:             flag(tests)
   Custom:             true
-  CompiledObject:     best
   Install:            false
   BuildDepends:       lwt, xenstore, xenstore.server, oUnit, mirage
 
 Executable server_unix
+  CompiledObject: native
   Build$:             flag(unix)
   Path:               server_unix
   MainIs:             server_unix.ml
   Custom:             true
-  CompiledObject:     best
   Install:            true
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, xenstore.unix
 
 Executable xs
+  CompiledObject: native
   Build$:             flag(unix)
   Path:               cli
   MainIs:             xs_client_cli.ml
   Custom:             true
-  CompiledObject:     best
   Install:            true
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.client, xenstore.unix
 
 Executable xsbench
+  CompiledObject: native
   Build$:             flag(unix)
   Path:               bench
   MainIs:             xs_bench.ml
   Custom:             true
-  CompiledObject:     best
   Install:            true
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.client, xenstore.unix
 

@@ -12,13 +12,9 @@
  * GNU Lesser General Public License for more details.
  *)
 
-type page =
-| Mfn of nativeint (** used before xen-4.2, by a priviledged domain *)
-| Grant of int32   (** added in xen-4.2, to allow domain to be unpriviledged *)
-
 type address = {
 	domid: int;
-	page: page;
+	mfn: nativeint;
 	remote_port: int;
 }
 (** A remote domain address *)

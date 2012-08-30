@@ -17,7 +17,7 @@ open Xs_packet
 
 let debug fmt = Logging.debug "server_unix" fmt
 
-(* module DomainServer = Xs_server.Server(Xs_transport_domain) *)
+module DomainServer = Xs_server.Server(Xs_transport_domain)
 
 let rec logging_thread logger =
 	lwt lines = Logging.get logger in
@@ -28,17 +28,35 @@ let rec logging_thread logger =
 			) lines in
 	logging_thread logger
 
+let introduce_dom0 () =
+	(* the cmd_line should have --event %d set by init-xenstore-domain.c *)
+	let cmd_line = (Start_info.((get ()).cmd_line)) in
+	let bits = Junk.split ' ' cmd_line in
+	let rec loop = function
+		| "--event" :: e :: _ ->
+			Some (int_of_string e)
+		| [] ->
+			None
+		| _ :: rest ->
+			loop rest in
+	match loop bits with
+	| None ->
+		error "Failed to find --event <port> on the commandline: %s" cmd_line;
+		()
+	| Some port ->
+		Introduce.(introduce { domid = 0; page = 0n; remote_port = port });
+		debug "Introduced domain 0"
+
 let main () =
-	debug "Unix xenstored starting";
+	debug "Mirage xenstored starting";
 	let (_: 'a) = logging_thread Logging.logger in
 	let (_: 'a) = logging_thread Logging.access_logger in
 
-(*
 	let (a: unit Lwt.t) = DomainServer.serve_forever () in
 	debug "Started server on xen inter-domain transport";
-*)
-	Introduce.(introduce { domid = 0; mfn = 0n; remote_port = 0 });
-	debug "Introduced domain 0";
+
+	introduce_dom0 ();
+
 	return ()
 
 let run () =
