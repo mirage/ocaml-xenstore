@@ -66,3 +66,5 @@ let run () =
 	debug "Sleeping before shutting down";
 	lwt () = OS.Time.sleep 5.0 in
 	return ()
+
+let () = Callback.register "OS.Main.run" run
