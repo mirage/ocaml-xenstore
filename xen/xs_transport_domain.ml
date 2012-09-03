@@ -42,42 +42,44 @@ let grant_handles : (int, Gnttab.h) Hashtbl.t = Hashtbl.create 128
 let rec virq_thread port =
 	lwt () = Activations.wait port in
 	(* Check to see if any of our domains have shutdown *)
-	begin match Sysctl.domain_infolist () with
-	| None ->
-		debug "xc_domain_getinfolist failed"
-	| Some dis ->
-		let open Domctl.Xen_domctl_getdomaininfo in
-		debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.domid :: acc) [] dis));
-		List.iter (fun di ->
-			if di.dying || di.shutdown
-			then debug "domid %d: %s%s%s" di.domid
-				(if di.dying then "dying" else "")
-				(if di.dying && di.shutdown then " and " else "")
-				(if di.shutdown then "shutdown" else "")
-		) dis;
-		let dis_by_domid = Hashtbl.create 128 in
-		List.iter (fun di -> Hashtbl.add dis_by_domid di.domid di) dis;
-		(* Connections to domains which are missing or 'dying' should be closed *)
-		let to_close = Hashtbl.fold (fun domid _ acc ->
-			if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).dying
-			then domid :: acc else acc) domains [] in
-		(* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
-		let release_domain = Hashtbl.fold (fun domid _ acc ->
-			acc || (not(Hashtbl.mem dis_by_domid domid) ||
-						(let di = Hashtbl.find dis_by_domid domid in
-						 di.shutdown || di.dying))
-		) domains false in
-		(* Set the connections to "closing", wake up any readers/writers *)
-		List.iter
-			(fun domid ->
-				debug "closing connection to domid: %d" domid;
-				let t = Hashtbl.find domains domid in
-				t.closing <- true;
-				Lwt_condition.broadcast t.c ()
-			) to_close;
-		if release_domain
-		then Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
-	end;
+    (* It would be more efficient to call getdomaininfolist but only getdomaininfo
+	   is permitted, and only then with an XSM policy. *)
+	let open Domctl.Xen_domctl_getdomaininfo in
+	let dis_by_domid = Hashtbl.create 128 in
+	Hashtbl.iter
+		(fun domid _ ->
+			match Domctl.getdomaininfo domid with
+			| None ->
+				debug "getdomaininfo %d failed" domid
+			| Some di ->
+				if di.dying || di.shutdown
+				then debug "domid %d: %s%s%s" di.domid
+					(if di.dying then "dying" else "")
+					(if di.dying && di.shutdown then " and " else "")
+					(if di.shutdown then "shutdown" else "");
+				Hashtbl.add dis_by_domid domid di
+		) domains;
+	(* Connections to domains which are missing or 'dying' should be closed *)
+	let to_close = Hashtbl.fold (fun domid _ acc ->
+		if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).dying
+		then domid :: acc else acc) domains [] in
+	(* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
+	let release_domain = Hashtbl.fold (fun domid _ acc ->
+		acc || (not(Hashtbl.mem dis_by_domid domid) ||
+					(let di = Hashtbl.find dis_by_domid domid in
+					 di.shutdown || di.dying))
+	) domains false in
+	(* Set the connections to "closing", wake up any readers/writers *)
+	List.iter
+		(fun domid ->
+			debug "closing connection to domid: %d" domid;
+			let t = Hashtbl.find domains domid in
+			t.closing <- true;
+			Lwt_condition.broadcast t.c ()
+		) to_close;
+	if release_domain
+	then Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
+
 	virq_thread port
 
 let (_: 'a Lwt.t) =

@@ -58,6 +58,14 @@ let main () =
 	debug "Started server on xen inter-domain transport";
 
 	introduce_dom0 ();
+	debug "getdomaininfo 0";
+	begin match OS.Domctl.getdomaininfo 0 with
+	| None ->
+		debug "xc_domain_getinfo failed"
+	| Some di ->
+		let open OS.Domctl.Xen_domctl_getdomaininfo in
+		debug "domain %d: dying = %b; shutdown = %b" di.domid di.dying di.shutdown
+	end;
 
 	return ()
 
