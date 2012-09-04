@@ -66,11 +66,9 @@ let main () =
 		let open OS.Domctl.Xen_domctl_getdomaininfo in
 		debug "domain %d: dying = %b; shutdown = %b" di.domid di.dying di.shutdown
 	end;
+	while_lwt true do
+		debug "tick";
+		OS.Time.sleep 5.
+	done
 
-	return ()
-
-let run () =
-	lwt () = main () in
-	while_lwt true do return () done
-
-let () = Callback.register "OS.Main.run" run
+let _ = OS.Main.run (main ())
