@@ -10,6 +10,14 @@ setup.bin: setup.ml
 	@ocamlopt.opt -o $@ $< || ocamlopt -o $@ $< || ocamlc -o $@ $<
 	@rm -f setup.cmx setup.cmi setup.o setup.cmo
 
+build-xen: setup.bin
+	./setup.bin -configure --enable-xen
+	./setup.bin -build -j $(J)
+
+build-unix: setup.bin
+	./setup.bin -configure --enable-unix
+	./setup.bin -build -j $(J)
+
 setup.data: setup.bin
 	@./setup.bin -configure
 
