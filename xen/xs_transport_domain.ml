@@ -45,47 +45,63 @@ let rec virq_thread port =
     (* It would be more efficient to call getdomaininfolist but only getdomaininfo
 	   is permitted, and only then with an XSM policy. *)
 	let open Domctl.Xen_domctl_getdomaininfo in
-	let dis_by_domid = Hashtbl.create 128 in
-	Hashtbl.iter
-		(fun domid _ ->
-			match Domctl.getdomaininfo domid with
-			| None ->
-				debug "getdomaininfo %d failed" domid
-			| Some di ->
-				if di.dying || di.shutdown
-				then debug "domid %d: %s%s%s" di.domid
-					(if di.dying then "dying" else "")
-					(if di.dying && di.shutdown then " and " else "")
-					(if di.shutdown then "shutdown" else "");
-				Hashtbl.add dis_by_domid domid di
-		) domains;
-	(* Connections to domains which are missing or 'dying' should be closed *)
-	let to_close = Hashtbl.fold (fun domid _ acc ->
-		if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).dying
-		then domid :: acc else acc) domains [] in
-	(* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
-	let release_domain = Hashtbl.fold (fun domid _ acc ->
-		acc || (not(Hashtbl.mem dis_by_domid domid) ||
-					(let di = Hashtbl.find dis_by_domid domid in
-					 di.shutdown || di.dying))
-	) domains false in
-	(* Set the connections to "closing", wake up any readers/writers *)
-	List.iter
-		(fun domid ->
-			debug "closing connection to domid: %d" domid;
-			let t = Hashtbl.find domains domid in
-			t.closing <- true;
-			Lwt_condition.broadcast t.c ()
-		) to_close;
-	if release_domain
-	then Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
+	(* Check whether getdomaininfo works first *)
+	if Domctl.getdomaininfo 0 = None then begin
+		warn "Fix the XSM policy so I can call getdomaininfo"
+	end else begin
+		let dis_by_domid = Hashtbl.create 128 in
+		Hashtbl.iter
+			(fun domid _ ->
+				match Domctl.getdomaininfo domid with
+				| None ->
+					debug "getdomaininfo %d failed" domid
+				| Some di ->
+					if di.dying || di.shutdown
+					then debug "domid %d: %s%s%s" di.domid
+						(if di.dying then "dying" else "")
+						(if di.dying && di.shutdown then " and " else "")
+						(if di.shutdown then "shutdown" else "");
+					Hashtbl.add dis_by_domid domid di
+			) domains;
+		(* Connections to domains which are missing or 'dying' should be closed *)
+		let to_close = Hashtbl.fold (fun domid _ acc ->
+			if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).dying
+			then domid :: acc else acc) domains [] in
+		(* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
+		let release_domain = Hashtbl.fold (fun domid _ acc ->
+			acc || (not(Hashtbl.mem dis_by_domid domid) ||
+						(let di = Hashtbl.find dis_by_domid domid in
+						 di.shutdown || di.dying))
+		) domains false in
+		(* Set the connections to "closing", wake up any readers/writers *)
+		List.iter
+			(fun domid ->
+				debug "closing connection to domid: %d" domid;
+				let t = Hashtbl.find domains domid in
+				t.closing <- true;
+				Lwt_condition.broadcast t.c ()
+			) to_close;
+		if release_domain
+		then Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
+	end;
 
 	virq_thread port
 
+(*
 let (_: 'a Lwt.t) =
 	let port = Evtchn.Virq.(bind Dom_exc) in
 	debug "Bound DOM_EXC VIRQ to port %d" port;
 	virq_thread port
+*)
+
+cstruct xenstore_ring{
+	uint8_t req[1024];
+	uint8_t rsp[1024];
+	uint32_t req_cons;
+	uint32_t req_prod;
+	uint32_t rsp_cons;
+	uint32_t rsp_prod
+} as little_endian
 
 let create_domain address =
 	let page = Io_page.get () in
@@ -105,6 +121,13 @@ let create_domain address =
 				debug "Waiting for signal from domid %d on local port %d (remote port %d)" address.domid port address.remote_port;
 				lwt () = Activations.wait port in
 				debug "Waking domid %d" d.address.domid;
+
+				debug "req_cons = %ld; req_prod = %ld; rsp_cons = %ld; rsp_prod = %ld"
+					(get_xenstore_ring_req_cons page)
+					(get_xenstore_ring_req_prod page)
+					(get_xenstore_ring_rsp_cons page)
+					(get_xenstore_ring_rsp_prod page);
+
 				Lwt_condition.broadcast d.c ();
 				return ()
  			done >> return () in
@@ -117,28 +140,36 @@ let create_domain address =
 		None
  
 let rec read t buf ofs len =
-	if t.closing
-	then fail Ring_shutdown
-	else
-		let n = Ring.Xenstore.unsafe_read t.ring buf (* ofs *) len in
+	debug "read size=%d ofs=%d len=%d" (String.length buf) ofs len;
+	if t.closing then begin
+		debug "read failing: Ring_shutdown";
+		fail Ring_shutdown
+	end else
+		let n = Ring.Xenstore.Back.unsafe_read t.ring buf (* ofs *) len in
 		if n = 0
 		then begin
 			debug "read of 0, blocking";
 			lwt () = Lwt_condition.wait t.c in
+			debug "reader woken up";
 			read t buf ofs len
 		end else begin
+			debug "read %d" n;
 			Evtchn.notify t.port;
 			return n
 		end
 
 let rec write t buf ofs len =
-	if t.closing
-	then fail Ring_shutdown
-	else
-		let n = Ring.Xenstore.unsafe_write t.ring buf (* ofs *) len in
+	debug "write size=%d ofs=%d len=%d" (String.length buf) ofs len;
+	if t.closing then begin
+		debug "write failing: Ring_shutdown";
+		fail Ring_shutdown
+	end else
+		let n = Ring.Xenstore.Back.unsafe_write t.ring buf (* ofs *) len in
 		if n > 0 then Evtchn.notify t.port;
 		if n < len then begin
+			debug "write %d < %d blocking" n len;
 			lwt () = Lwt_condition.wait t.c in
+			debug "writer woken up";
 			write t buf (ofs + n) (len - n)
 		end else return ()
 
@@ -171,9 +202,9 @@ let rec accept_forever stream process =
 	begin match create_domain address with
 		| Some d ->
 			let (_: unit Lwt.t) = process d in
-			()
+			debug "Connection created"
 		 | None ->
-			()
+			error "Failed to create connection"
 	end;
 	accept_forever stream process
 
