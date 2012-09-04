@@ -64,7 +64,7 @@ let address_of (fd, _) =
 		if String.length x > y
 		then String.sub x 0 y
 		else x ^ (String.make (y - (String.length x)) ' ') in
-	return (Xs_packet.Unix(padto name 16))
+	return (Xs_protocol.Unix(padto name 16))
 
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr
