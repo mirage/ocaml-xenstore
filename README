@@ -1,7 +1,7 @@
-This repo contains an ocaml xenstore client, a merge of the Mirage and XCP ones.
+This repo contains:
+  1. a xenstore client library, a merge of the Mirage and XCP ones
+  2. a xenstore server library
+  3. a xenstore server instance which runs under Unix with libxc
+  4. a xenstore server instance which runs on mirage.
 
-The aims are:
-1. to have a large common policy-free protocol library with unit-tests
-2. to allow the use of Lwt or not
-3. to run in both Mirage and Unix environments
-4. to provide a simpler watch interface without tokens but with cancellation
+The client and the server libraries have sets of unit-tests.

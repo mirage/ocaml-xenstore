@@ -102,6 +102,7 @@ let create_domain address =
 		} in
 		let (background_thread: unit Lwt.t) =
 			while_lwt true do
+				debug "Waiting for signal from domid %d on local port %d (remote port %d)" address.domid port address.remote_port;
 				lwt () = Activations.wait port in
 				debug "Waking domid %d" d.address.domid;
 				Lwt_condition.broadcast d.c ();
@@ -122,6 +123,7 @@ let rec read t buf ofs len =
 		let n = Ring.Xenstore.unsafe_read t.ring buf (* ofs *) len in
 		if n = 0
 		then begin
+			debug "read of 0, blocking";
 			lwt () = Lwt_condition.wait t.c in
 			read t buf ofs len
 		end else begin

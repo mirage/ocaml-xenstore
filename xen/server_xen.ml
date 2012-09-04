@@ -15,9 +15,9 @@
 open Lwt
 open Xs_protocol
 
-let debug fmt = Logging.debug "server_unix" fmt
-let warn  fmt = Logging.warn  "server_unix" fmt
-let error fmt = Logging.error "server_unix" fmt
+let debug fmt = Logging.debug "server_xen" fmt
+let warn  fmt = Logging.warn  "server_xen" fmt
+let error fmt = Logging.error "server_xen" fmt
 
 module DomainServer = Xs_server.Server(Xs_transport_domain)
 
@@ -47,7 +47,7 @@ let introduce_dom0 () =
 		()
 	| Some port ->
 		Introduce.(introduce { domid = 0; mfn = 0n; remote_port = port });
-		debug "Introduced domain 0"
+		debug "Introduced domain 0 with port = %d" port
 
 let main () =
 	debug "Mirage xenstored starting";

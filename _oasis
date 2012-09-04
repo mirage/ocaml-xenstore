@@ -116,7 +116,7 @@ Flag unix
 
 Flag xen
   Description:        Build xen kernels
-  Default:            true
+  Default:            false
 
 Test xs_test
   Run$:               flag(tests)
