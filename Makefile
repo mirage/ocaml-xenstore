@@ -11,11 +11,11 @@ setup.bin: setup.ml
 	@rm -f setup.cmx setup.cmi setup.o setup.cmo
 
 build-xen: setup.bin
-	./setup.bin -configure --enable-xen
+	./setup.bin -configure --enable-xen --disable-unix
 	./setup.bin -build -j $(J)
 
 build-unix: setup.bin
-	./setup.bin -configure --enable-unix
+	./setup.bin -configure --disable-xen --enable-unix --enable-tests
 	./setup.bin -build -j $(J)
 
 setup.data: setup.bin
@@ -30,8 +30,13 @@ doc: setup.data setup.bin
 install: setup.bin
 	@./setup.bin -install
 
-test: setup.bin build
-	@./setup.bin -test
+# oasis bug?
+#test: setup.bin build
+#	@./setup.bin -test
+test:
+	_build/core_test/xs_test.native
+	_build/server_test/server_test.native
+
 
 reinstall: setup.bin
 	@ocamlfind remove $(NAME) || true

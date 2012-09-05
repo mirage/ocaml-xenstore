@@ -75,12 +75,12 @@ Executable            server_xen
 
 Executable xs_test
   CompiledObject:     best
-  Path:               lib_test
+  Path:               core_test
   MainIs:             xs_test.ml
   Build$:             flag(tests)
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, xenstore, oUnit
+  BuildDepends:       lwt, lwt.unix, xenstore, oUnit
 
 Executable server_test
   CompiledObject:     best
@@ -121,7 +121,7 @@ Executable xsbench
 Test xs_test
   Run$:               flag(tests)
   Command:            $xs_test
-  WorkingDirectory:   lib_test
+  WorkingDirectory:   core_test
 
 Test server_test
   Run$:               flag(tests)

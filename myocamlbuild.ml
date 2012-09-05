@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: d91dba86adb6c529b513eddb20c645a9) *)
+(* DO NOT EDIT (digest: 3ebd49fa96b0eee6f1f7b9216c6c576b) *)
 module OASISGettext = struct
 # 21 "/home/djs/oasis/src/oasis/OASISGettext.ml"
 
@@ -596,7 +596,7 @@ let package_default =
           ("server_unix", ["core"; "server"; "unix"]);
           ("server_test", ["core"; "server"]);
           ("server", ["core"]);
-          ("lib_test", ["core"]);
+          ("core_test", ["core"]);
           ("client", ["core"]);
           ("cli", ["client"; "core"; "unix"]);
           ("bench", ["client"; "core"; "unix"])
