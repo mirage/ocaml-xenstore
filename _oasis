@@ -50,7 +50,7 @@ Executable server_test
   Build$:             flag(tests)
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, xenstore, xenstore.server, oUnit, mirage
+  BuildDepends:       lwt, xenstore, xenstore.server, oUnit
 
 Test xs_test
   Run$:               flag(tests)
