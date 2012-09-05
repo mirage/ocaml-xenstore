@@ -6,3 +6,6 @@ setup.bin
 *.docdir
 *.native
 *.byte
+*~
+#*
+*#
