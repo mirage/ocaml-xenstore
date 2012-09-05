@@ -38,6 +38,7 @@ let threads : (int, unit Lwt.t) Hashtbl.t = Hashtbl.create 128
 
 let grant_handles : (int, Gnttab.h) Hashtbl.t = Hashtbl.create 128
 
+(*
 (* Handle the DOM_EXC VIRQ *)
 let rec virq_thread port =
 	lwt () = Activations.wait port in
@@ -86,7 +87,7 @@ let rec virq_thread port =
 	end;
 
 	virq_thread port
-
+*)
 (*
 let (_: 'a Lwt.t) =
 	let port = Evtchn.Virq.(bind Dom_exc) in
