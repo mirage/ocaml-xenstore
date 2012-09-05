@@ -122,7 +122,7 @@ let eventchn =
 								Lwt_condition.broadcast t.c ()
 							) to_close;
 						if release_domain
-						then Connection.fire (Xs_packet.Op.Write, Store.Name.releaseDomain);                                               
+						then Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);                                               
 				end;
 				return ()
 			end else return ()
@@ -210,7 +210,7 @@ let destroy t =
 	return ()
 
 let address_of t =
-	return (Xs_packet.Domain t.address.domid)
+	return (Xs_protocol.Domain t.address.domid)
 
 type server = address Lwt_stream.t
 

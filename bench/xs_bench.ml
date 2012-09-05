@@ -29,13 +29,13 @@ let getdomainpath domid client =
 let readdir d client =
 	try_lwt
 		with_xs client (fun xs -> directory xs d)
-	with Xs_packet.Enoent _ ->
+	with Xs_protocol.Enoent _ ->
 		return []
 
 let read_opt path xs =
 	try_lwt
 		lwt x = read xs path in return (Some x)
-	with Xs_packet.Enoent _ ->
+	with Xs_protocol.Enoent _ ->
 		return None
 
 let exists path xs = read_opt path xs >|= (fun x -> x <> None)
@@ -222,17 +222,17 @@ let add device client =
 			   record our own use of /dev/loop devices. Clearing this causes us to leak
 			   one per PV .iso *)
 			lwt () = mkdir xs frontend_path in
-			lwt () = setperms xs frontend_path (Xs_packet.ACL.({owner = device.frontend.domid; other = NONE; acl = [ device.backend.domid, READ ]})) in
+			lwt () = setperms xs frontend_path (Xs_protocol.ACL.({owner = device.frontend.domid; other = NONE; acl = [ device.backend.domid, READ ]})) in
 			lwt () = mkdir xs backend_path in
-			lwt () = setperms xs backend_path (Xs_packet.ACL.({owner = device.backend.domid; other = NONE; acl = [ device.frontend.domid, READ ]})) in
+			lwt () = setperms xs backend_path (Xs_protocol.ACL.({owner = device.backend.domid; other = NONE; acl = [ device.frontend.domid, READ ]})) in
 			lwt () = mkdir xs hotplug_path in
-			lwt () = setperms xs hotplug_path (Xs_packet.ACL.({owner = device.backend.domid; other = NONE; acl = []})) in
+			lwt () = setperms xs hotplug_path (Xs_protocol.ACL.({owner = device.backend.domid; other = NONE; acl = []})) in
 			lwt () = Lwt_list.iter_s (fun (x, y) -> write xs (frontend_path ^ "/" ^ x) y)
 		        (("backend", backend_path) :: frontend_list) in
 			lwt () = Lwt_list.iter_s (fun (x, y) -> write xs (backend_path ^ "/" ^ x) y)
 				(("frontend", frontend_path) :: backend_list) in
 			lwt () = mkdir xs private_data_path in
-			lwt () = setperms xs private_data_path (Xs_packet.ACL.({owner = device.backend.domid; other = NONE; acl = []})) in
+			lwt () = setperms xs private_data_path (Xs_protocol.ACL.({owner = device.backend.domid; other = NONE; acl = []})) in
 			lwt () = Lwt_list.iter_s (fun (x, y) -> write xs (private_data_path ^ "/" ^ x) y)
 				(("backend-kind", string_of_kind device.backend.kind) ::
 					("backend-id", string_of_int device.backend.domid) :: private_list) in
@@ -260,8 +260,8 @@ let make domid client =
 	let bios_strings = [
 		"bios_strings", "bios_strings"
 	] in
-	let roperm = Xs_packet.ACL.({owner = 0; other = NONE; acl = [ domid, READ ]}) in
-	let rwperm = Xs_packet.ACL.({owner = domid; other = NONE; acl = []}) in
+	let roperm = Xs_protocol.ACL.({owner = 0; other = NONE; acl = [ domid, READ ]}) in
+	let rwperm = Xs_protocol.ACL.({owner = domid; other = NONE; acl = []}) in
 	lwt () =
 		with_xst client
 			(fun xs ->
