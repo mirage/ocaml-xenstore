@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 3ebd49fa96b0eee6f1f7b9216c6c576b) *)
+(* DO NOT EDIT (digest: 23a1aeb896926304a66fbae20d5292d9) *)
 module OASISGettext = struct
 # 21 "/home/djs/oasis/src/oasis/OASISGettext.ml"
 
@@ -562,50 +562,22 @@ let package_default =
        [
           ("xenstore", ["core"]);
           ("xenstore_client", ["client"]);
-          ("xenstore_server", ["server"]);
-          ("xenstore_unix", ["unix"]);
-          ("xenstore_server_domain", ["xen"])
+          ("xenstore_server", ["server"])
        ];
-     lib_c = [("xenstore_unix", "unix", [])];
-     flags =
-       [
-          (["oasis_library_xenstore_unix_ccopt"; "compile"],
-            [
-               (OASISExpr.EBool true,
-                 S
-                   [
-                      A "-ccopt";
-                      A "-I.";
-                      A "-ccopt";
-                      A "-I/home/djs/.opam/system/lib";
-                      A "-ccopt";
-                      A "-I/home/djs/.opam/system/lib/lwt";
-                      A "-ccopt";
-                      A "-I/usr/lib/ocaml/lwt"
-                   ])
-            ]);
-          (["oasis_library_xenstore_unix_cclib"; "link"],
-            [(OASISExpr.EBool true, S [A "-cclib"; A "-lxenctrl"])]);
-          (["oasis_library_xenstore_unix_cclib"; "ocamlmklib"; "c"],
-            [(OASISExpr.EBool true, S [A "-lxenctrl"])])
-       ];
+     lib_c = [];
+     flags = [];
      includes =
        [
-          ("xen", ["core"; "server"]);
-          ("unix", ["core"; "server"]);
-          ("server_unix", ["core"; "server"; "unix"]);
           ("server_test", ["core"; "server"]);
           ("server", ["core"]);
           ("core_test", ["core"]);
-          ("client", ["core"]);
-          ("cli", ["client"; "core"; "unix"]);
-          ("bench", ["client"; "core"; "unix"])
+          ("client", ["core"])
        ];
      }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 610 "myocamlbuild.ml"
+# 582 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

@@ -6,20 +6,18 @@ J=4
 
 export OCAMLRUNPARAM=b
 
+TESTS ?= --enable-tests
+ifneq "$(MIRAGE_OS)" ""
+TESTS := --disable-tests
+endif
+
+
 setup.bin: setup.ml
 	@ocamlopt.opt -o $@ $< || ocamlopt -o $@ $< || ocamlc -o $@ $<
 	@rm -f setup.cmx setup.cmi setup.o setup.cmo
 
-build-xen: setup.bin
-	./setup.bin -configure --enable-xen --disable-unix
-	./setup.bin -build -j $(J)
-
-build-unix: setup.bin
-	./setup.bin -configure --disable-xen --enable-unix --enable-tests
-	./setup.bin -build -j $(J)
-
 setup.data: setup.bin
-	@./setup.bin -configure
+	@./setup.bin -configure $(TESTS)
 
 build: setup.data setup.bin
 	@./setup.bin -build -j $(J)

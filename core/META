@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1c956d11c7d7538a6239fc2d4fd01440)
+# DO NOT EDIT (digest: fba076e3be68df6e51ed5fdcf870fad0)
 version = "0.9-dev"
 description = "Xenstore protocol library"
 requires = "lwt cstruct cstruct.syntax"
@@ -8,17 +8,6 @@ archive(byte, plugin) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
 archive(native, plugin) = "xenstore.cmxs"
 exists_if = "xenstore.cma"
-package "unix" (
- version = "0.9-dev"
- description = "Xenstore protocol library"
- requires = "lwt xenstore xenstore.server"
- archive(byte) = "xenstore_unix.cma"
- archive(byte, plugin) = "xenstore_unix.cma"
- archive(native) = "xenstore_unix.cmxa"
- archive(native, plugin) = "xenstore_unix.cmxs"
- exists_if = "xenstore_unix.cma"
-)
-
 package "server" (
  version = "0.9-dev"
  description = "Xenstore protocol library"
@@ -28,17 +17,6 @@ package "server" (
  archive(native) = "xenstore_server.cmxa"
  archive(native, plugin) = "xenstore_server.cmxs"
  exists_if = "xenstore_server.cma"
-)
-
-package "domain" (
- version = "0.9-dev"
- description = "Xenstore protocol library"
- requires = "lwt xenstore xenstore.server cstruct mirage"
- archive(byte) = "xenstore_server_domain.cma"
- archive(byte, plugin) = "xenstore_server_domain.cma"
- archive(native) = "xenstore_server_domain.cmxa"
- archive(native, plugin) = "xenstore_server_domain.cmxs"
- exists_if = "xenstore_server_domain.cmxa"
 )
 
 package "client" (

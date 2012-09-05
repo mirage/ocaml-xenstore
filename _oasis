@@ -2,22 +2,14 @@ OASISFormat: 0.2
 Name:        xenstore
 Version:     0.9-dev
 Synopsis:    Xenstore protocol library
-Authors:     Citrix Systems R&D, Anil Madhavapeddy
-License:     LGPL-2.0 with OCaml linking exception
+Authors:     see CREDITS.md
+License:     LGPL-2.1 with OCaml linking exception
 Plugins:     META (0.2)
 BuildTools:  ocamlbuild
 
 Flag tests
   Description:        Build and run tests
-  Default:            false
-
-Flag unix
-  Description:        Build Unix executables
-  Default:            false
-
-Flag xen
-  Description:        Build xen kernels
-  Default:            false
+  Default:            true
 
 Library xenstore
   CompiledObject:     best
@@ -34,18 +26,6 @@ Library xenstore_client
   Modules:            Xs_client
   BuildDepends:       lwt, xenstore
 
-Library xenstore_unix
-  Build$:             flag(unix)
-  CompiledObject:     best
-  Path:               unix
-  Findlibname:        unix
-  FindlibParent:      xenstore
-  Modules:            Xs_transport_unix, Xs_transport_xen, Xenstore
-  BuildDepends:       lwt, xenstore, xenstore.server
-  CSources:           xenstore_stubs.c
-  CCOpt:              -I. -I/home/djs/.opam/system/lib -I/home/djs/.opam/system/lib/lwt -I/usr/lib/ocaml/lwt
-  CClib:              -lxenctrl
-
 Library xenstore_server
   CompiledObject:     best
   Path:               server
@@ -53,25 +33,6 @@ Library xenstore_server
   FindlibParent:      xenstore
   Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Memory_interface
   BuildDepends:       lwt, xenstore
-
-Library xenstore_server_domain
-  Build$:             flag(xen)
-  CompiledObject:     native
-  Path:               xen
-  Findlibname:        domain
-  FindlibParent:      xenstore
-  Modules:            Xs_transport_domain
-  BuildDepends:       lwt, xenstore, xenstore.server, cstruct, mirage
-
-Executable            server_xen
-  Build$:             flag(xen)
-  Target:             xen
-  CompiledObject:     best
-  Path:               xen
-  MainIs:             server_xen.ml
-  Install:            false
-  Custom:             true
-  BuildDepends:       lwt, xenstore, xenstore.server, xenstore.domain, cstruct, mirage
 
 Executable xs_test
   CompiledObject:     best
@@ -90,33 +51,6 @@ Executable server_test
   Custom:             true
   Install:            false
   BuildDepends:       lwt, xenstore, xenstore.server, oUnit, mirage
-
-Executable server_unix
-  CompiledObject:     best
-  Build$:             flag(unix)
-  Path:               server_unix
-  MainIs:             server_unix.ml
-  Custom:             true
-  Install:            true
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, xenstore.unix
-
-Executable xs
-  CompiledObject:     best
-  Build$:             flag(unix)
-  Path:               cli
-  MainIs:             xs_client_cli.ml
-  Custom:             true
-  Install:            true
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.client, xenstore.unix
-
-Executable xsbench
-  CompiledObject:     best
-  Build$:             flag(unix)
-  Path:               bench
-  MainIs:             xs_bench.ml
-  Custom:             true
-  Install:            true
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.client, xenstore.unix
 
 Test xs_test
   Run$:               flag(tests)
