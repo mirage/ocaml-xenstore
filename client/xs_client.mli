@@ -31,6 +31,15 @@ module Client : functor(T: TRANSPORT) -> sig
   val make : unit -> client Lwt.t
   (** [make ()] initialises and returns a xenstore client *)
 
+  val suspend : client -> unit Lwt.t
+  (** [suspend ()] suspends the client, waiting for outstanding
+      RPCs to be completed, cancelling all watches
+      and causing new requests to be queued *)
+
+  val resume : client -> unit Lwt.t
+  (** [resume ()] resumes the client. The connection must
+      be up and running again before using this function. *)
+
   type handle
   (** A handle represents a single thread's xenstore access *)
 
