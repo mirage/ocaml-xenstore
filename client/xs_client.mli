@@ -12,19 +12,23 @@
  * GNU Lesser General Public License for more details.
  *)
 
-module type TRANSPORT = sig
-  type t
-  val create: unit -> t Lwt.t
-  val destroy: t -> unit Lwt.t
-  val read: t -> string -> int -> int -> int Lwt.t
-  val write: t -> string -> int -> int -> unit Lwt.t
+module type IO = sig
+  type 'a t = 'a Lwt.t
+  val return: 'a -> 'a t
+  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
+
+  type channel
+  val create: unit -> channel t
+  val destroy: channel -> unit t
+  val read: channel -> string -> int -> int -> int t
+  val write: channel -> string -> int -> int -> unit t
 end
 
 exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
-module Client : functor(T: TRANSPORT) -> sig
+module Client : functor(IO: IO) -> sig
   type client
   (** A multiplexing xenstore client *)
 

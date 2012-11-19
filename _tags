@@ -61,4 +61,5 @@
 # OASIS_STOP
 true: annot
 <*/*>: syntax_camlp4o
-<*/*>: pkg_lwt.syntax
+<client/*>: pkg_lwt.syntax
+<server/*>: pkg_lwt.syntax

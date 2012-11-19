@@ -17,12 +17,16 @@
 open Lwt
 open Xs_protocol
 
-module type TRANSPORT = sig
-  type t
-  val create: unit -> t Lwt.t
-  val destroy: t -> unit Lwt.t
-  val read: t -> string -> int -> int -> int Lwt.t
-  val write: t -> string -> int -> int -> unit Lwt.t
+module type IO = sig
+  type 'a t = 'a Lwt.t
+  val return: 'a -> 'a t
+  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
+
+  type channel
+  val create: unit -> channel t
+  val destroy: channel -> unit t
+  val read: channel -> string -> int -> int -> int t
+  val write: channel -> string -> int -> int -> unit t
 end
 
 let ( |> ) a b = b a
@@ -84,12 +88,12 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
-module Client = functor(T: TRANSPORT) -> struct
-  module PS = PacketStream(T)
+module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
+  module PS = PacketStream(IO)
 
   (* Represents a single acive connection to a server *)
   type client = {
-    transport: T.t;
+    transport: IO.channel;
     ps: PS.stream;
     rid_to_wakeup: (int32, Xs_protocol.t Lwt.u) Hashtbl.t;
     mutable dispatcher_thread: unit Lwt.t;
@@ -101,7 +105,9 @@ module Client = functor(T: TRANSPORT) -> struct
     suspended_c : unit Lwt_condition.t;
   }
 
-  let recv_one t = PS.recv t.ps
+  let recv_one t = match_lwt (PS.recv t.ps) with
+    | Ok x -> return x
+    | Exception e -> raise_lwt e
   let send_one t = PS.send t.ps
 
   let handle_exn t e =
@@ -151,7 +157,7 @@ module Client = functor(T: TRANSPORT) -> struct
 
 
   let make () =
-    lwt transport = T.create () in
+    lwt transport = IO.create () in
     let t = {
       transport = transport;
       ps = PS.make transport;
@@ -271,9 +277,12 @@ module Client = functor(T: TRANSPORT) -> struct
 
   let with_xs client f = f (Handle.no_transaction client)
 
+  let counter = ref 0l
+
   let wait client f =
     let open StringSet in
-    let token = Token.of_user_string "xs_client.wait" in
+    counter := Int32.succ !counter;
+    let token = Token.of_string (Printf.sprintf "%ld:xs_client.wait" !counter) in
     (* When we register the 'watcher', the dispatcher thread will signal us when
        watches arrive. *)
     let watcher = Watcher.make () in
