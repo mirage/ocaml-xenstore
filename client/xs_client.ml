@@ -95,47 +95,60 @@ module Client = functor(T: TRANSPORT) -> struct
     mutable dispatcher_thread: unit Lwt.t;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
+
+    mutable suspended : bool;
+    suspended_m : Lwt_mutex.t;
+    suspended_c : unit Lwt_condition.t;
   }
 
   let recv_one t = PS.recv t.ps
   let send_one t = PS.send t.ps
 
+  let handle_exn t e =
+    Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
+    lwt () = begin 
+      match e with
+      | Xs_protocol.Response_parser_failed x ->
+      (* Lwt_io.hexdump Lwt_io.stderr x *)
+         return ()
+      | _ -> return () end in
+    t.dispatcher_shutting_down <- true; (* no more hashtable entries after this *)
+    (* all blocking threads are failed with our exception *)
+    lwt () = Lwt_mutex.with_lock t.suspended_m (fun () ->
+      Printf.fprintf stderr "Propagating exception to %d threads\n%!" (Hashtbl.length t.rid_to_wakeup);
+      Hashtbl.iter (fun _ u -> Lwt.wakeup_later_exn u e) t.rid_to_wakeup;
+      return ()) in
+    raise_lwt e
+
   let rec dispatcher t =
-    try_lwt
-      lwt pkt = recv_one t in
-      begin match get_ty pkt with
-        | Op.Watchevent  ->
-          lwt () = begin match Unmarshal.list pkt with
-            | Some [path; token] ->
-              let token = Token.of_string token in
-              (* We may get old watches: silently drop these *)
-              if Hashtbl.mem t.watchevents token
-	      then Watcher.put (Hashtbl.find t.watchevents token) path >> dispatcher t
-              else dispatcher t
-	    | _ ->
-              raise_lwt Malformed_watch_event
+    lwt pkt = try_lwt recv_one t with e -> handle_exn t e in
+    match get_ty pkt with
+      | Op.Watchevent  ->
+        lwt () = begin match Unmarshal.list pkt with
+          | Some [path; token] ->
+            let token = Token.of_string token in
+            (* We may get old watches: silently drop these *)
+            if Hashtbl.mem t.watchevents token
+            then Watcher.put (Hashtbl.find t.watchevents token) path >> dispatcher t
+            else dispatcher t
+          | _ ->
+            handle_exn t Malformed_watch_event
           end in
-          dispatcher t
-        | _ ->
-          let rid = get_rid pkt in
-          if not(Hashtbl.mem t.rid_to_wakeup rid)
-	  then raise_lwt (Unexpected_rid rid)
-	  else begin
-            Lwt.wakeup (Hashtbl.find t.rid_to_wakeup rid) pkt;
-            dispatcher t
-	  end
-      end
-   with e ->
-	   Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
-	   lwt () = begin match e with
-	   | Xs_protocol.Response_parser_failed x ->
-(*		   Lwt_io.hexdump Lwt_io.stderr x *)
-		   return ()
-	   | _ -> return () end in
-     t.dispatcher_shutting_down <- true; (* no more hashtable entries after this *)
-     (* all blocking threads are failed with our exception *)
-     Hashtbl.iter (fun _ u -> Lwt.wakeup_later_exn u e) t.rid_to_wakeup;
-     raise_lwt e
+        dispatcher t
+      | _ ->
+        let rid = get_rid pkt in
+        lwt thread = Lwt_mutex.with_lock t.suspended_m (fun () -> 
+          if Hashtbl.mem t.rid_to_wakeup rid
+          then return (Some (Hashtbl.find t.rid_to_wakeup rid))
+          else return None) in
+        match thread with
+          | None -> handle_exn t (Unexpected_rid rid)
+          | Some thread -> 
+            begin
+              Lwt.wakeup_later thread pkt;
+              dispatcher t
+            end
+
 
   let make () =
     lwt transport = T.create () in
@@ -146,9 +159,32 @@ module Client = functor(T: TRANSPORT) -> struct
       dispatcher_thread = return ();
       dispatcher_shutting_down = false;
       watchevents = Hashtbl.create 10;
+      suspended = false;
+      suspended_m = Lwt_mutex.create ();
+      suspended_c = Lwt_condition.create ();
     } in
     t.dispatcher_thread <- dispatcher t;
     return t
+
+  let suspend t =
+    lwt () = Lwt_mutex.with_lock t.suspended_m
+      (fun () -> 
+        t.suspended <- true;
+        while_lwt (Hashtbl.length t.rid_to_wakeup > 0) do
+          Lwt_condition.wait ~mutex:t.suspended_m t.suspended_c
+        done) in
+      Hashtbl.iter (fun _ watcher -> Watcher.cancel watcher) t.watchevents;
+      Lwt.cancel t.dispatcher_thread;
+      return ()
+
+  let resume t =
+    lwt () = Lwt_mutex.with_lock t.suspended_m (fun () -> 
+      t.suspended <- false;
+      t.dispatcher_shutting_down <- false;
+      Lwt_condition.broadcast t.suspended_c (); 
+      return ()) in
+    t.dispatcher_thread <- dispatcher t;
+    return ()
 
     (** A 'handle' is a sub-connection used for a particular purpose.
         The handle is a convenient place to store sub-connection state *)
@@ -204,10 +240,19 @@ module Client = functor(T: TRANSPORT) -> struct
     if h.client.dispatcher_shutting_down
     then raise_lwt Dispatcher_failed
     else begin
-      Hashtbl.add h.client.rid_to_wakeup rid u;
-      lwt () = send_one h.client request in
+      lwt () = Lwt_mutex.with_lock h.client.suspended_m (fun () ->
+        lwt () = while_lwt h.client.suspended do
+          Lwt_condition.wait ~mutex:h.client.suspended_m h.client.suspended_c
+        done in
+        Hashtbl.add h.client.rid_to_wakeup rid u;   
+        lwt () = send_one h.client request in
+        return ()) in
       lwt res = t in
-      Hashtbl.remove h.client.rid_to_wakeup rid;
+      lwt () = Lwt_mutex.with_lock h.client.suspended_m 
+        (fun () -> 
+          Hashtbl.remove h.client.rid_to_wakeup rid;
+          Lwt_condition.broadcast h.client.suspended_c (); 
+          return ()) in
       try_lwt
         return (response hint request res unmarshal)
  end
