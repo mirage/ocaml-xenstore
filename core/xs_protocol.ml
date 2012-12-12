@@ -147,7 +147,7 @@ cstruct header {
 } as little_endian
 
 let to_string pkt =
-  let header = Bigarray.Array1.create Bigarray.char Bigarray.c_layout sizeof_header in
+  let header = Cstruct.create sizeof_header in
   let len = Int32.of_int (Buffer.length pkt.data) in
   let ty = Op.to_int32 pkt.ty in
   set_header_ty header ty;
@@ -189,10 +189,8 @@ module Parser = struct
     | Finished r -> r
 
   let parse_header str =
-    let header = Bigarray.Array1.create Bigarray.char Bigarray.c_layout sizeof_header in
-    for i = 0 to sizeof_header - 1 do
-      header.{i} <- str.[i]
-    done;
+    let header = Cstruct.create sizeof_header in
+    Cstruct.blit_string str 0 header 0 sizeof_header;
     let ty = get_header_ty header in
     let rid = get_header_rid header in
     let tid = get_header_tid header in
