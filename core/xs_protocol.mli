@@ -22,7 +22,7 @@ module Op : sig
     | Getdomainpath | Write | Mkdir | Rm
     | Setperms | Watchevent | Error | Isintroduced
     | Resume | Set_target
-	| Restrict
+  | Restrict
   (** The type of xenstore operation *)
 
   val to_string: t -> string
@@ -47,9 +47,9 @@ module ACL : sig
   type domid = int
 
   type t = {
-	  owner: domid;             (** domain which "owns", has full access *)
-	  other: perm;              (** default permissions for all others... *)
-	  acl: (domid * perm) list; (** ... unless overridden in the ACL *)
+    owner: domid;             (** domain which "owns", has full access *)
+    other: perm;              (** default permissions for all others... *)
+    acl: (domid * perm) list; (** ... unless overridden in the ACL *)
   }
 
   val of_string: string -> t option
@@ -156,33 +156,33 @@ end
 
 module Request : sig
 
-	type path_op =
-	| Read
-	| Directory
-	| Getperms
-	| Write of string
-	| Mkdir
-	| Rm
-	| Setperms of ACL.t
+  type path_op =
+  | Read
+  | Directory
+  | Getperms
+  | Write of string
+  | Mkdir
+  | Rm
+  | Setperms of ACL.t
 
-	type payload =
-	| PathOp of string * path_op
-	| Getdomainpath of int
-	| Transaction_start
-	| Watch of string * string
-	| Unwatch of string * string
-	| Transaction_end of bool
-	| Debug of string list
-	| Introduce of int * Nativeint.t * int
-	| Resume of int
-	| Release of int
-	| Set_target of int * int
-	| Restrict of int
-	| Isintroduced of int
-	| Error of string
-	| Watchevent of string
+  type payload =
+  | PathOp of string * path_op
+  | Getdomainpath of int
+  | Transaction_start
+  | Watch of string * string
+  | Unwatch of string * string
+  | Transaction_end of bool
+  | Debug of string list
+  | Introduce of int * Nativeint.t * int
+  | Resume of int
+  | Release of int
+  | Set_target of int * int
+  | Restrict of int
+  | Isintroduced of int
+  | Error of string
+  | Watchevent of string
 
-	val ty_of_payload: payload -> Op.t
+  val ty_of_payload: payload -> Op.t
 
   val prettyprint_payload: payload -> string
   val prettyprint: t -> string

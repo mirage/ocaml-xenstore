@@ -24,7 +24,7 @@ module Op = struct
     | Getdomainpath | Write | Mkdir | Rm
     | Setperms | Watchevent | Error | Isintroduced
     | Resume | Set_target
-	| Restrict
+  | Restrict
 
 (* The index of the value in the array is the integer representation used
    by the wire protocol. Every element of t exists exactly once in the array. *)
@@ -35,7 +35,7 @@ let on_the_wire =
      Getdomainpath; Write; Mkdir; Rm;
      Setperms; Watchevent; Error; Isintroduced;
      Resume; Set_target;
-	 Restrict
+   Restrict
   |]
 
 let of_int32 i =
@@ -91,24 +91,24 @@ module ACL = struct
     | RDWR
 
   let char_of_perm = function
-	  | READ -> 'r'
-	  | WRITE -> 'w'
-	  | RDWR -> 'b'
-	  | NONE -> 'n'
+    | READ -> 'r'
+    | WRITE -> 'w'
+    | RDWR -> 'b'
+    | NONE -> 'n'
 
   let perm_of_char = function
-	  | 'r' -> Some READ
-	  | 'w' -> Some WRITE
-	  | 'b' -> Some RDWR
-	  | 'n' -> Some NONE
-	  | _ -> None
+    | 'r' -> Some READ
+    | 'w' -> Some WRITE
+    | 'b' -> Some RDWR
+    | 'n' -> Some NONE
+    | _ -> None
 
   type domid = int
 
   type t = {
-	  owner: domid;             (** domain which "owns", has full access *)
-	  other: perm;              (** default permissions for all others... *)
-	  acl: (domid * perm) list; (** ... unless overridden in the ACL *)
+    owner: domid;             (** domain which "owns", has full access *)
+    other: perm;              (** default permissions for all others... *)
+    acl: (domid * perm) list; (** ... unless overridden in the ACL *)
   }
 
   let to_string perms =
@@ -117,18 +117,18 @@ module ACL = struct
 
   let of_string s =
       (* A perm is stored as '<c>domid' *)
-	  let perm_of_char_exn x = match (perm_of_char x) with Some y -> y | None -> raise Not_found in
-	  try
-		  let perm_of_string s =
-			  if String.length s < 2
-			  then invalid_arg (Printf.sprintf "Permission string too short: '%s'" s);
-			  int_of_string (String.sub s 1 (String.length s - 1)), perm_of_char_exn s.[0] in
-		  let l = List.map perm_of_string (split_string '\000' s) in
-		  match l with
-			  | (owner, other) :: l -> Some { owner = owner; other = other; acl = l }
-			  | [] -> Some { owner = 0; other = NONE; acl = [] }
+    let perm_of_char_exn x = match (perm_of_char x) with Some y -> y | None -> raise Not_found in
+    try
+      let perm_of_string s =
+        if String.length s < 2
+        then invalid_arg (Printf.sprintf "Permission string too short: '%s'" s);
+        int_of_string (String.sub s 1 (String.length s - 1)), perm_of_char_exn s.[0] in
+      let l = List.map perm_of_string (split_string '\000' s) in
+      match l with
+        | (owner, other) :: l -> Some { owner = owner; other = other; acl = l }
+        | [] -> Some { owner = 0; other = NONE; acl = [] }
       with e ->
-		  None
+      None
 end
 
 type t = {
@@ -140,21 +140,21 @@ type t = {
 }
 
 cstruct header {
-	uint32_t ty;
-	uint32_t rid;
-	uint32_t tid;
-	uint32_t len
+  uint32_t ty;
+  uint32_t rid;
+  uint32_t tid;
+  uint32_t len
 } as little_endian
 
 let to_string pkt =
-	let header = Bigarray.Array1.create Bigarray.char Bigarray.c_layout sizeof_header in
-	let len = Int32.of_int (Buffer.length pkt.data) in
-	let ty = Op.to_int32 pkt.ty in
-	set_header_ty header ty;
-	set_header_rid header pkt.rid;
-	set_header_tid header pkt.tid;
-	set_header_len header len;
-	Cstruct.to_string header ^ (Buffer.contents pkt.data)
+  let header = Bigarray.Array1.create Bigarray.char Bigarray.c_layout sizeof_header in
+  let len = Int32.of_int (Buffer.length pkt.data) in
+  let ty = Op.to_int32 pkt.ty in
+  set_header_ty header ty;
+  set_header_rid header pkt.rid;
+  set_header_tid header pkt.tid;
+  set_header_len header len;
+  Cstruct.to_string header ^ (Buffer.contents pkt.data)
 
 let get_tid pkt = pkt.tid
 let get_ty pkt = pkt.ty
@@ -189,46 +189,46 @@ module Parser = struct
     | Finished r -> r
 
   let parse_header str =
-	  let header = Bigarray.Array1.create Bigarray.char Bigarray.c_layout sizeof_header in
-	  for i = 0 to sizeof_header - 1 do
-		  header.{i} <- str.[i]
-	  done;
-	  let ty = get_header_ty header in
-	  let rid = get_header_rid header in
-	  let tid = get_header_tid header in
-	  let len = get_header_len header in
+    let header = Bigarray.Array1.create Bigarray.char Bigarray.c_layout sizeof_header in
+    for i = 0 to sizeof_header - 1 do
+      header.{i} <- str.[i]
+    done;
+    let ty = get_header_ty header in
+    let rid = get_header_rid header in
+    let tid = get_header_tid header in
+    let len = get_header_len header in
 
-	  let len = Int32.to_int len in
-	  (* TODO: detect anamalous 'len' values and abort early *)
-	  begin match Op.of_int32 ty with
-	  | Some ty ->
-		  let t = {
-			  tid = tid;
-			  rid = rid;
-			  ty = ty;
-			  len = len;
-			  data = Buffer.create len;
-	      } in
-		  if len = 0
-		  then Finished (Packet t)
-		  else ReadingBody t
-	  | None -> Finished (Unknown_operation ty)
-	  end
+    let len = Int32.to_int len in
+    (* TODO: detect anamalous 'len' values and abort early *)
+    begin match Op.of_int32 ty with
+    | Some ty ->
+      let t = {
+        tid = tid;
+        rid = rid;
+        ty = ty;
+        len = len;
+        data = Buffer.create len;
+        } in
+      if len = 0
+      then Finished (Packet t)
+      else ReadingBody t
+    | None -> Finished (Unknown_operation ty)
+    end
 
   let input state bytes =
     match state with
       | ReadingHeader(got_already, str) ->
-	String.blit bytes 0 str got_already (String.length bytes);
-	let got_already = got_already + (String.length bytes) in
-	if got_already < header_size
-	then ReadingHeader(got_already, str)
-	else parse_header str
+  String.blit bytes 0 str got_already (String.length bytes);
+  let got_already = got_already + (String.length bytes) in
+  if got_already < header_size
+  then ReadingHeader(got_already, str)
+  else parse_header str
       | ReadingBody x ->
-	Buffer.add_string x.data bytes;
-	let needed = x.len - (Buffer.length x.data) in
-	if needed > 0
-	then ReadingBody x
-	else Finished (Packet x)
+  Buffer.add_string x.data bytes;
+  let needed = x.len - (Buffer.length x.data) in
+  if needed > 0
+  then ReadingBody x
+  else Finished (Packet x)
       | Finished f -> Finished f
 end
 
@@ -269,8 +269,8 @@ module PacketStream = functor(C: CHANNEL) -> struct
       if n = 0
       then raise_lwt EOF
       else let fragment = String.sub buf 0 n in
-	   t.incoming_pkt <- input t.incoming_pkt fragment;
-	   recv t
+     t.incoming_pkt <- input t.incoming_pkt fragment;
+     recv t
     | Unknown_operation x -> raise_lwt (Unknown_xenstore_operation x)
     | Parser_failed x -> raise_lwt (Response_parser_failed x)
 
@@ -279,8 +279,8 @@ module PacketStream = functor(C: CHANNEL) -> struct
     let req = to_string request in
     Lwt_mutex.with_lock t.outgoing_mutex
         (fun () ->
-			C.write t.channel req 0 (String.length req)
-		)
+      C.write t.channel req 0 (String.length req)
+    )
 end
 
 
@@ -288,7 +288,7 @@ let unique_id () =
     let last = ref 0l in
     fun () ->
         let result = !last in
-	last := Int32.succ !last;
+  last := Int32.succ !last;
         result
 
 (** Check paths are suitable for read/write/mkdir/rm/directory etc (NOT watches)  *)
@@ -377,287 +377,287 @@ module Response = struct
   | Error of string
   | Watchevent of string * string
 
-	let prettyprint_payload =
-		let open Printf in function
-			| Read x -> sprintf "Read %s" x
-			| Directory xs -> sprintf "Directory [ %s ]" (String.concat "; " xs)
-			| Getperms acl -> sprintf "Getperms %s" (ACL.to_string acl)
-			| Getdomainpath p -> sprintf "Getdomainpath %s" p
-			| Transaction_start x -> sprintf "Transaction_start %ld" x
-			| Write -> "Write"
-			| Mkdir -> "Mkdir"
-			| Rm -> "Rm"
-			| Setperms -> "Setperms"
-			| Watch -> "Watch"
-			| Unwatch -> "Unwatch"
-			| Transaction_end -> "Transaction_end"
-			| Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
-			| Introduce -> "Introduce"
-			| Resume -> "Resume"
-			| Release -> "Release"
-			| Set_target -> "Set_target"
-			| Restrict -> "Restrict"
-			| Isintroduced x -> sprintf "Isintroduced %b" x
-			| Error x -> sprintf "Error %s" x
-			| Watchevent (x, y) -> sprintf "Watchevent %s %s" x y
+  let prettyprint_payload =
+    let open Printf in function
+      | Read x -> sprintf "Read %s" x
+      | Directory xs -> sprintf "Directory [ %s ]" (String.concat "; " xs)
+      | Getperms acl -> sprintf "Getperms %s" (ACL.to_string acl)
+      | Getdomainpath p -> sprintf "Getdomainpath %s" p
+      | Transaction_start x -> sprintf "Transaction_start %ld" x
+      | Write -> "Write"
+      | Mkdir -> "Mkdir"
+      | Rm -> "Rm"
+      | Setperms -> "Setperms"
+      | Watch -> "Watch"
+      | Unwatch -> "Unwatch"
+      | Transaction_end -> "Transaction_end"
+      | Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
+      | Introduce -> "Introduce"
+      | Resume -> "Resume"
+      | Release -> "Release"
+      | Set_target -> "Set_target"
+      | Restrict -> "Restrict"
+      | Isintroduced x -> sprintf "Isintroduced %b" x
+      | Error x -> sprintf "Error %s" x
+      | Watchevent (x, y) -> sprintf "Watchevent %s %s" x y
 
-	let ty_of_payload = function
-		| Read _ -> Op.Read
-		| Directory _ -> Op.Directory
-		| Getperms perms -> Op.Getperms
-		| Getdomainpath _ -> Op.Getdomainpath
-		| Transaction_start _ -> Op.Transaction_start
-		| Debug _ -> Op.Debug
-		| Isintroduced _ -> Op.Isintroduced
-		| Watchevent (_, _) -> Op.Watchevent
-		| Error _ -> Op.Error
-		| Write -> Op.Write
-		| Mkdir -> Op.Mkdir
-		| Rm -> Op.Rm
-		| Setperms -> Op.Setperms
-		| Watch -> Op.Watch
-		| Unwatch -> Op.Unwatch
-		| Transaction_end -> Op.Transaction_end
-		| Introduce -> Op.Introduce
-		| Resume -> Op.Resume
-		| Release -> Op.Release
-		| Set_target -> Op.Set_target
-		| Restrict -> Op.Restrict
+  let ty_of_payload = function
+    | Read _ -> Op.Read
+    | Directory _ -> Op.Directory
+    | Getperms perms -> Op.Getperms
+    | Getdomainpath _ -> Op.Getdomainpath
+    | Transaction_start _ -> Op.Transaction_start
+    | Debug _ -> Op.Debug
+    | Isintroduced _ -> Op.Isintroduced
+    | Watchevent (_, _) -> Op.Watchevent
+    | Error _ -> Op.Error
+    | Write -> Op.Write
+    | Mkdir -> Op.Mkdir
+    | Rm -> Op.Rm
+    | Setperms -> Op.Setperms
+    | Watch -> Op.Watch
+    | Unwatch -> Op.Unwatch
+    | Transaction_end -> Op.Transaction_end
+    | Introduce -> Op.Introduce
+    | Resume -> Op.Resume
+    | Release -> Op.Release
+    | Set_target -> Op.Set_target
+    | Restrict -> Op.Restrict
 
-	let ok = "OK\000"
+  let ok = "OK\000"
 
-	let data_of_payload = function
-		| Read x                   -> x
-		| Directory ls             -> if ls = [] then "" else data_concat ls
-		| Getperms perms           -> data_concat [ ACL.to_string perms ]
-		| Getdomainpath x          -> data_concat [ x ]
-		| Transaction_start tid    -> data_concat [ Int32.to_string tid ]
-		| Debug items              -> data_concat items
-		| Isintroduced b           -> data_concat [ if b then "T" else "F" ]
-		| Watchevent (path, token) -> data_concat [ path; token ]
-		| Error x                  -> data_concat [ x ]
-		| _                        -> ok
+  let data_of_payload = function
+    | Read x                   -> x
+    | Directory ls             -> if ls = [] then "" else data_concat ls
+    | Getperms perms           -> data_concat [ ACL.to_string perms ]
+    | Getdomainpath x          -> data_concat [ x ]
+    | Transaction_start tid    -> data_concat [ Int32.to_string tid ]
+    | Debug items              -> data_concat items
+    | Isintroduced b           -> data_concat [ if b then "T" else "F" ]
+    | Watchevent (path, token) -> data_concat [ path; token ]
+    | Error x                  -> data_concat [ x ]
+    | _                        -> ok
 
-	let print x tid rid =
-		create tid rid (ty_of_payload x) (data_of_payload x)
+  let print x tid rid =
+    create tid rid (ty_of_payload x) (data_of_payload x)
 end
 
 module Request = struct
 
-	type path_op =
-	| Read
-	| Directory
-	| Getperms
-	| Write of string
-	| Mkdir
-	| Rm
-	| Setperms of ACL.t
+  type path_op =
+  | Read
+  | Directory
+  | Getperms
+  | Write of string
+  | Mkdir
+  | Rm
+  | Setperms of ACL.t
 
-	type payload =
-	| PathOp of string * path_op
-	| Getdomainpath of int
-	| Transaction_start
-	| Watch of string * string
-	| Unwatch of string * string
-	| Transaction_end of bool
-	| Debug of string list
-	| Introduce of int * Nativeint.t * int
-	| Resume of int
-	| Release of int
-	| Set_target of int * int
-	| Restrict of int
-	| Isintroduced of int
-	| Error of string
-	| Watchevent of string
+  type payload =
+  | PathOp of string * path_op
+  | Getdomainpath of int
+  | Transaction_start
+  | Watch of string * string
+  | Unwatch of string * string
+  | Transaction_end of bool
+  | Debug of string list
+  | Introduce of int * Nativeint.t * int
+  | Resume of int
+  | Release of int
+  | Set_target of int * int
+  | Restrict of int
+  | Isintroduced of int
+  | Error of string
+  | Watchevent of string
 
-	open Printf
+  open Printf
 
-	let prettyprint_pathop x = function
-		| Read -> sprintf "Read %s" x
-		| Directory -> sprintf "Directory %s" x
-		| Getperms -> sprintf "Getperms %s" x
-		| Write v -> sprintf "Write %s %s" x v
-		| Mkdir -> sprintf "Mkdir %s" x
-		| Rm -> sprintf "Rm %s" x
-		| Setperms acl -> sprintf "Setperms %s %s" x (ACL.to_string acl)
+  let prettyprint_pathop x = function
+    | Read -> sprintf "Read %s" x
+    | Directory -> sprintf "Directory %s" x
+    | Getperms -> sprintf "Getperms %s" x
+    | Write v -> sprintf "Write %s %s" x v
+    | Mkdir -> sprintf "Mkdir %s" x
+    | Rm -> sprintf "Rm %s" x
+    | Setperms acl -> sprintf "Setperms %s %s" x (ACL.to_string acl)
 
-	let prettyprint_payload = function
-		| PathOp (path, op) -> prettyprint_pathop path op
-		| Getdomainpath x -> sprintf "Getdomainpath %d" x
-		| Transaction_start -> "Transaction_start"
-		| Watch (x, y) -> sprintf "Watch %s %s" x y
-		| Unwatch (x, y) -> sprintf "Unwatch %s %s" x y
-		| Transaction_end x -> sprintf "Transaction_end %b" x
-		| Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
-		| Introduce (x, n, y) -> sprintf "Introduce %d %nu %d" x n y
-		| Resume x -> sprintf "Resume %d" x
-		| Release x -> sprintf "Release %d" x
-		| Set_target (x, y) -> sprintf "Set_target %d %d" x y
-		| Restrict x -> sprintf "Restrict %d" x
-		| Isintroduced x -> sprintf "Isintroduced %d" x
-		| Error x -> sprintf "Error %s" x
-		| Watchevent x -> sprintf "Watchevent %s" x
+  let prettyprint_payload = function
+    | PathOp (path, op) -> prettyprint_pathop path op
+    | Getdomainpath x -> sprintf "Getdomainpath %d" x
+    | Transaction_start -> "Transaction_start"
+    | Watch (x, y) -> sprintf "Watch %s %s" x y
+    | Unwatch (x, y) -> sprintf "Unwatch %s %s" x y
+    | Transaction_end x -> sprintf "Transaction_end %b" x
+    | Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
+    | Introduce (x, n, y) -> sprintf "Introduce %d %nu %d" x n y
+    | Resume x -> sprintf "Resume %d" x
+    | Release x -> sprintf "Release %d" x
+    | Set_target (x, y) -> sprintf "Set_target %d %d" x y
+    | Restrict x -> sprintf "Restrict %d" x
+    | Isintroduced x -> sprintf "Isintroduced %d" x
+    | Error x -> sprintf "Error %s" x
+    | Watchevent x -> sprintf "Watchevent %s" x
 
-	exception Parse_failure
+  exception Parse_failure
 
-	let strings data = split_string '\000' data
+  let strings data = split_string '\000' data
 
-	let one_string data =
-		let args = split_string ~limit:2 '\000' data in
-		match args with
-		| x :: [] -> x
-		| _       ->
-			raise Parse_failure
+  let one_string data =
+    let args = split_string ~limit:2 '\000' data in
+    match args with
+    | x :: [] -> x
+    | _       ->
+      raise Parse_failure
 
-	let two_strings data =
-		let args = split_string ~limit:2 '\000' data in
-		match args with
-		| a :: b :: [] -> a, b
-		| a :: [] -> a, "" (* terminating NULL removed by get_data *)
-		| _            ->
-			raise Parse_failure
+  let two_strings data =
+    let args = split_string ~limit:2 '\000' data in
+    match args with
+    | a :: b :: [] -> a, b
+    | a :: [] -> a, "" (* terminating NULL removed by get_data *)
+    | _            ->
+      raise Parse_failure
 
-	let acl x = match ACL.of_string x with
-		| Some x -> x
-		| None ->
-			raise Parse_failure
+  let acl x = match ACL.of_string x with
+    | Some x -> x
+    | None ->
+      raise Parse_failure
 
-	let domid s =
-		let v = ref 0 in
-		let is_digit c = c >= '0' && c <= '9' in
-		let len = String.length s in
-		let i = ref 0 in
-		while !i < len && not (is_digit s.[!i]) do incr i done;
-		while !i < len && is_digit s.[!i]
-		do
-			let x = (Char.code s.[!i]) - (Char.code '0') in
-			v := !v * 10 + x;
-			incr i
-		done;
-		!v
+  let domid s =
+    let v = ref 0 in
+    let is_digit c = c >= '0' && c <= '9' in
+    let len = String.length s in
+    let i = ref 0 in
+    while !i < len && not (is_digit s.[!i]) do incr i done;
+    while !i < len && is_digit s.[!i]
+    do
+      let x = (Char.code s.[!i]) - (Char.code '0') in
+      v := !v * 10 + x;
+      incr i
+    done;
+    !v
 
-	let bool = function
-		| "F" -> false
-		| "T" -> true
-		| data ->
-			raise Parse_failure
+  let bool = function
+    | "F" -> false
+    | "T" -> true
+    | data ->
+      raise Parse_failure
 
-	let parse_exn request =
-		let data = get_data request in
-		match get_ty request with
-		| Op.Read -> PathOp (data |> one_string, Read)
-		| Op.Directory -> PathOp (data |> one_string, Directory)
-		| Op.Getperms -> PathOp (data |> one_string, Getperms)
-		| Op.Getdomainpath -> Getdomainpath (data |> one_string |> domid)
-		| Op.Transaction_start -> Transaction_start
-		| Op.Write ->
-			let path, value = two_strings data in
-			PathOp (path, Write value)
-		| Op.Mkdir -> PathOp (data |> one_string, Mkdir)
-		| Op.Rm -> PathOp (data |> one_string, Rm)
-		| Op.Setperms ->
-			let path, perms = two_strings data in
-			let perms = acl perms in
-			PathOp(path, Setperms perms)
-		| Op.Watch ->
-			let path, token = two_strings data in
-			Watch(path, token)
-		| Op.Unwatch ->
-			let path, token = two_strings data in
-			Unwatch(path, token)
-		| Op.Transaction_end -> Transaction_end(data |> one_string |> bool)
-		| Op.Debug -> Debug (strings data)
-		| Op.Introduce ->
-			begin match strings data with
-			| d :: mfn :: port :: _ ->
-				let d = domid d in
-				let mfn = Nativeint.of_string mfn in
-				let port = int_of_string port in
-				Introduce (d, mfn, port)
-			| _ ->
-				raise Parse_failure
-			end
-		| Op.Resume -> Resume (data |> one_string |> domid)
-		| Op.Release -> Release (data |> one_string |> domid)
-		| Op.Set_target ->
-			let mine, yours = two_strings data in
-			let mine = domid mine and yours = domid yours in
-			Set_target(mine, yours)
-		| Op.Restrict -> Restrict (data |> one_string |> domid)
-		| Op.Isintroduced -> Isintroduced (data |> one_string |> domid)
-		| Op.Error -> Error(data |> one_string)
-		| Op.Watchevent -> Watchevent(data |> one_string)
+  let parse_exn request =
+    let data = get_data request in
+    match get_ty request with
+    | Op.Read -> PathOp (data |> one_string, Read)
+    | Op.Directory -> PathOp (data |> one_string, Directory)
+    | Op.Getperms -> PathOp (data |> one_string, Getperms)
+    | Op.Getdomainpath -> Getdomainpath (data |> one_string |> domid)
+    | Op.Transaction_start -> Transaction_start
+    | Op.Write ->
+      let path, value = two_strings data in
+      PathOp (path, Write value)
+    | Op.Mkdir -> PathOp (data |> one_string, Mkdir)
+    | Op.Rm -> PathOp (data |> one_string, Rm)
+    | Op.Setperms ->
+      let path, perms = two_strings data in
+      let perms = acl perms in
+      PathOp(path, Setperms perms)
+    | Op.Watch ->
+      let path, token = two_strings data in
+      Watch(path, token)
+    | Op.Unwatch ->
+      let path, token = two_strings data in
+      Unwatch(path, token)
+    | Op.Transaction_end -> Transaction_end(data |> one_string |> bool)
+    | Op.Debug -> Debug (strings data)
+    | Op.Introduce ->
+      begin match strings data with
+      | d :: mfn :: port :: _ ->
+        let d = domid d in
+        let mfn = Nativeint.of_string mfn in
+        let port = int_of_string port in
+        Introduce (d, mfn, port)
+      | _ ->
+        raise Parse_failure
+      end
+    | Op.Resume -> Resume (data |> one_string |> domid)
+    | Op.Release -> Release (data |> one_string |> domid)
+    | Op.Set_target ->
+      let mine, yours = two_strings data in
+      let mine = domid mine and yours = domid yours in
+      Set_target(mine, yours)
+    | Op.Restrict -> Restrict (data |> one_string |> domid)
+    | Op.Isintroduced -> Isintroduced (data |> one_string |> domid)
+    | Op.Error -> Error(data |> one_string)
+    | Op.Watchevent -> Watchevent(data |> one_string)
 
-	let parse request =
-		try
-			Some (parse_exn request)
-		with _ -> None
+  let parse request =
+    try
+      Some (parse_exn request)
+    with _ -> None
 
-	let prettyprint request =
-		Printf.sprintf "tid = %ld; rid = %ld; payload = %s"
-			(get_tid request) (get_rid request)
-			(match parse request with
-				| None -> "None"
-				| Some x -> "Some " ^ (prettyprint_payload x))
+  let prettyprint request =
+    Printf.sprintf "tid = %ld; rid = %ld; payload = %s"
+      (get_tid request) (get_rid request)
+      (match parse request with
+        | None -> "None"
+        | Some x -> "Some " ^ (prettyprint_payload x))
 
-	let ty_of_payload = function
-		| PathOp(_, Directory) -> Op.Directory
-		| PathOp(_, Read) -> Op.Read
-		| PathOp(_, Getperms) -> Op.Getperms
-		| Debug _ -> Op.Debug
-		| Watch (_, _) -> Op.Watch
-		| Unwatch (_, _) -> Op.Unwatch
-		| Transaction_start -> Op.Transaction_start
-		| Transaction_end _ -> Op.Transaction_end
-		| Introduce(_, _, _) -> Op.Introduce
-		| Release _ -> Op.Release
-		| Resume _ -> Op.Resume
-		| Getdomainpath _ -> Op.Getdomainpath
-		| PathOp(_, Write _) -> Op.Write
-		| PathOp(_, Mkdir) -> Op.Mkdir
-		| PathOp(_, Rm) -> Op.Rm
-		| PathOp(_, Setperms _) -> Op.Setperms
-		| Set_target (_, _) -> Op.Set_target
-		| Restrict _ -> Op.Restrict
-		| Isintroduced _ -> Op.Isintroduced
+  let ty_of_payload = function
+    | PathOp(_, Directory) -> Op.Directory
+    | PathOp(_, Read) -> Op.Read
+    | PathOp(_, Getperms) -> Op.Getperms
+    | Debug _ -> Op.Debug
+    | Watch (_, _) -> Op.Watch
+    | Unwatch (_, _) -> Op.Unwatch
+    | Transaction_start -> Op.Transaction_start
+    | Transaction_end _ -> Op.Transaction_end
+    | Introduce(_, _, _) -> Op.Introduce
+    | Release _ -> Op.Release
+    | Resume _ -> Op.Resume
+    | Getdomainpath _ -> Op.Getdomainpath
+    | PathOp(_, Write _) -> Op.Write
+    | PathOp(_, Mkdir) -> Op.Mkdir
+    | PathOp(_, Rm) -> Op.Rm
+    | PathOp(_, Setperms _) -> Op.Setperms
+    | Set_target (_, _) -> Op.Set_target
+    | Restrict _ -> Op.Restrict
+    | Isintroduced _ -> Op.Isintroduced
 
-	let transactional_of_payload = function
-		| PathOp(_, _)
-		| Transaction_end _ -> true
-		| _ -> false
+  let transactional_of_payload = function
+    | PathOp(_, _)
+    | Transaction_end _ -> true
+    | _ -> false
 
-	let data_of_payload = function
-		| PathOp(path, Write value) ->
-			path ^ "\000" ^ value (* no NULL at the end *)
-		| PathOp(path, Setperms perms) ->
-			data_concat [ path; ACL.to_string perms ]
-		| PathOp(path, _) -> data_concat [ path ]
-		| Debug commands -> data_concat commands
-		| Watch (path, token)
-		| Unwatch (path, token) -> data_concat [ path; token ]
-		| Transaction_start -> data_concat []
-		| Transaction_end commit -> data_concat [ if commit then "T" else "F" ]
-		| Introduce(domid, mfn, port) ->
-			data_concat [
-				Printf.sprintf "%u" domid;
-				Printf.sprintf "%nu" mfn;
-				string_of_int port;
-			]
-		| Release domid
-		| Resume domid
-		| Getdomainpath domid
-		| Restrict domid
-		| Isintroduced domid ->
-			data_concat [ Printf.sprintf "%u" domid; ]
-		| Set_target (mine, yours) ->
-			data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours; ]
+  let data_of_payload = function
+    | PathOp(path, Write value) ->
+      path ^ "\000" ^ value (* no NULL at the end *)
+    | PathOp(path, Setperms perms) ->
+      data_concat [ path; ACL.to_string perms ]
+    | PathOp(path, _) -> data_concat [ path ]
+    | Debug commands -> data_concat commands
+    | Watch (path, token)
+    | Unwatch (path, token) -> data_concat [ path; token ]
+    | Transaction_start -> data_concat []
+    | Transaction_end commit -> data_concat [ if commit then "T" else "F" ]
+    | Introduce(domid, mfn, port) ->
+      data_concat [
+        Printf.sprintf "%u" domid;
+        Printf.sprintf "%nu" mfn;
+        string_of_int port;
+      ]
+    | Release domid
+    | Resume domid
+    | Getdomainpath domid
+    | Restrict domid
+    | Isintroduced domid ->
+      data_concat [ Printf.sprintf "%u" domid; ]
+    | Set_target (mine, yours) ->
+      data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours; ]
 
-	let print x tid =
-		create
-			(if transactional_of_payload x then tid else 0l)
-			(next_rid ())
-			(ty_of_payload x)
-			(data_of_payload x)
+  let print x tid =
+    create
+      (if transactional_of_payload x then tid else 0l)
+      (next_rid ())
+      (ty_of_payload x)
+      (data_of_payload x)
 end
 
 module Unmarshal = struct
