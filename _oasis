@@ -1,22 +1,18 @@
-OASISFormat: 0.2
+OASISFormat: 0.3
 Name:        xenstore
-Version:     1.0
+Version:     1.1.0
 Synopsis:    Xenstore protocol library
 Authors:     see CREDITS.md
 License:     LGPL-2.1 with OCaml linking exception
-Plugins:     META (0.2)
+Plugins:     META (0.3)
 BuildTools:  ocamlbuild
-
-Flag tests
-  Description:        Build and run tests
-  Default:            true
 
 Library xenstore
   CompiledObject:     best
   Path:               core
   Findlibname:        xenstore
   Modules:            Xs_protocol
-  BuildDepends:       lwt, cstruct, cstruct.syntax
+  BuildDepends:       lwt, cstruct (>= 0.6.0), cstruct.syntax
 
 Library xenstore_client
   CompiledObject:     best
