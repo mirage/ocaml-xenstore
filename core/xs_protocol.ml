@@ -190,7 +190,7 @@ module Parser = struct
 
   let parse_header str =
     let header = Cstruct.create sizeof_header in
-    Cstruct.blit_string str 0 header 0 sizeof_header;
+    Cstruct.blit_from_string str 0 header 0 sizeof_header;
     let ty = get_header_ty header in
     let rid = get_header_rid header in
     let tid = get_header_tid header in
