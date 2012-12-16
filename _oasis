@@ -16,7 +16,7 @@ Library xenstore
   Path:               core
   Findlibname:        xenstore
   Modules:            Xs_protocol
-  BuildDepends:       lwt, cstruct, cstruct.syntax
+  BuildDepends:       lwt, cstruct (< 0.6.0), cstruct.syntax
 
 Library xenstore_client
   CompiledObject:     best
