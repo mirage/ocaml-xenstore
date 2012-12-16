@@ -1,0 +1,7 @@
+===== 1.1.0 (15-Dec-2012) =====
+
+* Add suspend/resume support to the Xenstore client
+
+===== 1.0.0 (5-Oct-2012) =====
+
+* Initial public release.
