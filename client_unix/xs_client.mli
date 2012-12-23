@@ -13,7 +13,7 @@
  *)
 
 module type IO = sig
-  type 'a t
+  type 'a t = 'a
   val return: 'a -> 'a t
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 

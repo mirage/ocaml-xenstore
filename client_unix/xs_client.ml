@@ -17,15 +17,17 @@
 open Thread
 open Xs_protocol
 
-let with_mutex m f =
-  Mutex.lock m;
+let finally f g =
   try
     let result = f () in
-    Mutex.unlock m;
+    g ();
     result
   with e ->
-    Mutex.unlock m;
+    g ();
     raise e
+let with_mutex m f =
+  Mutex.lock m;
+  finally f (fun () -> Mutex.unlock m)
 
 module type IO = sig
   type 'a t = 'a
@@ -94,7 +96,43 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
-(*
+type 'a u = {
+  mutable thing: 'a option;
+  mutable cancelling: bool;
+  mutable on_cancel: unit -> unit;
+  m: Mutex.t;
+  c: Condition.t
+}
+let task () = {
+  thing = None;
+  cancelling = false;
+  on_cancel = (fun () -> ());
+  m = Mutex.create ();
+  c = Condition.create ();
+}
+let wakeup u thing = with_mutex u.m
+  (fun () ->
+    u.thing <- Some thing;
+    Condition.signal u.c
+  )
+let on_cancel u on_cancel = u.on_cancel <- on_cancel
+let cancel u = with_mutex u.m
+  (fun () ->
+    u.cancelling <- true;
+    Condition.signal u.c
+  );
+  u.on_cancel ()
+exception Cancelled
+let wait u = with_mutex u.m
+  (fun () ->
+    let rec loop () =
+      if u.cancelling then raise Cancelled
+      else match u.thing with
+      | None -> Condition.wait u.c u.m; loop ()
+      | Some thing -> thing in
+    loop ()
+  )
+
 module Client = functor(IO: IO with type 'a t = 'a) -> struct
   module PS = PacketStream(IO)
 
@@ -102,102 +140,72 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   type client = {
     transport: IO.channel;
     ps: PS.stream;
-    rid_to_wakeup: (int32, Xs_protocol.t Lwt.u) Hashtbl.t;
-    mutable dispatcher_thread: unit Lwt.t;
+    rid_to_wakeup: (int32, Xs_protocol.t u) Hashtbl.t;
+    mutable dispatcher_thread: Thread.t option;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
 
     mutable suspended : bool;
-    suspended_m : Lwt_mutex.t;
-    suspended_c : unit Lwt_condition.t;
+    suspended_m : Mutex.t;
+    suspended_c : Condition.t;
   }
 
-  let recv_one t = match_lwt (PS.recv t.ps) with
-    | Ok x -> return x
-    | Exception e -> raise_lwt e
+  let recv_one t = match (PS.recv t.ps) with
+    | Ok x -> x
+    | Exception e -> raise e
   let send_one t = PS.send t.ps
 
   let handle_exn t e =
     Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
-    lwt () = begin 
-      match e with
+    begin match e with
       | Xs_protocol.Response_parser_failed x ->
       (* Lwt_io.hexdump Lwt_io.stderr x *)
-         return ()
-      | _ -> return () end in
-    t.dispatcher_shutting_down <- true; (* no more hashtable entries after this *)
-    (* all blocking threads are failed with our exception *)
-    lwt () = Lwt_mutex.with_lock t.suspended_m (fun () ->
-      Printf.fprintf stderr "Propagating exception to %d threads\n%!" (Hashtbl.length t.rid_to_wakeup);
-      Hashtbl.iter (fun _ u -> Lwt.wakeup_later_exn u e) t.rid_to_wakeup;
-      return ()) in
-    raise_lwt e
+         ()
+      | _ -> ()
+    end;
+    t.dispatcher_shutting_down <- true;
+    raise e
 
   let rec dispatcher t =
-    lwt pkt = try_lwt recv_one t with e -> handle_exn t e in
+    let pkt = try recv_one t with e -> handle_exn t e in
     match get_ty pkt with
       | Op.Watchevent  ->
-        lwt () = begin match Unmarshal.list pkt with
+        begin match Unmarshal.list pkt with
           | Some [path; token] ->
             let token = Token.of_string token in
             (* We may get old watches: silently drop these *)
             if Hashtbl.mem t.watchevents token
-            then Watcher.put (Hashtbl.find t.watchevents token) path >> dispatcher t
+            then (Watcher.put (Hashtbl.find t.watchevents token) path; dispatcher t)
             else dispatcher t
           | _ ->
             handle_exn t Malformed_watch_event
-          end in
+        end;
         dispatcher t
       | _ ->
         let rid = get_rid pkt in
-        lwt thread = Lwt_mutex.with_lock t.suspended_m (fun () -> 
-          if Hashtbl.mem t.rid_to_wakeup rid
-          then return (Some (Hashtbl.find t.rid_to_wakeup rid))
-          else return None) in
-        match thread with
-          | None -> handle_exn t (Unexpected_rid rid)
-          | Some thread -> 
-            begin
-              Lwt.wakeup_later thread pkt;
-              dispatcher t
-            end
+        if Hashtbl.mem t.rid_to_wakeup rid then begin
+          let u = Hashtbl.find t.rid_to_wakeup rid in
+          wakeup u pkt
+        end else begin
+          Printf.fprintf stderr "Unexpected rid: %ld\n%!" rid
+        end
 
 
   let make () =
-    lwt transport = IO.create () in
+    let transport = IO.create () in
     let t = {
       transport = transport;
       ps = PS.make transport;
       rid_to_wakeup = Hashtbl.create 10;
-      dispatcher_thread = return ();
+      dispatcher_thread = None;
       dispatcher_shutting_down = false;
       watchevents = Hashtbl.create 10;
       suspended = false;
-      suspended_m = Lwt_mutex.create ();
-      suspended_c = Lwt_condition.create ();
+      suspended_m = Mutex.create ();
+      suspended_c = Condition.create ();
     } in
-    t.dispatcher_thread <- dispatcher t;
-    return t
-
-  let suspend t =
-    lwt () = Lwt_mutex.with_lock t.suspended_m
-      (fun () -> 
-        t.suspended <- true;
-        while_lwt (Hashtbl.length t.rid_to_wakeup > 0) do
-          Lwt_condition.wait ~mutex:t.suspended_m t.suspended_c
-        done) in
-      Hashtbl.iter (fun _ watcher -> Watcher.cancel watcher) t.watchevents;
-      Lwt.cancel t.dispatcher_thread;
-      return ()
-
-  let resume t =
-    lwt () = Lwt_mutex.with_lock t.suspended_m (fun () -> 
-      t.suspended <- false;
-      t.dispatcher_shutting_down <- false;
-      Lwt_condition.broadcast t.suspended_c (); 
-      return ()) in
-    t.dispatcher_thread <- dispatcher t;
-    return ()
+    t.dispatcher_thread <- Some (Thread.create dispatcher t);
+    t
 
     (** A 'handle' is a sub-connection used for a particular purpose.
         The handle is a convenient place to store sub-connection state *)
@@ -249,26 +257,16 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     let open Handle in
 	let request = Request.print payload h.tid in
     let rid = get_rid request in
-    let t, u = wait () in
+    let t = task () in
     if h.client.dispatcher_shutting_down
-    then raise_lwt Dispatcher_failed
+    then raise Dispatcher_failed
     else begin
-      lwt () = Lwt_mutex.with_lock h.client.suspended_m (fun () ->
-        lwt () = while_lwt h.client.suspended do
-          Lwt_condition.wait ~mutex:h.client.suspended_m h.client.suspended_c
-        done in
-        Hashtbl.add h.client.rid_to_wakeup rid u;   
-        lwt () = send_one h.client request in
-        return ()) in
-      lwt res = t in
-      lwt () = Lwt_mutex.with_lock h.client.suspended_m 
-        (fun () -> 
-          Hashtbl.remove h.client.rid_to_wakeup rid;
-          Lwt_condition.broadcast h.client.suspended_c (); 
-          return ()) in
-      try_lwt
-        return (response hint request res unmarshal)
- end
+        Hashtbl.add h.client.rid_to_wakeup rid t;
+        send_one h.client request;
+        let res = wait t in
+        Hashtbl.remove h.client.rid_to_wakeup rid;
+        response hint request res unmarshal
+    end
 
   let directory h path = rpc "directory" (Handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
   let read h path = rpc "read" (Handle.accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
@@ -296,11 +294,11 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     Hashtbl.add client.watchevents token watcher;
 
     (* We signal the caller via this cancellable task: *)
-    let result, wakener = Lwt.task () in
-    on_cancel result
+    let t = task () in
+    on_cancel t
       (fun () ->
         (* Trigger an orderly cleanup in the background: *)
-	Watcher.cancel watcher
+        Watcher.cancel watcher
       );
     let h = Handle.watching client in
     (* Adjust the paths we're watching (if necessary) and block (if possible) *)
@@ -308,50 +306,48 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       let current_paths = Handle.get_watched_paths h in
       (* Paths which weren't read don't need to be watched: *)
       let old_paths = diff current_paths (Handle.get_accessed_paths h) in
-      lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements old_paths) in
+      List.iter (fun p -> unwatch h p token) (elements old_paths);
       (* Paths which were read do need to be watched: *)
       let new_paths = diff (Handle.get_accessed_paths h) current_paths in
-      lwt () = Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths) in
+      List.iter (fun p -> watch h p token) (elements new_paths);
       (* If we're watching the correct set of paths already then just block *)
       if old_paths = empty && (new_paths = empty)
       then begin
-        lwt results = Watcher.get watcher in
+        let results = Watcher.get watcher in
         (* an empty results set means we've been cancelled: trigger cleanup *)
         if results = empty
-        then fail (Failure "goodnight")
-        else return ()
-      end else return () in
+        then raise (Failure "goodnight")
+      end in
     (* Main client loop: *)
     let rec loop () =
-      lwt finished =
-        try_lwt
-          lwt result = f h in
-          wakeup wakener result;
-          return true
+      let finished =
+        try
+          let result = f h in
+          wakeup t result;
+          true
         with Eagain ->
-          return false in
+          false in
       if finished
-      then return ()
-      else adjust_paths () >> loop ()
+      then ()
+      else adjust_paths (); loop ()
     in
-    let (_: unit Lwt.t) =
-      try_lwt
-        loop ()
-      finally
+    finally loop
+      (fun () ->
         let current_paths = Handle.get_watched_paths h in
-        lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths) in
+        List.iter (fun p -> unwatch h p token) (elements current_paths);
         Hashtbl.remove client.watchevents token;
-        return () in
-    result
+      );
+    wait t
 
   let rec with_xst client f =
-    lwt tid = rpc "transaction_start" (Handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
+    let tid = rpc "transaction_start" (Handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
     let h = Handle.transaction client tid in
-    lwt result = f h in
-    try_lwt
-      lwt res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
-      if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
+    let result = f h in
+    try
+      let res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
+      if res' = "OK" then result else raise (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
     with Eagain ->
       with_xst client f
+
 end
-*)
+
