@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 5ed7c1c4eb77929db386aa879c63733c)
+# DO NOT EDIT (digest: a2e4c66d47ce63552fa65cc552d10bbc)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -17,12 +17,12 @@
 "core/xenstore.cmxs": use_xenstore
 <core/*.ml{,i}>: pkg_cstruct
 <core/*.ml{,i}>: pkg_cstruct.syntax
-# Library xenstore_client
-"client/xenstore_client.cmxs": use_xenstore_client
-<client/*.ml{,i}>: use_xenstore
-<client/*.ml{,i}>: pkg_lwt
-<client/*.ml{,i}>: pkg_cstruct
-<client/*.ml{,i}>: pkg_cstruct.syntax
+# Library xenstore_client_lwt
+"client_lwt/xenstore_client_lwt.cmxs": use_xenstore_client_lwt
+<client_lwt/*.ml{,i}>: use_xenstore
+<client_lwt/*.ml{,i}>: pkg_lwt
+<client_lwt/*.ml{,i}>: pkg_cstruct
+<client_lwt/*.ml{,i}>: pkg_cstruct.syntax
 # Library xenstore_server
 "server/xenstore_server.cmxs": use_xenstore_server
 <server/*.ml{,i}>: use_xenstore
@@ -60,5 +60,5 @@
 # OASIS_STOP
 true: annot
 <*/*>: syntax_camlp4o
-<client/*>: pkg_lwt.syntax
+<client_lwt/*>: pkg_lwt.syntax
 <server/*>: pkg_lwt.syntax

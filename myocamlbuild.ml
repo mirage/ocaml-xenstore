@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 23a1aeb896926304a66fbae20d5292d9) *)
+(* DO NOT EDIT (digest: 3b4e5c2e30878876421bed9283d11b21) *)
 module OASISGettext = struct
 # 21 "/home/djs/oasis/src/oasis/OASISGettext.ml"
 
@@ -561,7 +561,7 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml =
        [
           ("xenstore", ["core"]);
-          ("xenstore_client", ["client"]);
+          ("xenstore_client_lwt", ["client_lwt"]);
           ("xenstore_server", ["server"])
        ];
      lib_c = [];
@@ -571,7 +571,7 @@ let package_default =
           ("server_test", ["core"; "server"]);
           ("server", ["core"]);
           ("core_test", ["core"]);
-          ("client", ["core"])
+          ("client_lwt", ["core"])
        ];
      }
   ;;

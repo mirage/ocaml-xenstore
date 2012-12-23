@@ -14,9 +14,9 @@ Library xenstore
   Modules:            Xs_protocol
   BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax
 
-Library xenstore_client
+Library xenstore_client_lwt
   CompiledObject:     best
-  Path:               client
+  Path:               client_lwt
   Findlibname: 	      client
   FindlibParent:      xenstore
   Modules:            Xs_client

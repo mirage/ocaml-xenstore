@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 24ef824725290a7ffbfcc8c67c09cc53)
+# DO NOT EDIT (digest: 20fb896ebb0c981bb691f49e64333cc1)
 version = "1.1.0"
 description = "Xenstore protocol library"
 requires = "cstruct cstruct.syntax"
@@ -23,11 +23,11 @@ package "client" (
  version = "1.1.0"
  description = "Xenstore protocol library"
  requires = "lwt xenstore"
- archive(byte) = "xenstore_client.cma"
- archive(byte, plugin) = "xenstore_client.cma"
- archive(native) = "xenstore_client.cmxa"
- archive(native, plugin) = "xenstore_client.cmxs"
- exists_if = "xenstore_client.cma"
+ archive(byte) = "xenstore_client_lwt.cma"
+ archive(byte, plugin) = "xenstore_client_lwt.cma"
+ archive(native) = "xenstore_client_lwt.cmxa"
+ archive(native, plugin) = "xenstore_client_lwt.cmxs"
+ exists_if = "xenstore_client_lwt.cma"
 )
 # OASIS_STOP
 
