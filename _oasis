@@ -22,6 +22,14 @@ Library xenstore_client_lwt
   Modules:            Xs_client
   BuildDepends:       lwt, xenstore
 
+Library xenstore_client_unix
+  CompiledObject:     best
+  Path:               client_unix
+  Findlibname: 	      unix
+  FindlibParent:      xenstore
+  Modules:            Xs_client
+  BuildDepends:       unix, threads, xenstore
+
 Library xenstore_server
   CompiledObject:     best
   Path:               server

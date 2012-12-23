@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 3b4e5c2e30878876421bed9283d11b21) *)
+(* DO NOT EDIT (digest: ba4970024580cd64aec0427c8242be49) *)
 module OASISGettext = struct
 # 21 "/home/djs/oasis/src/oasis/OASISGettext.ml"
 
@@ -562,6 +562,7 @@ let package_default =
        [
           ("xenstore", ["core"]);
           ("xenstore_client_lwt", ["client_lwt"]);
+          ("xenstore_client_unix", ["client_unix"]);
           ("xenstore_server", ["server"])
        ];
      lib_c = [];
@@ -571,6 +572,7 @@ let package_default =
           ("server_test", ["core"; "server"]);
           ("server", ["core"]);
           ("core_test", ["core"]);
+          ("client_unix", ["core"]);
           ("client_lwt", ["core"])
        ];
      }
@@ -578,6 +580,6 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 582 "myocamlbuild.ml"
+# 584 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
