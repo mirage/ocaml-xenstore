@@ -28,6 +28,10 @@ let finally f g =
 let with_mutex m f =
   Mutex.lock m;
   finally f (fun () -> Mutex.unlock m)
+let find_opt h x =
+  if Hashtbl.mem h x
+  then Some (Hashtbl.find h x)
+  else None
 
 module type IO = sig
   type 'a t = 'a
@@ -146,6 +150,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     mutable dispatcher_thread: Thread.t option;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
+    m: Mutex.t;
   }
 
   let recv_one t = match (PS.recv t.ps) with
@@ -172,20 +177,22 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
           | Some [path; token] ->
             let token = Token.of_string token in
             (* We may get old watches: silently drop these *)
-            if Hashtbl.mem t.watchevents token
-            then (Watcher.put (Hashtbl.find t.watchevents token) path; dispatcher t)
-            else dispatcher t
+            let w = with_mutex t.m (fun () -> find_opt t.watchevents token) in
+            begin match w with
+            | Some w -> Watcher.put w path
+            | None -> ()
+            end;
+            dispatcher t
           | _ ->
             handle_exn t Malformed_watch_event
         end;
         dispatcher t
       | _ ->
         let rid = get_rid pkt in
-        if Hashtbl.mem t.rid_to_wakeup rid then begin
-          let u = Hashtbl.find t.rid_to_wakeup rid in
-          Task.wakeup u pkt
-        end else begin
-          Printf.fprintf stderr "Unexpected rid: %ld\n%!" rid
+        let u = with_mutex t.m (fun () -> find_opt t.rid_to_wakeup rid) in
+        begin match u with
+        | Some u -> Task.wakeup u pkt
+        | None -> Printf.fprintf stderr "Unexpected rid: %ld\n%!" rid
         end
 
 
@@ -198,6 +205,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       dispatcher_thread = None;
       dispatcher_shutting_down = false;
       watchevents = Hashtbl.create 10;
+      m = Mutex.create ();
     } in
     t.dispatcher_thread <- Some (Thread.create dispatcher t);
     t
@@ -256,10 +264,10 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     if h.client.dispatcher_shutting_down
     then raise Dispatcher_failed
     else begin
-        Hashtbl.add h.client.rid_to_wakeup rid t;
+        with_mutex h.client.m (fun () -> Hashtbl.add h.client.rid_to_wakeup rid t);
         send_one h.client request;
         let res = Task.wait t in
-        Hashtbl.remove h.client.rid_to_wakeup rid;
+        with_mutex h.client.m (fun () -> Hashtbl.remove h.client.rid_to_wakeup rid);
         response hint request res unmarshal
     end
 
@@ -286,7 +294,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     (* When we register the 'watcher', the dispatcher thread will signal us when
        watches arrive. *)
     let watcher = Watcher.make () in
-    Hashtbl.add client.watchevents token watcher;
+    with_mutex client.m (fun () -> Hashtbl.add client.watchevents token watcher);
 
     (* We signal the caller via this cancellable task: *)
     let t = Task.make () in
@@ -330,7 +338,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       (fun () ->
         let current_paths = Handle.get_watched_paths h in
         List.iter (fun p -> unwatch h p token) (elements current_paths);
-        Hashtbl.remove client.watchevents token;
+        with_mutex client.m (fun () -> Hashtbl.remove client.watchevents token);
       );
     t
 
