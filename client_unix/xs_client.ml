@@ -339,7 +339,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         List.iter (fun p -> unwatch h p token) (elements current_paths);
         Hashtbl.remove client.watchevents token;
       );
-    Task.wait t
+    t
 
   let rec with_xst client f =
     let tid = rpc "transaction_start" (Handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in

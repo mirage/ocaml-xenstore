@@ -57,7 +57,7 @@ module Client : functor(IO: IO) -> sig
   (** Access xenstore with a single transaction.
       On conflict the operation will be repeated. *)
 
-  val wait : client -> (handle -> 'a IO.t) -> 'a IO.t
+  val wait : client -> (handle -> 'a IO.t) -> 'a Task.u
   (** Wait for some condition to become true and return a value.
       The function argument should throw Eagain if the condition
       is not met, and the condition will be re-evaluated when paths
