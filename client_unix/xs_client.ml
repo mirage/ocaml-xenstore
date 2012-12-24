@@ -146,10 +146,6 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     mutable dispatcher_thread: Thread.t option;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
-
-    mutable suspended : bool;
-    suspended_m : Mutex.t;
-    suspended_c : Condition.t;
   }
 
   let recv_one t = match (PS.recv t.ps) with
@@ -202,9 +198,6 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       dispatcher_thread = None;
       dispatcher_shutting_down = false;
       watchevents = Hashtbl.create 10;
-      suspended = false;
-      suspended_m = Mutex.create ();
-      suspended_c = Condition.create ();
     } in
     t.dispatcher_thread <- Some (Thread.create dispatcher t);
     t
