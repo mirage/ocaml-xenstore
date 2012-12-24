@@ -48,7 +48,7 @@ end
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
 
-module StringSet = Set.Make(struct type t = string let compare = compare end)
+module StringSet = Xs_handle.StringSet
 
 module Watcher = struct
 
@@ -153,6 +153,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     m: Mutex.t;
   }
 
+  type handle = client Xs_handle.t
+
   let recv_one t = match (PS.recv t.ps) with
     | Ok x -> x
     | Exception e -> raise e
@@ -210,80 +212,35 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     t.dispatcher_thread <- Some (Thread.create dispatcher t);
     t
 
-    (** A 'handle' is a sub-connection used for a particular purpose.
-        The handle is a convenient place to store sub-connection state *)
-  type handle = {
-    client: client;
-    tid: int32; (** transaction id in use (0 means no transaction) *)
-    mutable accessed_paths: StringSet.t option; (** paths read or written to *)
-    mutable watched_paths: StringSet.t; (** paths being watched *)
-  }
-
-  module Handle = struct
-    let make client = {
-      client = client;
-      tid = 0l;                       (* no transaction *)
-      accessed_paths = None;          (* not recording accesses *)
-      watched_paths = StringSet.empty (* no paths watched *)
-    }
-
-    (** Handle used for 'immediate' non-transactional read/writes *)
-    let no_transaction client = make client
-
-    (** Handle used for transactional read/writes *)
-    let transaction client tid = { (make client) with tid = tid }
-
-    (** Handle used to store watch-related information *)
-    let watching client = { (make client) with accessed_paths = Some StringSet.empty }
-
-    (** Get the list of recorded path accesses *)
-    let accessed_path h path = match h.accessed_paths with
-      | None -> h
-      | Some ps -> h.accessed_paths <- Some (StringSet.add path ps); h
-
-    (** Get the list of paths we have accessed *)
-    let get_accessed_paths h = match h.accessed_paths with
-      | None -> StringSet.empty
-      | Some xs -> xs
-
-    (** Declare that we are watching a path *)
-    let watch h path = h.watched_paths <- StringSet.add path h.watched_paths; h
-
-    (** Declare that we are nolonger watching a path *)
-    let unwatch h path = h.watched_paths <- StringSet.remove path h.watched_paths; h
-
-    (** Get the list of paths we're currently watching *)
-    let get_watched_paths h = h.watched_paths
-  end
-
   let rpc hint h payload unmarshal =
-    let open Handle in
-	let request = Request.print payload h.tid in
+    let open Xs_handle in
+	let request = Request.print payload (get_tid h) in
     let rid = get_rid request in
     let t = Task.make () in
-    if h.client.dispatcher_shutting_down
+    let c = get_client h in
+    if c.dispatcher_shutting_down
     then raise Dispatcher_failed
     else begin
-        with_mutex h.client.m (fun () -> Hashtbl.add h.client.rid_to_wakeup rid t);
-        send_one h.client request;
+        with_mutex c.m (fun () -> Hashtbl.add c.rid_to_wakeup rid t);
+        send_one c request;
         let res = Task.wait t in
-        with_mutex h.client.m (fun () -> Hashtbl.remove h.client.rid_to_wakeup rid);
+        with_mutex c.m (fun () -> Hashtbl.remove c.rid_to_wakeup rid);
         response hint request res unmarshal
     end
 
-  let directory h path = rpc "directory" (Handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
-  let read h path = rpc "read" (Handle.accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
-  let write h path data = rpc "write" (Handle.accessed_path h path) Request.(PathOp(path, Write data)) Unmarshal.ok
-  let rm h path = rpc "rm" (Handle.accessed_path h path) Request.(PathOp(path, Rm)) Unmarshal.ok
-  let mkdir h path = rpc "mkdir" (Handle.accessed_path h path) Request.(PathOp(path, Mkdir)) Unmarshal.ok
-  let setperms h path acl = rpc "setperms" (Handle.accessed_path h path) Request.(PathOp(path, Setperms acl)) Unmarshal.ok
+  let directory h path = rpc "directory" (Xs_handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
+  let read h path = rpc "read" (Xs_handle.accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
+  let write h path data = rpc "write" (Xs_handle.accessed_path h path) Request.(PathOp(path, Write data)) Unmarshal.ok
+  let rm h path = rpc "rm" (Xs_handle.accessed_path h path) Request.(PathOp(path, Rm)) Unmarshal.ok
+  let mkdir h path = rpc "mkdir" (Xs_handle.accessed_path h path) Request.(PathOp(path, Mkdir)) Unmarshal.ok
+  let setperms h path acl = rpc "setperms" (Xs_handle.accessed_path h path) Request.(PathOp(path, Setperms acl)) Unmarshal.ok
   let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
   let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
   let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
-  let watch h path token = rpc "watch" (Handle.watch h path) (Request.Watch(path, Token.to_string token)) Unmarshal.ok
-  let unwatch h path token = rpc "unwatch" (Handle.watch h path) (Request.Unwatch(path, Token.to_string token)) Unmarshal.ok
+  let watch h path token = rpc "watch" (Xs_handle.watch h path) (Request.Watch(path, Token.to_string token)) Unmarshal.ok
+  let unwatch h path token = rpc "unwatch" (Xs_handle.watch h path) (Request.Unwatch(path, Token.to_string token)) Unmarshal.ok
 
-  let with_xs client f = f (Handle.no_transaction client)
+  let with_xs client f = f (Xs_handle.no_transaction client)
 
   let counter = ref 0l
 
@@ -303,15 +260,15 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         (* Trigger an orderly cleanup in the background: *)
         Watcher.cancel watcher
       );
-    let h = Handle.watching client in
+    let h = Xs_handle.watching client in
     (* Adjust the paths we're watching (if necessary) and block (if possible) *)
     let adjust_paths () =
-      let current_paths = Handle.get_watched_paths h in
+      let current_paths = Xs_handle.get_watched_paths h in
       (* Paths which weren't read don't need to be watched: *)
-      let old_paths = diff current_paths (Handle.get_accessed_paths h) in
+      let old_paths = diff current_paths (Xs_handle.get_accessed_paths h) in
       List.iter (fun p -> unwatch h p token) (elements old_paths);
       (* Paths which were read do need to be watched: *)
-      let new_paths = diff (Handle.get_accessed_paths h) current_paths in
+      let new_paths = diff (Xs_handle.get_accessed_paths h) current_paths in
       List.iter (fun p -> watch h p token) (elements new_paths);
       (* If we're watching the correct set of paths already then just block *)
       if old_paths = empty && (new_paths = empty)
@@ -336,15 +293,15 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     in
     finally loop
       (fun () ->
-        let current_paths = Handle.get_watched_paths h in
+        let current_paths = Xs_handle.get_watched_paths h in
         List.iter (fun p -> unwatch h p token) (elements current_paths);
         with_mutex client.m (fun () -> Hashtbl.remove client.watchevents token);
       );
     t
 
   let rec with_xst client f =
-    let tid = rpc "transaction_start" (Handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
-    let h = Handle.transaction client tid in
+    let tid = rpc "transaction_start" (Xs_handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
+    let h = Xs_handle.transaction client tid in
     let result = f h in
     try
       let res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
