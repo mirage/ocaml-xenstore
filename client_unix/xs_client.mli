@@ -28,6 +28,18 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
+exception Cancelled
+
+module Task : sig
+  type 'a u
+
+  val make: unit -> 'a u
+  val wakeup: 'a u -> 'a -> unit
+  val on_cancel: 'a u -> (unit -> unit) -> unit
+  val cancel: 'a u -> unit
+  val wait: 'a u -> 'a
+end
+
 module Client : functor(IO: IO) -> sig
   type client
   (** A multiplexing xenstore client *)

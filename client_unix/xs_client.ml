@@ -96,35 +96,36 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
-type 'a u = {
-  mutable thing: 'a option;
-  mutable cancelling: bool;
-  mutable on_cancel: unit -> unit;
-  m: Mutex.t;
-  c: Condition.t
-}
-let task () = {
-  thing = None;
-  cancelling = false;
-  on_cancel = (fun () -> ());
-  m = Mutex.create ();
-  c = Condition.create ();
-}
-let wakeup u thing = with_mutex u.m
-  (fun () ->
-    u.thing <- Some thing;
-    Condition.signal u.c
-  )
-let on_cancel u on_cancel = u.on_cancel <- on_cancel
-let cancel u = with_mutex u.m
-  (fun () ->
-    u.cancelling <- true;
-    Condition.signal u.c
-  );
-  u.on_cancel ()
 exception Cancelled
-let wait u = with_mutex u.m
-  (fun () ->
+
+module Task = struct
+  type 'a u = {
+    mutable thing: 'a option;
+    mutable cancelling: bool;
+    mutable on_cancel: unit -> unit;
+    m: Mutex.t;
+    c: Condition.t
+  }
+  let make () = {
+    thing = None;
+    cancelling = false;
+    on_cancel = (fun () -> ());
+    m = Mutex.create ();
+    c = Condition.create ();
+  }
+  let wakeup u thing = with_mutex u.m
+    (fun () ->
+      u.thing <- Some thing;
+      Condition.signal u.c
+    )
+  let on_cancel u on_cancel = u.on_cancel <- on_cancel
+  let cancel u = with_mutex u.m
+    (fun () ->
+      u.cancelling <- true;
+      Condition.signal u.c
+    );
+    u.on_cancel ()
+  let wait u = with_mutex u.m  (fun () ->
     let rec loop () =
       if u.cancelling then raise Cancelled
       else match u.thing with
@@ -132,6 +133,7 @@ let wait u = with_mutex u.m
       | Some thing -> thing in
     loop ()
   )
+end
 
 module Client = functor(IO: IO with type 'a t = 'a) -> struct
   module PS = PacketStream(IO)
@@ -140,7 +142,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   type client = {
     transport: IO.channel;
     ps: PS.stream;
-    rid_to_wakeup: (int32, Xs_protocol.t u) Hashtbl.t;
+    rid_to_wakeup: (int32, Xs_protocol.t Task.u) Hashtbl.t;
     mutable dispatcher_thread: Thread.t option;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
@@ -185,7 +187,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         let rid = get_rid pkt in
         if Hashtbl.mem t.rid_to_wakeup rid then begin
           let u = Hashtbl.find t.rid_to_wakeup rid in
-          wakeup u pkt
+          Task.wakeup u pkt
         end else begin
           Printf.fprintf stderr "Unexpected rid: %ld\n%!" rid
         end
@@ -257,13 +259,13 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     let open Handle in
 	let request = Request.print payload h.tid in
     let rid = get_rid request in
-    let t = task () in
+    let t = Task.make () in
     if h.client.dispatcher_shutting_down
     then raise Dispatcher_failed
     else begin
         Hashtbl.add h.client.rid_to_wakeup rid t;
         send_one h.client request;
-        let res = wait t in
+        let res = Task.wait t in
         Hashtbl.remove h.client.rid_to_wakeup rid;
         response hint request res unmarshal
     end
@@ -294,8 +296,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     Hashtbl.add client.watchevents token watcher;
 
     (* We signal the caller via this cancellable task: *)
-    let t = task () in
-    on_cancel t
+    let t = Task.make () in
+    Task.on_cancel t
       (fun () ->
         (* Trigger an orderly cleanup in the background: *)
         Watcher.cancel watcher
@@ -323,7 +325,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       let finished =
         try
           let result = f h in
-          wakeup t result;
+          Task.wakeup t result;
           true
         with Eagain ->
           false in
@@ -337,7 +339,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         List.iter (fun p -> unwatch h p token) (elements current_paths);
         Hashtbl.remove client.watchevents token;
       );
-    wait t
+    Task.wait t
 
   let rec with_xst client f =
     let tid = rpc "transaction_start" (Handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
