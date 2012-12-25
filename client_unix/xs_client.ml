@@ -287,9 +287,10 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
           true
         with Eagain ->
           false in
-      if finished
-      then ()
-      else adjust_paths (); loop ()
+      if not finished then begin
+        adjust_paths ();
+        loop ()
+      end
     in
     finally loop
       (fun () ->
