@@ -27,7 +27,7 @@ Library xenstore_client_unix
   Path:               client_unix
   Findlibname: 	      unix
   FindlibParent:      xenstore
-  Modules:            Xs_client
+  Modules:            Xs_client_unix
   BuildDepends:       unix, threads, xenstore
 
 Library xenstore_server
