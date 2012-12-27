@@ -36,7 +36,7 @@ let get_namespace_implementation path = match Store.Path.to_string_list path wit
 	| "tool" :: "xenstored" :: "log" :: rest ->
 		Store.Path.of_string_list rest, (module Logging_interface: Namespace.IO)
 	| "tool" :: "xenstored" :: "memory" :: rest ->
-		Store.Path.of_string_list rest, (module Memory_interface: Namespace.IO)
+		Store.Path.of_string_list rest, (module Heap_debug_interface: Namespace.IO)
 	| _ ->
 		path, (module Transaction: Namespace.IO)
 

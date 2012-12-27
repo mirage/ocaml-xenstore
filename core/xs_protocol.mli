@@ -80,20 +80,28 @@ module Parser : sig
       (see Need_more_data above) *)
 end
 
-module type CHANNEL = sig
-  type t
-  val read: t -> string -> int -> int -> int Lwt.t
-  val write: t -> string -> int -> int -> unit Lwt.t
+module type IO = sig
+  type 'a t
+  val return: 'a -> 'a t
+  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
+
+  type channel
+  val read: channel -> string -> int -> int -> int t
+  val write: channel -> string -> int -> int -> unit t
 end
 
 exception Unknown_xenstore_operation of int32
 exception Response_parser_failed of string
 
-module PacketStream : functor(C: CHANNEL) -> sig
+type ('a, 'b) result =
+	| Ok of 'a
+	| Exception of 'b
+
+module PacketStream : functor(IO: IO) -> sig
   type stream
-  val make: C.t -> stream
-  val recv: stream -> t Lwt.t
-  val send: stream -> t -> unit Lwt.t
+  val make: IO.channel -> stream
+  val recv: stream -> (t, exn) result IO.t
+  val send: stream -> t -> unit IO.t
 end
 
 val to_string : t -> string
@@ -110,9 +118,6 @@ module Token : sig
 
   val to_debug_string: t -> string
   (** [to_string token] returns a debug-printable version of [token] *)
-
-  val of_user_string: string -> t
-  (** [of_user_string x] transforms [x] into a fresh watch token *)
 
   val to_user_string: t -> string
   (** [to_user_string token] returns the user-supplied part of [token] *)

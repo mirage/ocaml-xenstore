@@ -32,18 +32,22 @@ let store =
 	store
 
 module type TRANSPORT = sig
+  type 'a t = 'a Lwt.t
+  val return: 'a -> 'a Lwt.t
+  val ( >>= ): 'a t -> ('a -> 'b Lwt.t) -> 'b Lwt.t
+
   type server
   val listen: unit -> server Lwt.t
 
-  type t
-  val read: t -> string -> int -> int -> int Lwt.t
-  val write: t -> string -> int -> int -> unit Lwt.t
-  val destroy: t -> unit Lwt.t
-  val address_of: t -> Xs_protocol.address Lwt.t
+  type channel
+  val read: channel -> string -> int -> int -> int Lwt.t
+  val write: channel -> string -> int -> int -> unit Lwt.t
+  val destroy: channel -> unit Lwt.t
+  val address_of: channel -> Xs_protocol.address Lwt.t
 
-  val namespace_of: t -> (module Namespace.IO) option
+  val namespace_of: channel -> (module Namespace.IO) option
 
-  val accept_forever: server -> (t -> unit Lwt.t) -> 'a Lwt.t
+  val accept_forever: server -> (channel -> unit Lwt.t) -> 'a Lwt.t
 end
 
 module Server = functor(T: TRANSPORT) -> struct
@@ -77,7 +81,9 @@ module Server = functor(T: TRANSPORT) -> struct
 
 		try_lwt
 			lwt () = while_lwt true do
-				lwt request = PS.recv channel in
+				lwt request = match_lwt (PS.recv channel) with
+                  | Ok x -> return x
+                  | Exception e -> raise_lwt e in
 				let events = take_watch_events () in
 				let reply = Call.reply store c request in
 				Lwt_mutex.with_lock m

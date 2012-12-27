@@ -11,23 +11,31 @@ Library xenstore
   CompiledObject:     best
   Path:               core
   Findlibname:        xenstore
-  Modules:            Xs_protocol
-  BuildDepends:       lwt, cstruct (>= 0.6.0), cstruct.syntax
+  Modules:            Xs_protocol, Xs_handle
+  BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax
 
-Library xenstore_client
+Library xenstore_client_lwt
   CompiledObject:     best
-  Path:               client
+  Path:               client_lwt
   Findlibname: 	      client
   FindlibParent:      xenstore
   Modules:            Xs_client
   BuildDepends:       lwt, xenstore
+
+Library xenstore_client_unix
+  CompiledObject:     best
+  Path:               client_unix
+  Findlibname: 	      unix
+  FindlibParent:      xenstore
+  Modules:            Xs_client_unix
+  BuildDepends:       unix, threads, xenstore
 
 Library xenstore_server
   CompiledObject:     best
   Path:               server
   Findlibname:        server
   FindlibParent:      xenstore
-  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Memory_interface
+  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore
 
 Executable xs_test
