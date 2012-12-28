@@ -139,6 +139,14 @@ module Task = struct
   )
 end
 
+type watch_callback = string * string -> unit
+
+let auto_watch_prefix = "auto:"
+
+let startswith prefix x =
+  let prefix' = String.length prefix and x' = String.length x in
+  x' >= prefix' && (String.sub x 0 prefix') = prefix
+
 module Client = functor(IO: IO with type 'a t = 'a) -> struct
   module PS = PacketStream(IO)
 
@@ -149,7 +157,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     rid_to_wakeup: (int32, Xs_protocol.t Task.u) Hashtbl.t;
     mutable dispatcher_thread: Thread.t option;
     mutable dispatcher_shutting_down: bool;
-    watchevents: (Token.t, Watcher.t) Hashtbl.t;
+    watchevents: (string, Watcher.t) Hashtbl.t;
+    mutable extra_watch_callback: ((string * string) -> unit);
     m: Mutex.t;
   }
 
@@ -177,12 +186,13 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       | Op.Watchevent  ->
         begin match Unmarshal.list pkt with
           | Some [path; token] ->
-            let token = Token.of_string token in
-            (* We may get old watches: silently drop these *)
+            (* All 'extra' non-automatic watches are passed to the extra_watch_callback.
+               Note this can include old watches which were still queued in
+			   the server when an 'unwatch' is received. *)
             let w = with_mutex t.m (fun () -> find_opt t.watchevents token) in
             begin match w with
             | Some w -> Watcher.put w path
-            | None -> ()
+            | None -> if not(startswith auto_watch_prefix token) then t.extra_watch_callback (path, token)
             end;
             dispatcher t
           | _ ->
@@ -198,7 +208,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         end
 
 
-  let make () =
+  let make ?(watch_callback = fun _ -> ()) () =
     let transport = IO.create () in
     let t = {
       transport = transport;
@@ -207,6 +217,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       dispatcher_thread = None;
       dispatcher_shutting_down = false;
       watchevents = Hashtbl.create 10;
+	  extra_watch_callback = watch_callback;
       m = Mutex.create ();
     } in
     t.dispatcher_thread <- Some (Thread.create dispatcher t);
@@ -237,8 +248,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
   let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
   let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
-  let watch h path token = rpc "watch" (Xs_handle.watch h path) (Request.Watch(path, Token.to_string token)) Unmarshal.ok
-  let unwatch h path token = rpc "unwatch" (Xs_handle.watch h path) (Request.Unwatch(path, Token.to_string token)) Unmarshal.ok
+  let watch h path token = rpc "watch" (Xs_handle.watch h path) (Request.Watch(path, token)) Unmarshal.ok
+  let unwatch h path token = rpc "unwatch" (Xs_handle.watch h path) (Request.Unwatch(path, token)) Unmarshal.ok
 
   let with_xs client f = f (Xs_handle.no_transaction client)
 
@@ -247,7 +258,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let wait client f =
     let open StringSet in
     counter := Int32.succ !counter;
-    let token = Token.of_string (Printf.sprintf "%ld:xs_client.wait" !counter) in
+    let token = Printf.sprintf "%s%ld" auto_watch_prefix !counter in
     (* When we register the 'watcher', the dispatcher thread will signal us when
        watches arrive. *)
     let watcher = Watcher.make () in
