@@ -40,11 +40,15 @@ module Task : sig
   val wait: 'a u -> 'a
 end
 
+type watch_callback = string * string -> unit
+(** Clients can opt to manage watches manually via this
+    optional callback *)
+
 module Client : functor(IO: IO) -> sig
   type client
   (** A multiplexing xenstore client *)
 
-  val make : unit -> client IO.t
+  val make : ?watch_callback:watch_callback -> unit -> client IO.t
   (** [make ()] initialises and returns a xenstore client *)
 
   type handle
@@ -91,10 +95,10 @@ module Client : functor(IO: IO) -> sig
   val getdomainpath : handle -> int -> string IO.t
   (** [getdomainpath domid] returns the local directory of domain [domid] *)
 
-  val watch : handle -> string -> Xs_protocol.Token.t -> unit IO.t
+  val watch : handle -> string -> string -> unit IO.t
   (** [watch h path token] registers a manual watch at [path] with [token] *)
 
-  val unwatch : handle -> string -> Xs_protocol.Token.t -> unit IO.t
+  val unwatch : handle -> string -> string -> unit IO.t
   (** [unwatch h path token] unregisters a manual watch at [path] with [token] *)
 
 end
