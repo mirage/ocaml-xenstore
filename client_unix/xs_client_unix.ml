@@ -208,7 +208,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         end
 
 
-  let make ?(watch_callback = fun _ -> ()) () =
+  let make () =
     let transport = IO.create () in
     let t = {
       transport = transport;
@@ -217,11 +217,13 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       dispatcher_thread = None;
       dispatcher_shutting_down = false;
       watchevents = Hashtbl.create 10;
-	  extra_watch_callback = watch_callback;
+	  extra_watch_callback = (fun _ -> ());
       m = Mutex.create ();
     } in
     t.dispatcher_thread <- Some (Thread.create dispatcher t);
     t
+
+  let set_watch_callback client cb = client.extra_watch_callback <- cb
 
   let rpc hint h payload unmarshal =
     let open Xs_handle in
@@ -250,7 +252,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
   let watch h path token = rpc "watch" (Xs_handle.watch h path) (Request.Watch(path, token)) Unmarshal.ok
   let unwatch h path token = rpc "unwatch" (Xs_handle.watch h path) (Request.Unwatch(path, token)) Unmarshal.ok
-
+  let introduce h domid store_mfn store_port = rpc "introduce" h (Request.Introduce(domid, store_mfn, store_port)) Unmarshal.ok
+  let set_target h stubdom_domid domid = rpc "set_target" h (Request.Set_target(stubdom_domid, domid)) Unmarshal.ok
   let with_xs client f = f (Xs_handle.no_transaction client)
 
   let counter = ref 0l
