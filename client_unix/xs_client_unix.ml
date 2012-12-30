@@ -205,7 +205,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         begin match u with
         | Some u -> Task.wakeup u pkt
         | None -> Printf.fprintf stderr "Unexpected rid: %ld\n%!" rid
-        end
+        end;
+        dispatcher t
 
 
   let make () =
