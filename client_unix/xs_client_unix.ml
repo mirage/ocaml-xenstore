@@ -226,10 +226,21 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
 
   let set_watch_callback client cb = client.extra_watch_callback <- cb
 
+  let make_rid =
+	  let counter = ref 0l in
+	  let m = Mutex.create () in
+	  fun () ->
+		  with_mutex m
+			  (fun () ->
+				  let result = !counter in
+				  counter := Int32.succ !counter;
+				  result
+			  )
+
   let rpc hint h payload unmarshal =
     let open Xs_handle in
-	let request = Request.print payload (get_tid h) in
-    let rid = get_rid request in
+    let rid = make_rid () in
+    let request = Request.print payload (get_tid h) rid in
     let t = Task.make () in
     let c = get_client h in
     if c.dispatcher_shutting_down

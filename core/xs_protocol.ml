@@ -637,10 +637,10 @@ module Request = struct
 		| Set_target (mine, yours) ->
 			data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours; ]
 
-	let print x tid =
+	let print x tid rid =
 		create
 			(if transactional_of_payload x then tid else 0l)
-			0l
+			rid
 			(ty_of_payload x)
 			(data_of_payload x)
 end

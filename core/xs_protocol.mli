@@ -193,7 +193,7 @@ module Request : sig
   val prettyprint: t -> string
 
   val parse: t -> payload option
-  val print: payload -> int32 -> t
+  val print: payload -> int32 -> int32 -> t
 end
 
 module Unmarshal : sig

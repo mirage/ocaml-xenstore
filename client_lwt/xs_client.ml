@@ -194,10 +194,17 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
 
   type handle = client Xs_handle.t
 
+  let make_rid =
+	  let counter = ref 0l in
+	  fun () ->
+		  let result = !counter in
+		  counter := Int32.succ !counter;
+		  result
+
   let rpc hint h payload unmarshal =
     let open Xs_handle in
-	let request = Request.print payload (get_tid h) in
-    let rid = get_rid request in
+    let rid = make_rid () in
+    let request = Request.print payload (get_tid h) rid in
     let t, u = wait () in
     let c = get_client h in
     if c.dispatcher_shutting_down
