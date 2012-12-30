@@ -86,7 +86,7 @@ type example_packet = {
 }
 let make_example_request op payload tid wire_fmt = {
 		op = op;
-		packet = Xs_protocol.Request.print payload tid;
+		packet = Xs_protocol.Request.print payload tid 0l;
 		wire_fmt = wire_fmt;
 	}
 

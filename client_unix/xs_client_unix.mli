@@ -40,12 +40,19 @@ module Task : sig
   val wait: 'a u -> 'a
 end
 
+type watch_callback = string * string -> unit
+(** Clients can opt to manage watches manually via this
+    optional callback *)
+
 module Client : functor(IO: IO) -> sig
   type client
   (** A multiplexing xenstore client *)
 
   val make : unit -> client IO.t
   (** [make ()] initialises and returns a xenstore client *)
+
+  val set_watch_callback : client -> watch_callback -> unit
+  (** [set_watch_callback cb] registers a manual watch callback *)
 
   type handle
   (** A handle represents a single thread's xenstore access *)
@@ -91,10 +98,17 @@ module Client : functor(IO: IO) -> sig
   val getdomainpath : handle -> int -> string IO.t
   (** [getdomainpath domid] returns the local directory of domain [domid] *)
 
-  val watch : handle -> string -> Xs_protocol.Token.t -> unit IO.t
+  val watch : handle -> string -> string -> unit IO.t
   (** [watch h path token] registers a manual watch at [path] with [token] *)
 
-  val unwatch : handle -> string -> Xs_protocol.Token.t -> unit IO.t
+  val unwatch : handle -> string -> string -> unit IO.t
   (** [unwatch h path token] unregisters a manual watch at [path] with [token] *)
 
+  val introduce : handle -> int -> nativeint -> int -> unit IO.t
+  (** [introduce h domid store_mfn store_port] called by a toolstack to signal
+      the construction of a new domain *)
+
+  val set_target : handle -> int -> int -> unit IO.t
+  (** [set_target h stubdom_domid domid] called by a toolstack to grant
+      [stubdom_domid] the permissions owned by [domid] *)
 end

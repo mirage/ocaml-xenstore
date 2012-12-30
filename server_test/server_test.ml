@@ -77,7 +77,7 @@ let check_result reply = function
 		(success ++ int32) f reply
 
 let rpc store c tid payload =
-	let request = Xs_protocol.Request.print payload tid in
+	let request = Xs_protocol.Request.print payload tid 0l in
 	Call.reply store c request
 
 let run store (payloads: (Connection.t * int32 * Xs_protocol.Request.payload * result) list) =

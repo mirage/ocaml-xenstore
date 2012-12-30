@@ -94,4 +94,11 @@ module Client : functor(IO: IO) -> sig
   val unwatch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
   (** [unwatch h path token] unregisters a manual watch at [path] with [token] *)
 
+  val introduce : handle -> int -> nativeint -> int -> unit Lwt.t
+  (** [introduce h domid store_mfn store_port] called by a toolstack to signal
+      the construction of a new domain *)
+
+  val set_target : handle -> int -> int -> unit Lwt.t
+  (** [set_target h stubdom_domid domid] called by a toolstack to grant
+      [stubdom_domid] the permissions owned by [domid] *)
 end
