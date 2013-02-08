@@ -158,11 +158,14 @@ let to_string pkt =
 
 let get_tid pkt = pkt.tid
 let get_ty pkt = pkt.ty
+
 let get_data pkt =
   if pkt.len > 0 && Buffer.nth pkt.data (pkt.len - 1) = '\000' then
     Buffer.sub pkt.data 0 (pkt.len - 1)
   else
     Buffer.contents pkt.data
+let get_data_raw pkt = Buffer.contents pkt.data
+
 let get_rid pkt = pkt.rid
 
 module Parser = struct
@@ -487,10 +490,13 @@ module Request = struct
 
 	let strings data = split_string '\000' data
 
+	(* String must be NUL-terminated *)
 	let one_string data =
 		let args = split_string ~limit:2 '\000' data in
 		match args with
-		| x :: [] -> x
+		| x :: [] ->
+			raise Parse_failure
+		| x :: "" :: [] -> x
 		| _       ->
 			raise Parse_failure
 
@@ -498,7 +504,8 @@ module Request = struct
 		let args = split_string ~limit:2 '\000' data in
 		match args with
 		| a :: b :: [] -> a, b
-		| a :: [] -> a, "" (* terminating NULL removed by get_data *)
+		| a :: []      ->
+			raise Parse_failure
 		| _            ->
 			raise Parse_failure
 
@@ -528,7 +535,7 @@ module Request = struct
 			raise Parse_failure
 
 	let parse_exn request =
-		let data = get_data request in
+		let data = get_data_raw request in
 		match get_ty request with
 		| Op.Read -> PathOp (data |> one_string, Read)
 		| Op.Directory -> PathOp (data |> one_string, Directory)
@@ -542,10 +549,14 @@ module Request = struct
 		| Op.Rm -> PathOp (data |> one_string, Rm)
 		| Op.Setperms ->
 			let path, perms = two_strings data in
+			(* strip everything from the last NUL onwards *)
+			let perms = String.sub perms 0 (String.rindex perms '\000') in
 			let perms = acl perms in
 			PathOp(path, Setperms perms)
 		| Op.Watch ->
 			let path, token = two_strings data in
+			(* strip everything from the last NUL onwards *)
+			let token = String.sub token 0 (String.rindex token '\000') in
 			Watch(path, token)
 		| Op.Unwatch ->
 			let path, token = two_strings data in
