@@ -170,6 +170,8 @@ module Parser = struct
 
   let header_size = 16
 
+  let xenstore_payload_max = 4096 (* xen/include/public/io/xs_wire.h *)
+
   type state =
     | Unknown_operation of int32
     | Parser_failed of string
@@ -197,7 +199,12 @@ module Parser = struct
     let len = get_header_len header in
 
     let len = Int32.to_int len in
-    (* TODO: detect anamalous 'len' values and abort early *)
+    (* A packet which is bigger than xenstore_payload_max is illegal.
+       This will leave the guest connection is a bad state and will
+       be hard to recover from without restarting the connection
+       (ie rebooting the guest) *)
+    let len = max 0 (min xenstore_payload_max len) in
+
     begin match Op.of_int32 ty with
     | Some ty ->
       let t = {
