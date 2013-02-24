@@ -80,10 +80,11 @@ module Server = functor(T: TRANSPORT) -> struct
 			done in
 
 		try_lwt
-			lwt () = while_lwt true do
+			lwt () =
+			while_lwt true do
 				lwt request = match_lwt (PS.recv channel) with
-                  | Ok x -> return x
-                  | Exception e -> raise_lwt e in
+					| Ok x -> return x
+					| Exception e -> raise_lwt e in
 				let events = take_watch_events () in
 				let reply = Call.reply store c request in
 				Lwt_mutex.with_lock m
