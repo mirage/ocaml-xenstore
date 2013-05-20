@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a3d236d5a9c53b629603748ecc0be767)
+# DO NOT EDIT (digest: f48c3953573a875c97ded5c289e39917)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -32,6 +32,22 @@
 <client_unix/*.ml{,i}>: pkg_cstruct.syntax
 # Library xenstore_server
 "server/xenstore_server.cmxs": use_xenstore_server
+"server/logging.cmx": for-pack(Xenstore_server)
+"server/logging_interface.cmx": for-pack(Xenstore_server)
+"server/connection.cmx": for-pack(Xenstore_server)
+"server/call.cmx": for-pack(Xenstore_server)
+"server/trie.cmx": for-pack(Xenstore_server)
+"server/symbol.cmx": for-pack(Xenstore_server)
+"server/namespace.cmx": for-pack(Xenstore_server)
+"server/quota.cmx": for-pack(Xenstore_server)
+"server/quota_interface.cmx": for-pack(Xenstore_server)
+"server/perms.cmx": for-pack(Xenstore_server)
+"server/store.cmx": for-pack(Xenstore_server)
+"server/transaction.cmx": for-pack(Xenstore_server)
+"server/xs_server.cmx": for-pack(Xenstore_server)
+"server/junk.cmx": for-pack(Xenstore_server)
+"server/introduce.cmx": for-pack(Xenstore_server)
+"server/heap_debug_interface.cmx": for-pack(Xenstore_server)
 <server/*.ml{,i}>: use_xenstore
 <server/*.ml{,i}>: pkg_lwt
 <server/*.ml{,i}>: pkg_cstruct
