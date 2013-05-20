@@ -32,6 +32,7 @@ Library xenstore_client_unix
 
 Library xenstore_server
   CompiledObject:     best
+  Pack:               true
   Path:               server
   Findlibname:        server
   FindlibParent:      xenstore
