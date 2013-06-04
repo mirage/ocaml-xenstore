@@ -12,27 +12,42 @@
  * GNU Lesser General Public License for more details.
  *)
 
-type t (** a valid packet *)
+(** XenStore protocol. *)
+
+type t
+(** A valid packet. *)
 
 module Op : sig
   type t =
-    | Debug | Directory | Read | Getperms
-    | Watch | Unwatch | Transaction_start
-    | Transaction_end | Introduce | Release
-    | Getdomainpath | Write | Mkdir | Rm
-    | Setperms | Watchevent | Error | Isintroduced
-    | Resume | Set_target
-  | Restrict
-  (** The type of xenstore operation *)
+    | Debug
+    | Directory
+    | Read
+    | Getperms
+    | Watch
+    | Unwatch
+    | Transaction_start
+    | Transaction_end
+    | Introduce
+    | Release
+    | Getdomainpath
+    | Write
+    | Mkdir
+    | Rm
+    | Setperms
+    | Watchevent
+    | Error
+    | Isintroduced
+    | Resume
+    | Set_target
+    | Restrict
+  (** The type of xenstore operation. *)
 
   val to_string: t -> string
-
   val of_int32: int32 -> t option
   val to_int32: t -> int32
 end
 
 module ACL : sig
-    (** Access control lists *)
 
   type perm =
     | NONE
@@ -41,7 +56,6 @@ module ACL : sig
     | RDWR
 
   val char_of_perm: perm -> char
-
   val perm_of_char: char -> perm option
 
   type domid = int
@@ -53,13 +67,11 @@ module ACL : sig
   }
 
   val of_string: string -> t option
-
   val to_string: t -> string
-
 end
+(** Access control lists. *)
 
 module Parser : sig
-  (** Incrementally parse packets *)
 
   type state =
     | Unknown_operation of int32 (** received an unexpected message type *)
@@ -67,18 +79,20 @@ module Parser : sig
     | Need_more_data of int      (** we still need 'n' bytes *)
     | Packet of t                (** successfully decoded a packet *)
 
-  type parse (** the internal state of the parser *)
+  type parse
+  (** The internal state of the parser. *)
 
   val start: unit -> parse
-  (** create a parser set to the initial state *)
+  (** Create a parser set to the initial state. *)
 
   val state: parse -> state
-  (** query the state of the parser *)
+  (** Query the state of the parser. *)
 
   val input: parse -> string -> parse
-  (** input some bytes into the parser. Must be no more than needed
-      (see Need_more_data above) *)
+  (** Input some bytes into the parser. Must be no more than needed
+      (see Need_more_data above). *)
 end
+(** Incrementally parse packets. *)
 
 module type IO = sig
   type 'a t
@@ -114,18 +128,21 @@ val create : int32 -> int32 -> Op.t -> string -> t
 
 module Token : sig
   type t
-  (** A token is associated with every watch and returned in the callback *)
+  (** A token is associated with every watch and returned in the
+      callback. *)
 
   val to_debug_string: t -> string
-  (** [to_string token] returns a debug-printable version of [token] *)
+  (** [to_string token] is a debug-printable version of [token]. *)
 
   val to_user_string: t -> string
-  (** [to_user_string token] returns the user-supplied part of [token] *)
+  (** [to_user_string token] is the user-supplied part of [token]. *)
 
   val of_string: string -> t
-  (** [of_string x] parses the marshalled token [x] *)
+  (** [of_string str_rep] is the token resulting from the
+      unmarshalling of [str_rep]. *)
 
   val to_string: t -> string
+  (** [to_string token] is the marshalled representation of [token]. *)
 end
 
 module Response : sig
@@ -206,15 +223,15 @@ module Unmarshal : sig
   val ok : t -> unit option
 end
 
-exception Enoent of string (** named key does not exist *)
-exception Eagain           (** transaction must be repeated *)
+exception Enoent of string (** Raised when a named key does not exist. *)
+exception Eagain           (** Raised when a transaction must be repeated. *)
 exception Invalid
-exception Error of string  (** generic catch-all error *)
+exception Error of string  (** Generic catch-all error. *)
 
 val response: string -> t -> t -> (t -> 'a option) -> 'a
-(** [response debug_hint sent received unmarshal] returns the unmarshalled
-    response corresponding to the [received] packet relative to the [sent]
-    packet *)
+(** [response debug_hint sent received unmarshal] returns the
+    [unmarshal]led response corresponding to the [received] packet
+    relative to the [sent] packet. *)
 
 type address =
 | Unix of string
