@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-(** Lwt client interface to the XenStore. *)
+(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
 
 module type IO = sig
   type 'a t = 'a Lwt.t

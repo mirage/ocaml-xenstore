@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-(** UNIX client interface to the XenStore. *)
+(** A multiplexing XenStore protocol client over a byte-level transport, using Unix. *)
 
 module type IO = sig
   type 'a t = 'a
