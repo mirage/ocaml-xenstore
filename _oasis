@@ -66,3 +66,11 @@ Test server_test
   Run$:               flag(tests)
   Command:            $server_test
   WorkingDirectory:   server_test
+
+Document api
+  Title: Documentation and API reference
+  Type: ocamlbuild (0.3)
+  BuildTools+: ocamldoc
+  XOcamlbuildPath: doc
+  XOcamlbuildModules: Xs_protocol, Xs_handle, Xs_client, Xs_client_unix
+  Install: false

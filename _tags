@@ -82,6 +82,10 @@
 <server_test/server_test.{native,byte}>: custom
 # OASIS_STOP
 true: annot
-<*/*>: syntax_camlp4o
-<client_lwt/*>: pkg_lwt.syntax
-<server/*>: pkg_lwt.syntax
+<*/*.ml>: syntax_camlp4o
+<client_lwt/*.ml>: pkg_lwt.syntax
+<server/*.ml>: pkg_lwt.syntax
+<core>: include
+<client_lwt>: include
+<client_unix>: include
+<server>: include
