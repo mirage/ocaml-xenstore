@@ -63,10 +63,10 @@ module Client : functor(IO: IO) -> sig
   type handle
   (** A handle represents a single thread's xenstore access. *)
 
-  val with_xs : client -> (handle -> 'a IO.t) -> 'a IO.t
+  val immediate : client -> (handle -> 'a IO.t) -> 'a IO.t
   (** Access xenstore with individual operations. *)
 
-  val with_xst : client -> (handle -> 'a IO.t) -> 'a IO.t
+  val transaction : client -> (handle -> 'a IO.t) -> 'a IO.t
   (** Access xenstore with a single transaction.  On conflict the
       operation will be repeated. *)
 
