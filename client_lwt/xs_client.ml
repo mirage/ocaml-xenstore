@@ -240,7 +240,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
   let unwatch h path token = rpc "unwatch" (Xs_handle.watch h path) (Request.Unwatch(path, Token.to_string token)) Unmarshal.ok
   let introduce h domid store_mfn store_port = rpc "introduce" h (Request.Introduce(domid, store_mfn, store_port)) Unmarshal.ok
   let set_target h stubdom_domid domid = rpc "set_target" h (Request.Set_target(stubdom_domid, domid)) Unmarshal.ok
-  let with_xs client f = f (Xs_handle.no_transaction client)
+  let immediate client f = f (Xs_handle.no_transaction client)
 
   let counter = ref 0l
 
@@ -302,7 +302,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
         return () in
     result
 
-  let rec with_xst client f =
+  let rec transaction client f =
     lwt tid = rpc "transaction_start" (Xs_handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
     let h = Xs_handle.transaction client tid in
     lwt result = f h in
@@ -310,6 +310,6 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       lwt res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
       if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
     with Eagain ->
-      with_xst client f
+      transaction client f
 end
 
