@@ -50,6 +50,8 @@ let ( ++ ) f g x = f (g x)
 
 module StringSet = Xs_handle.StringSet
 
+exception Watch_overflow
+
 module Watcher = struct
 
   (** Someone who is watching paths is represented by one of these: *)
@@ -157,7 +159,16 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     rid_to_wakeup: (int32, Xs_protocol.t Task.u) Hashtbl.t;
     mutable dispatcher_thread: Thread.t option;
     mutable dispatcher_shutting_down: bool;
+
+    mutable watch_callback_thread: Thread.t option;
+
     watchevents: (string, Watcher.t) Hashtbl.t;
+
+    incoming_watches : (string * string) Queue.t;
+    queue_overflowed : bool ref;
+    incoming_watches_m : Mutex.t;
+    incoming_watches_c : Condition.t;
+      
     mutable extra_watch_callback: ((string * string) -> unit);
     m: Mutex.t;
   }
@@ -180,6 +191,15 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     t.dispatcher_shutting_down <- true;
     raise e
 
+  let enqueue_watch t event =
+    with_mutex t.incoming_watches_m
+      (fun () ->
+	if Queue.length t.incoming_watches = 1024
+	then t.queue_overflowed := true
+	else Queue.push event t.incoming_watches;
+	Condition.signal t.incoming_watches_c
+      )
+
   let rec dispatcher t =
     let pkt = try recv_one t with e -> handle_exn t e in
     match get_ty pkt with
@@ -192,7 +212,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
             let w = with_mutex t.m (fun () -> find_opt t.watchevents token) in
             begin match w with
             | Some w -> Watcher.put w path
-            | None -> if not(startswith auto_watch_prefix token) then t.extra_watch_callback (path, token)
+            | None -> if not(startswith auto_watch_prefix token) then enqueue_watch t (path, token)
             end;
             dispatcher t
           | _ ->
@@ -208,6 +228,24 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         end;
         dispatcher t
 
+  let dequeue_watches t =
+    try
+      while true do
+	let event = with_mutex t.incoming_watches_m
+	  (fun () ->
+	    while Queue.is_empty t.incoming_watches && not(!(t.queue_overflowed)) do
+	      Condition.wait t.incoming_watches_c t.incoming_watches_m
+	    done;
+	    if !(t.queue_overflowed) then begin
+	      raise Watch_overflow;
+	    end;
+	    Queue.pop t.incoming_watches
+	  ) in
+	let () = t.extra_watch_callback event in
+	()
+      done
+    with Watch_overflow -> ()
+  
 
   let make () =
     let transport = IO.create () in
@@ -217,11 +255,21 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
       rid_to_wakeup = Hashtbl.create 10;
       dispatcher_thread = None;
       dispatcher_shutting_down = false;
+
+      watch_callback_thread = None;
+
       watchevents = Hashtbl.create 10;
-	  extra_watch_callback = (fun _ -> ());
+
+      incoming_watches = Queue.create ();
+      queue_overflowed = ref false;
+      incoming_watches_m = Mutex.create ();
+      incoming_watches_c = Condition.create ();
+
+      extra_watch_callback = (fun _ -> ());
       m = Mutex.create ();
     } in
     t.dispatcher_thread <- Some (Thread.create dispatcher t);
+    t.watch_callback_thread <- Some (Thread.create dequeue_watches t);
     t
 
   let set_watch_callback client cb = client.extra_watch_callback <- cb
