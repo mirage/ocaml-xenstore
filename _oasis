@@ -39,6 +39,16 @@ Library xenstore_server
   Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore
 
+Executable client_test
+  CompiledObject:     best
+  Path:               client_unix
+  MainIs:             client_test.ml
+  Build$:             flag(tests)
+  Custom:             true
+  Install:            false
+  BuildDepends:       xenstore, xenstore.unix, threads, xenstore_transport.unix
+
+
 Executable xs_test
   CompiledObject:     best
   Path:               core_test
