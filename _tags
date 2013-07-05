@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f48c3953573a875c97ded5c289e39917)
+# DO NOT EDIT (digest: bbfbb9e936445c128b2ed789b70f1e8a)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -25,11 +25,6 @@
 <client_lwt/*.ml{,i}>: pkg_cstruct.syntax
 # Library xenstore_client_unix
 "client_unix/xenstore_client_unix.cmxs": use_xenstore_client_unix
-<client_unix/*.ml{,i}>: use_xenstore
-<client_unix/*.ml{,i}>: pkg_unix
-<client_unix/*.ml{,i}>: pkg_threads
-<client_unix/*.ml{,i}>: pkg_cstruct
-<client_unix/*.ml{,i}>: pkg_cstruct.syntax
 # Library xenstore_server
 "server/xenstore_server.cmxs": use_xenstore_server
 "server/logging.cmx": for-pack(Xenstore_server)
@@ -52,6 +47,22 @@
 <server/*.ml{,i}>: pkg_lwt
 <server/*.ml{,i}>: pkg_cstruct
 <server/*.ml{,i}>: pkg_cstruct.syntax
+# Executable client_test
+<client_unix/client_test.{native,byte}>: use_xenstore_client_unix
+<client_unix/client_test.{native,byte}>: use_xenstore
+<client_unix/client_test.{native,byte}>: pkg_threads
+<client_unix/client_test.{native,byte}>: pkg_xenstore_transport.unix
+<client_unix/client_test.{native,byte}>: pkg_unix
+<client_unix/client_test.{native,byte}>: pkg_cstruct
+<client_unix/client_test.{native,byte}>: pkg_cstruct.syntax
+<client_unix/*.ml{,i}>: use_xenstore_client_unix
+<client_unix/*.ml{,i}>: use_xenstore
+<client_unix/*.ml{,i}>: pkg_threads
+<client_unix/*.ml{,i}>: pkg_xenstore_transport.unix
+<client_unix/*.ml{,i}>: pkg_unix
+<client_unix/*.ml{,i}>: pkg_cstruct
+<client_unix/*.ml{,i}>: pkg_cstruct.syntax
+<client_unix/client_test.{native,byte}>: custom
 # Executable xs_test
 <core_test/xs_test.{native,byte}>: use_xenstore
 <core_test/xs_test.{native,byte}>: pkg_lwt
