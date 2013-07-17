@@ -40,6 +40,7 @@ module Task : sig
   val wait: 'a u -> 'a
 end
 
+
 type watch_callback = string * string -> unit
 (** Clients can opt to manage watches manually via this
     optional callback *)
@@ -47,6 +48,9 @@ type watch_callback = string * string -> unit
 module Client : functor(IO: IO) -> sig
   type client
   (** A multiplexing xenstore client *)
+
+  val set_logger : (string -> unit) -> unit
+  (** Set a callback in order to get logging from the library *)
 
   val make : unit -> client IO.t
   (** [make ()] initialises and returns a xenstore client *)

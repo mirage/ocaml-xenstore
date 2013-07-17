@@ -152,6 +152,10 @@ let startswith prefix x =
 module Client = functor(IO: IO with type 'a t = 'a) -> struct
   module PS = PacketStream(IO)
 
+  let logger = ref (fun s -> let _ : string = s in ())
+  let error fmt = Printf.kprintf !logger fmt
+  let set_logger f = logger := f
+
   (* Represents a single acive connection to a server *)
   type client = {
     transport: IO.channel;
@@ -181,7 +185,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let send_one t = PS.send t.ps
 
   let handle_exn t e =
-    Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
+    error "Caught: %s\n%!" (Printexc.to_string e);
     begin match e with
       | Xs_protocol.Response_parser_failed x ->
       (* Lwt_io.hexdump Lwt_io.stderr x *)
@@ -224,13 +228,13 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         let u = with_mutex t.m (fun () -> find_opt t.rid_to_wakeup rid) in
         begin match u with
         | Some u -> Task.wakeup u pkt
-        | None -> Printf.fprintf stderr "Unexpected rid: %ld\n%!" rid
+        | None -> error "Unexpected rid: %ld\n%!" rid
         end;
         dispatcher t
 
   let dequeue_watches t =
-    try
-      while true do
+    while true do
+      try 
 	let event = with_mutex t.incoming_watches_m
 	  (fun () ->
 	    while Queue.is_empty t.incoming_watches && not(!(t.queue_overflowed)) do
@@ -243,9 +247,15 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
 	  ) in
 	let () = t.extra_watch_callback event in
 	()
-      done
-    with Watch_overflow -> ()
-  
+      with 
+	| Watch_overflow as e ->
+	  error "Caught watch_overflow. Not retrying.";
+	  raise e
+	| e ->
+	  error "Caught '%s' while dequeuing watches. Ignoring.\n%!" (Printexc.to_string e);
+    done
+      
+	
 
   let make () =
     let transport = IO.create () in
