@@ -1,3 +1,10 @@
+trunk (unreleased):
+* Generate documentation with make doc.
+* Documentation improvements/uniformization.
+* Xs_handle rewritten in a more functional style.
+* Function names now are equal to mirage ones.
+* Renamed Xs_client to Xs_client_lwt.
+
 1.2.1 (15-Mar-2013):
 * Drop packets which are too large
 
