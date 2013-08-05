@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-(** A multiplexing xenstore protocol client over a byte-level transport *)
+(** A multiplexing xenstore protocol client over a byte-level transport. *)
 
 open Lwt
 open Xs_protocol
@@ -201,12 +201,12 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
 		  counter := Int32.succ !counter;
 		  result
 
-  let rpc hint h payload unmarshal =
+  let rpc hint (h:handle) payload unmarshal =
     let open Xs_handle in
     let rid = make_rid () in
-    let request = Request.print payload (get_tid h) rid in
+    let request = Request.print payload (tid h) rid in
     let t, u = wait () in
-    let c = get_client h in
+    let c = client h in
     if c.dispatcher_shutting_down
     then raise_lwt Dispatcher_failed
     else begin
@@ -227,12 +227,12 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
         return (response hint request res unmarshal)
  end
 
-  let directory h path = rpc "directory" (Xs_handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
-  let read h path = rpc "read" (Xs_handle.accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
-  let write h path data = rpc "write" (Xs_handle.accessed_path h path) Request.(PathOp(path, Write data)) Unmarshal.ok
-  let rm h path = rpc "rm" (Xs_handle.accessed_path h path) Request.(PathOp(path, Rm)) Unmarshal.ok
-  let mkdir h path = rpc "mkdir" (Xs_handle.accessed_path h path) Request.(PathOp(path, Mkdir)) Unmarshal.ok
-  let setperms h path acl = rpc "setperms" (Xs_handle.accessed_path h path) Request.(PathOp(path, Setperms acl)) Unmarshal.ok
+  let directory h path = rpc "directory" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
+  let read h path = rpc "read" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
+  let write h path data = rpc "write" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Write data)) Unmarshal.ok
+  let rm h path = rpc "rm" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Rm)) Unmarshal.ok
+  let mkdir h path = rpc "mkdir" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Mkdir)) Unmarshal.ok
+  let setperms h path acl = rpc "setperms" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Setperms acl)) Unmarshal.ok
   let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
   let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
   let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
@@ -240,7 +240,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
   let unwatch h path token = rpc "unwatch" (Xs_handle.watch h path) (Request.Unwatch(path, Token.to_string token)) Unmarshal.ok
   let introduce h domid store_mfn store_port = rpc "introduce" h (Request.Introduce(domid, store_mfn, store_port)) Unmarshal.ok
   let set_target h stubdom_domid domid = rpc "set_target" h (Request.Set_target(stubdom_domid, domid)) Unmarshal.ok
-  let with_xs client f = f (Xs_handle.no_transaction client)
+  let immediate client f = f (Xs_handle.no_transaction client)
 
   let counter = ref 0l
 
@@ -263,12 +263,12 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
     let h = Xs_handle.watching client in
     (* Adjust the paths we're watching (if necessary) and block (if possible) *)
     let adjust_paths () =
-      let current_paths = Xs_handle.get_watched_paths h in
+      let current_paths = Xs_handle.watched_paths h in
       (* Paths which weren't read don't need to be watched: *)
-      let old_paths = diff current_paths (Xs_handle.get_accessed_paths h) in
+      let old_paths = diff current_paths (Xs_handle.accessed_paths h) in
       lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements old_paths) in
       (* Paths which were read do need to be watched: *)
-      let new_paths = diff (Xs_handle.get_accessed_paths h) current_paths in
+      let new_paths = diff (Xs_handle.accessed_paths h) current_paths in
       lwt () = Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths) in
       (* If we're watching the correct set of paths already then just block *)
       if old_paths = empty && (new_paths = empty)
@@ -296,13 +296,13 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       try_lwt
         loop ()
       finally
-        let current_paths = Xs_handle.get_watched_paths h in
+        let current_paths = Xs_handle.watched_paths h in
         lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths) in
         Hashtbl.remove client.watchevents token;
         return () in
     result
 
-  let rec with_xst client f =
+  let rec transaction client f =
     lwt tid = rpc "transaction_start" (Xs_handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
     let h = Xs_handle.transaction client tid in
     lwt result = f h in
@@ -310,6 +310,6 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       lwt res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
       if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
     with Eagain ->
-      with_xst client f
+      transaction client f
 end
 

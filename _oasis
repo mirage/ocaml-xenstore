@@ -19,7 +19,7 @@ Library xenstore_client_lwt
   Path:               client_lwt
   Findlibname: 	      client
   FindlibParent:      xenstore
-  Modules:            Xs_client
+  Modules:            Xs_client_lwt
   BuildDepends:       lwt, xenstore
 
 Library xenstore_client_unix
@@ -66,3 +66,11 @@ Test server_test
   Run$:               flag(tests)
   Command:            $server_test
   WorkingDirectory:   server_test
+
+Document api
+  Title: Documentation and API reference
+  Type: ocamlbuild (0.3)
+  BuildTools+: ocamldoc
+  XOcamlbuildPath: doc
+  XOcamlbuildModules: Xs_protocol, Xs_handle, Xs_client_lwt, Xs_client_unix
+  Install: false
