@@ -19,6 +19,9 @@ module type IO = sig
   val return: 'a -> 'a t
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 
+  type backend = [ `xen | `unix ]
+  val backend : backend
+
   type channel
   val create: unit -> channel t
   val destroy: channel -> unit t
