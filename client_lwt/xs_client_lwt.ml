@@ -32,6 +32,33 @@ module type IO = sig
   val write: channel -> string -> int -> int -> unit t
 end
 
+module type S = sig
+  type client
+
+  val make : unit -> client Lwt.t
+  val suspend : client -> unit Lwt.t
+  val resume : client -> unit Lwt.t
+
+  type handle
+
+  val immediate : client -> (handle -> 'a Lwt.t) -> 'a Lwt.t
+  val transaction : client -> (handle -> 'a Lwt.t) -> 'a Lwt.t
+  val wait : client -> (handle -> 'a Lwt.t) -> 'a Lwt.t
+  val directory : handle -> string -> string list Lwt.t
+  val read : handle -> string -> string Lwt.t
+  val write : handle -> string -> string -> unit Lwt.t
+  val rm : handle -> string -> unit Lwt.t
+  val mkdir : handle -> string -> unit Lwt.t
+  val setperms : handle -> string -> Xs_protocol.ACL.t -> unit Lwt.t
+  val debug : handle -> string list -> string list Lwt.t
+  val restrict : handle -> int -> unit Lwt.t
+  val getdomainpath : handle -> int -> string Lwt.t
+  val watch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
+  val unwatch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
+  val introduce : handle -> int -> nativeint -> int -> unit Lwt.t
+  val set_target : handle -> int -> int -> unit Lwt.t
+end
+
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
 
