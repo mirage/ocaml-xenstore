@@ -22,11 +22,41 @@ module type IO = sig
   val return: 'a -> 'a t
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 
+  type backend = [ `xen | `unix ]
+  val backend : backend
+
   type channel
   val create: unit -> channel t
   val destroy: channel -> unit t
   val read: channel -> string -> int -> int -> int t
   val write: channel -> string -> int -> int -> unit t
+end
+
+module type S = sig
+  type client
+
+  val make : unit -> client Lwt.t
+  val suspend : client -> unit Lwt.t
+  val resume : client -> unit Lwt.t
+
+  type handle
+
+  val immediate : client -> (handle -> 'a Lwt.t) -> 'a Lwt.t
+  val transaction : client -> (handle -> 'a Lwt.t) -> 'a Lwt.t
+  val wait : client -> (handle -> 'a Lwt.t) -> 'a Lwt.t
+  val directory : handle -> string -> string list Lwt.t
+  val read : handle -> string -> string Lwt.t
+  val write : handle -> string -> string -> unit Lwt.t
+  val rm : handle -> string -> unit Lwt.t
+  val mkdir : handle -> string -> unit Lwt.t
+  val setperms : handle -> string -> Xs_protocol.ACL.t -> unit Lwt.t
+  val debug : handle -> string list -> string list Lwt.t
+  val restrict : handle -> int -> unit Lwt.t
+  val getdomainpath : handle -> int -> string Lwt.t
+  val watch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
+  val unwatch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
+  val introduce : handle -> int -> nativeint -> int -> unit Lwt.t
+  val set_target : handle -> int -> int -> unit Lwt.t
 end
 
 let ( |> ) a b = b a
@@ -93,7 +123,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
 
   (* Represents a single acive connection to a server *)
   type client = {
-    transport: IO.channel;
+    mutable transport: IO.channel;
     ps: PS.stream;
     rid_to_wakeup: (int32, Xs_protocol.t Lwt.u) Hashtbl.t;
     mutable dispatcher_thread: unit Lwt.t;
@@ -104,6 +134,16 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
     suspended_m : Lwt_mutex.t;
     suspended_c : unit Lwt_condition.t;
   }
+
+  (* The following values are only used if IO.backend = `xen. *)
+
+  let client_cache = ref None
+  (* The whole application must only use one xenstore client, which will
+     multiplex all requests onto the same ring. *)
+
+  let client_cache_m = Lwt_mutex.create ()
+  (* Multiple threads will call 'make' in parallel. We must ensure only
+     one client is created. *)
 
   let recv_one t = match_lwt (PS.recv t.ps) with
     | Ok x -> return x
@@ -156,7 +196,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
             end
 
 
-  let make () =
+  let make_unsafe () =
     lwt transport = IO.create () in
     let t = {
       transport = transport;
@@ -172,6 +212,18 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
     t.dispatcher_thread <- dispatcher t;
     return t
 
+  let make () = match IO.backend with
+    | `unix -> make_unsafe ()
+    | `xen ->
+      Lwt_mutex.with_lock client_cache_m
+        (fun () -> match !client_cache with
+           | Some c -> return c
+           | None ->
+             lwt c = make_unsafe () in
+             client_cache := Some c;
+             return c
+        )
+
   let suspend t =
     lwt () = Lwt_mutex.with_lock t.suspended_m
       (fun () -> 
@@ -183,7 +235,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       Lwt.cancel t.dispatcher_thread;
       return ()
 
-  let resume t =
+  let resume_unsafe t =
     lwt () = Lwt_mutex.with_lock t.suspended_m (fun () -> 
       t.suspended <- false;
       t.dispatcher_shutting_down <- false;
@@ -191,6 +243,13 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       return ()) in
     t.dispatcher_thread <- dispatcher t;
     return ()
+
+  let resume t = match IO.backend with
+    | `unix -> resume_unsafe t
+    | `xen -> (match !client_cache with
+        | None -> Lwt.return ()
+        | Some c -> IO.create ()
+          >>= fun transport -> c.transport <- transport; resume_unsafe t)
 
   type handle = client Xs_handle.t
 

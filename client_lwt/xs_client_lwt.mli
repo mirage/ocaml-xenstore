@@ -19,6 +19,9 @@ module type IO = sig
   val return: 'a -> 'a t
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 
+  type backend = [ `xen | `unix ]
+  val backend : backend
+
   type channel
   val create: unit -> channel t
   val destroy: channel -> unit t
@@ -30,7 +33,7 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
-module Client : functor(IO: IO) -> sig
+module type S = sig
   type client
   (** A multiplexing xenstore client. *)
 
@@ -107,3 +110,5 @@ module Client : functor(IO: IO) -> sig
 (** [set_target h stubdom_domid domid] called by a toolstack to grant
     [stubdom_domid] the permissions owned by [domid]. *)
 end
+
+module Client : functor(IO: IO) -> S
