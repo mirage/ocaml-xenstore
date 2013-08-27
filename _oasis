@@ -1,6 +1,6 @@
 OASISFormat: 0.3
 Name:        xenstore
-Version:     1.2.2
+Version:     1.2.3
 Synopsis:    Xenstore protocol library
 Authors:     see CREDITS.md
 License:     LGPL-2.1 with OCaml linking exception
