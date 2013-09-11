@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-(** A multiplexing xenstore protocol client over a byte-level transport. *)
+(** A multiplexing xenstore protocol client over a byte-level transport *)
 
 open Lwt
 open Xs_protocol
@@ -260,12 +260,12 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
 		  counter := Int32.succ !counter;
 		  result
 
-  let rpc hint (h:handle) payload unmarshal =
+  let rpc hint h payload unmarshal =
     let open Xs_handle in
     let rid = make_rid () in
-    let request = Request.print payload (tid h) rid in
+    let request = Request.print payload (get_tid h) rid in
     let t, u = wait () in
-    let c = client h in
+    let c = get_client h in
     if c.dispatcher_shutting_down
     then raise_lwt Dispatcher_failed
     else begin
@@ -286,12 +286,12 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
         return (response hint request res unmarshal)
  end
 
-  let directory h path = rpc "directory" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
-  let read h path = rpc "read" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
-  let write h path data = rpc "write" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Write data)) Unmarshal.ok
-  let rm h path = rpc "rm" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Rm)) Unmarshal.ok
-  let mkdir h path = rpc "mkdir" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Mkdir)) Unmarshal.ok
-  let setperms h path acl = rpc "setperms" (Xs_handle.add_accessed_path h path) Request.(PathOp(path, Setperms acl)) Unmarshal.ok
+  let directory h path = rpc "directory" (Xs_handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
+  let read h path = rpc "read" (Xs_handle.accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
+  let write h path data = rpc "write" (Xs_handle.accessed_path h path) Request.(PathOp(path, Write data)) Unmarshal.ok
+  let rm h path = rpc "rm" (Xs_handle.accessed_path h path) Request.(PathOp(path, Rm)) Unmarshal.ok
+  let mkdir h path = rpc "mkdir" (Xs_handle.accessed_path h path) Request.(PathOp(path, Mkdir)) Unmarshal.ok
+  let setperms h path acl = rpc "setperms" (Xs_handle.accessed_path h path) Request.(PathOp(path, Setperms acl)) Unmarshal.ok
   let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
   let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
   let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
@@ -322,12 +322,12 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
     let h = Xs_handle.watching client in
     (* Adjust the paths we're watching (if necessary) and block (if possible) *)
     let adjust_paths () =
-      let current_paths = Xs_handle.watched_paths h in
+      let current_paths = Xs_handle.get_watched_paths h in
       (* Paths which weren't read don't need to be watched: *)
-      let old_paths = diff current_paths (Xs_handle.accessed_paths h) in
+      let old_paths = diff current_paths (Xs_handle.get_accessed_paths h) in
       lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements old_paths) in
       (* Paths which were read do need to be watched: *)
-      let new_paths = diff (Xs_handle.accessed_paths h) current_paths in
+      let new_paths = diff (Xs_handle.get_accessed_paths h) current_paths in
       lwt () = Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths) in
       (* If we're watching the correct set of paths already then just block *)
       if old_paths = empty && (new_paths = empty)
@@ -355,7 +355,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       try_lwt
         loop ()
       finally
-        let current_paths = Xs_handle.watched_paths h in
+        let current_paths = Xs_handle.get_watched_paths h in
         lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths) in
         Hashtbl.remove client.watchevents token;
         return () in
