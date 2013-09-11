@@ -1,3 +1,6 @@
+1.2.4 (11-Sep-2013):
+* fix watches
+
 1.2.3 (27-Aug-2013):
 * export a signature, which can be satisfied by both Unix userspace
   and xen kernelspace clients
