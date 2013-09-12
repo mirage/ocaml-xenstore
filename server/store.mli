@@ -137,6 +137,6 @@ val read: t -> Perms.t -> Path.t -> string
 val getperms: t -> Perms.t -> Path.t -> Xs_protocol.ACL.t
 
 
-val set_node: t -> Path.t -> Node.t -> unit
+val set_node: t -> Path.t -> Node.t -> Quota.t -> Quota.t -> unit
 
 val mark_symbols: t -> unit
