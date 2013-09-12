@@ -1,3 +1,6 @@
+unreleased:
+* fix a spurious EQUOTA failure when processing transactions
+
 1.2.4 (11-Sep-2013):
 * fix watches
 
