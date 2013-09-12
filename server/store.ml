@@ -243,20 +243,17 @@ let apply_modify rnode path fct =
 	lookup_modify rnode path fct
 
 let set_node rnode path nnode =
-	let quota = Quota.create () in
-	Node.recurse (fun node -> Quota.incr quota (Node.get_creator node)) nnode;
 	if path = [] then
-		nnode, quota
+		nnode
 	else
 		let set_node node name =
 			try
 				let ent = Node.find node name in
-				Node.recurse (fun node -> Quota.decr quota (Node.get_creator node)) ent;
 				Node.replace_child node ent nnode
 			with Not_found ->
 				Node.add_child node nnode
 			in
-		apply_modify rnode path set_node, quota
+		apply_modify rnode path set_node
 
 (* read | ls | getperms use this *)
 let rec lookup node path fct =
@@ -453,10 +450,10 @@ let dump_buffer store = dump_store_buf store.root
 
 
 (* modifying functions with quota udpate *)
-let set_node store path node =
-	let root, quota_diff = Path.set_node store.root path node in
+let set_node store path node orig_quota mod_quota =
+	let root = Path.set_node store.root path node in
 	store.root <- root;
-	Quota.union store.quota quota_diff
+	Quota.merge orig_quota mod_quota store.quota
 
 let write store creator perm path value =
 	Quota.check store.quota creator (String.length value);

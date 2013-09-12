@@ -521,6 +521,38 @@ let test_quota () =
 		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), StringList (expect 0);
 	]
 
+let test_quota_transaction () =
+	(* Check that node creation and destruction changes a quota *)
+	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
+	let dom1 = Connection.create (Xs_protocol.Domain 1) None in
+	let dom2 = Connection.create (Xs_protocol.Domain 2) None in
+	let store = empty_store () in
+	let open Xs_protocol.Request in
+	let start = ref 0 in
+	let expect n x =
+		assert_equal ~msg:"quota" ~printer:string_of_int (!start + n) (int_of_string (List.hd x)) in
+
+	run store [
+		dom0, none, PathOp("/local/domain/1", Write ""), OK;
+		dom0, none, PathOp("/local/domain/1", Setperms { example_acl with Xs_protocol.ACL.owner = 1 }), OK;
+		dom0, none, PathOp("/local/domain/2", Write ""), OK;
+		dom0, none, PathOp("/local/domain/2", Setperms { example_acl with Xs_protocol.ACL.owner = 2 }), OK;
+		dom1, none, PathOp("/local/domain/1/data/test", Write ""), OK;
+		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (expect 2);
+		dom1, none, PathOp("/local/domain/1/data/test/node0", Write "node0"), OK;
+		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (expect 3);
+		dom2, none, PathOp("/local/domain/2/data/test", Write ""), OK;
+		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (expect 2);
+	];
+	let tid = (success ++ int32) id (rpc store dom1 none Transaction_start) in
+	run store [
+		dom1, tid, PathOp("/local/domain/1/data/test", Rm), OK;
+		dom2, none, PathOp("/local/domain/2/data/test/node0", Write "node0"), OK;
+		dom1, tid, Transaction_end true, OK;
+		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (expect 1);
+		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (expect 3);
+	]
+
 let test_quota_setperms () =
 	(* Check that one connection cannot exhaust another's quota *)
 	let dom0 = Connection.create (Xs_protocol.Domain 0) None in
@@ -611,6 +643,7 @@ let _ =
 		"test_transaction_watches" >:: test_transaction_watches;
 		"test_introduce_watches" >:: test_introduce_watches;
 		"test_quota" >:: test_quota;
+		"test_quota_transaction" >:: test_quota_transaction;
 		"test_quota_setperms" >:: test_quota_setperms;
 		"test_quota_maxsize" >:: test_quota_maxsize;
 		"test_quota_maxent" >:: test_quota_maxent;
