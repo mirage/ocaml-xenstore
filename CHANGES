@@ -1,4 +1,4 @@
-1.2.5 (trunk):
+1.2.5 (04-Oct-2013):
 * Add Travis continuous integration scripts
 * fix a spurious EQUOTA failure when processing transactions
 
