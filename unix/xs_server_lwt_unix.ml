@@ -22,12 +22,10 @@ let ( >>= ) m f = m >>= f
 
 let error fmt = Xenstore_server.Logging.error "xs_transport_unix" fmt
 
-let xenstored_socket = ref "/var/run/xenstored/socket"
-
 (* Individual connections *)
 type channel = Lwt_unix.file_descr * Lwt_unix.sockaddr
 let create () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
+  let sockaddr = Lwt_unix.ADDR_UNIX(!Xs_transport.xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
   lwt () = Lwt_unix.connect fd sockaddr in
   return (fd, sockaddr)
@@ -75,19 +73,19 @@ let _ =
 	Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
 let listen () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
+  let sockaddr = Lwt_unix.ADDR_UNIX(!Xs_transport.xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
   try_lwt
-    lwt () = try_lwt Lwt_unix.unlink !xenstored_socket with _ -> return () in
+    lwt () = try_lwt Lwt_unix.unlink !Xs_transport.xenstored_socket with _ -> return () in
     Lwt_unix.bind fd sockaddr;
     Lwt_unix.listen fd 5;
     return fd
   with Unix.Unix_error(Unix.EACCES, _, _) as e ->
-    error "Permission denied (EACCES) binding to %s" !xenstored_socket;
+    error "Permission denied (EACCES) binding to %s" !Xs_transport.xenstored_socket;
     error "To resolve this problem either run this program with more privileges or change the path.";
     fail e
   | Unix.Unix_error(Unix.EADDRINUSE, _, _) as e ->
-    error "The unix domain socket %s is already in use (EADDRINUSE)" !xenstored_socket;
+    error "The unix domain socket %s is already in use (EADDRINUSE)" !Xs_transport.xenstored_socket;
     error "To resolve this program either run this program with more privileges (so that it may delete the current socket) or change the path.";
     fail e
 

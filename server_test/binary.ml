@@ -21,7 +21,7 @@ let socket =
   tmp
 
 let _ =
-  Xs_server_lwt_unix.xenstored_socket := socket
+  Xs_transport.xenstored_socket := socket
 
 module Server = Xenstore_server.Xs_server.Server(Xs_server_lwt_unix)
 
