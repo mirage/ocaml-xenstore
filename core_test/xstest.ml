@@ -27,7 +27,7 @@ let do_test xb =
 	let i = ref 0 in
 	let disp op pkt =
 		let tid, rid, ty, data = pkt in
-		printf "%3x %s %d(%d) %s \"%s\".\n%!" !i op tid rid (Xb.Op.to_string ty) (String.escaped data);
+                printf "%3x %s %d(%d) %s \"%s\".\n%!" !i op tid rid (Xb.Op.to_string ty) (String.escaped data); flush(stdout);
 		in
 	let y (tid, ty, data) =
 		let spkt = (tid, !i, ty, data) in 
