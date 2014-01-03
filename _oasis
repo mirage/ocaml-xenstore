@@ -56,14 +56,14 @@ Executable xs_test
   Install:            false
   BuildDepends:       lwt, lwt.unix, xenstore, oUnit
 
-Executable xstest
-  CompiledObject:     best
-  Path:               core_test
-  MainIs:             xstest.ml
-  Build$:             flag(tests)
-  Custom:             true
-  Install:            false
-  BuildDepends:       xenbus, stdext, threads
+#Executable xstest
+#  CompiledObject:     best
+#  Path:               core_test
+#  MainIs:             xstest.ml
+#  Build$:             flag(tests)
+#  Custom:             true
+#  Install:            false
+#  BuildDepends:       xenbus, stdext, threads
 
 Executable server_test
   CompiledObject:     best

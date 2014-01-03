@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: d0442fc68c3d7e08cbc6278aa644e43a)
+# DO NOT EDIT (digest: e31abb66e933435a25cea4fd08579915)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -55,8 +55,8 @@
 # Library xenstore_legacy_unix
 "legacy_unix/xenstore_legacy_unix.cmxs": use_xenstore_legacy_unix
 <legacy_unix/*.ml{,i}>: use_xenstore
-<legacy_unix/*.ml{,i}>: pkg_threads
 <legacy_unix/*.ml{,i}>: pkg_unix
+<legacy_unix/*.ml{,i}>: pkg_threads
 <legacy_unix/*.ml{,i}>: pkg_cstruct
 <legacy_unix/*.ml{,i}>: pkg_cstruct.syntax
 # Executable xs_test
@@ -73,14 +73,6 @@
 <core_test/*.ml{,i}>: pkg_cstruct
 <core_test/*.ml{,i}>: pkg_cstruct.syntax
 <core_test/xs_test.{native,byte}>: custom
-# Executable xstest
-<core_test/xstest.{native,byte}>: pkg_xenbus
-<core_test/xstest.{native,byte}>: pkg_stdext
-<core_test/xstest.{native,byte}>: pkg_threads
-<core_test/*.ml{,i}>: pkg_xenbus
-<core_test/*.ml{,i}>: pkg_stdext
-<core_test/*.ml{,i}>: pkg_threads
-<core_test/xstest.{native,byte}>: custom
 # Executable server_test
 <server_test/server_test.{native,byte}>: use_xenstore_server
 <server_test/server_test.{native,byte}>: use_xenstore
