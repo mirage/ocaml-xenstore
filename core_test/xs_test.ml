@@ -105,24 +105,7 @@ let unexpected_request_packets =
 let example_request_packets =
 	let open Xs_protocol in
 	let open Xs_protocol.Request in [
-                (*
-                make_example_request Op.Read (PathOp("", Read)) 0l
-                  "\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00";
-                make_example_request Op.Write (PathOp("", Write "")) 0l
-                  "\011\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000";
-                make_example_request Op.Directory (PathOp("", Directory)) 0l
-                  "\001\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000";
-                make_example_request Op.Mkdir (PathOp("", Mkdir)) 0l
-                  "\x0c\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000";
-                make_example_request Op.Getperms (PathOp("", Getperms)) 0l
-                  "\003\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000";
-                make_example_request Op.Write (PathOp("/test", Write "xxx\000yyy\000\000zzz")) 0l
-                  "\011\000\000\000\000\000\000\000\000\000\000\000\018\000\000\000/test\000xxx\000yyy\000\000zzz";
-                make_example_request Op.Read (PathOp("/test", Read)) 0l
-                  "\002\000\000\000\000\000\000\000\000\000\000\000\006\000\000\000/test\000";
-                make_example_request Op.Read (PathOp("/test\000some\000otherargs", Read)) 0l
-                  "\002\000\000\000\000\000\000\000\000\000\000\000\021\000\000\000/test\000some\000otherargs\000";
-*)                make_example_request Op.Directory (PathOp("/whatever/whenever", Directory)) 5l
+                make_example_request Op.Directory (PathOp("/whatever/whenever", Directory)) 5l
 			"\x01\x00\x00\x00\x00\x00\x00\x00\x05\x00\x00\x00\x13\x00\x00\x00\x2f\x77\x68\x61\x74\x65\x76\x65\x72\x2f\x77\x68\x65\x6e\x65\x76\x65\x72\x00";
 		make_example_request Op.Read (PathOp("/a/b/c", Read)) 6l
 			"\x02\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x07\x00\x00\x00\x2f\x61\x2f\x62\x2f\x63\x00";
@@ -170,18 +153,7 @@ let example_response_packets =
         let einval = "\016\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00" ^ "EINVAL\000" in
 	let open Xs_protocol in
 	let open Xs_protocol.Response in [
-(*                make_example_response Op.Read (Error "EINVAL") einval;
-                make_example_response Op.Write (Error "EINVAL") einval;
-                make_example_response Op.Directory (Error "EINVAL") einval;
-                make_example_response Op.Mkdir (Error "EINVAL") einval;
-                make_example_response Op.Getperms (Error "EINVAL") einval;
-                make_example_response Op.Write Write
-                  "\x0b\000\000\000\000\000\000\000\000\000\000\000\003\000\000\000OK\000";
-                make_example_response Op.Read (Read "xxx\000yyy\000\000zzz")
-                  "\002\000\000\000\000\000\000\000\000\000\000\000\x0c\000\000\000xxx\000yyy\000\000zzz";
-                make_example_response Op.Read (Read "/test\000some\000otherargs")
-                  "\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\x00\x00\x00\x2f\x74\x65\x73\x74\x00\x73\x6f\x6d\x65\x00\x6f\x74\x68\x65\x72\x61\x72\x67\x73";
-*)		make_example_response Op.Read (Read "theresult")
+		make_example_response Op.Read (Read "theresult")
 			"\x02\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x09\x00\x00\x00\x74\x68\x65\x72\x65\x73\x75\x6c\x74";
 		make_example_response Op.Read (Read "")
 			"\x02\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00";
