@@ -1,8 +1,10 @@
-To add OASIS Xen "support", you need to:
+xenstore: core protocol definition
+xenstore.server: Lwt functorised server implementation
+xenstore.client: Lwt functorised client implementation
 
-- Add the clump of code at the end of myocamlbuild.ml to your project's
-  myocamlbuild. This will not be overwritten when you regenerate the
-  myocamlbuild if you put it after the OASIS_STOP marker.
+xenstore.unix: Lwt client and server I/O for Lwt_unix userspace
+xenstore.mirage: Lwt client and server I/O for mirage
 
-- Run s/native/.m.o,native/g on _tags after you regenerate it to add the
-  Xen output_obj target to it.
+Legacy unix implementations:
+xenstore.legacy_unix: why is this functorised??
+

@@ -84,16 +84,28 @@ type example_packet = {
 	packet: Xs_protocol.t;
 	wire_fmt: string;
 }
+
 let make_example_request op payload tid wire_fmt = {
-		op = op;
-		packet = Xs_protocol.Request.print payload tid 0l;
-		wire_fmt = wire_fmt;
-	}
+	op = op;
+	packet = Xs_protocol.Request.print payload tid 0l;
+	wire_fmt = wire_fmt;
+}
+
+(* Test that we can parse unexpected packets the same way as the
+   previous oxenstored version *)
+let unexpected_request_packets =
+	let open Xs_protocol in
+	let open Xs_protocol.Request in [
+                (* client sends a single NULL as the argument to Getdomaimpath:
+                   assume they meant 0 *)
+                make_example_request Op.Getdomainpath (Getdomainpath 0) 0l
+                  "\n\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000";
+        ]
 
 let example_request_packets =
 	let open Xs_protocol in
 	let open Xs_protocol.Request in [
-		make_example_request Op.Directory (PathOp("/whatever/whenever", Directory)) 5l
+                make_example_request Op.Directory (PathOp("/whatever/whenever", Directory)) 5l
 			"\x01\x00\x00\x00\x00\x00\x00\x00\x05\x00\x00\x00\x13\x00\x00\x00\x2f\x77\x68\x61\x74\x65\x76\x65\x72\x2f\x77\x68\x65\x6e\x65\x76\x65\x72\x00";
 		make_example_request Op.Read (PathOp("/a/b/c", Read)) 6l
 			"\x02\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x07\x00\x00\x00\x2f\x61\x2f\x62\x2f\x63\x00";
@@ -138,6 +150,7 @@ let make_example_response op response wire_fmt =
 
 (* We use the example requests to generate example responses *)
 let example_response_packets =
+        let einval = "\016\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00" ^ "EINVAL\000" in
 	let open Xs_protocol in
 	let open Xs_protocol.Response in [
 		make_example_response Op.Read (Read "theresult")
@@ -188,11 +201,6 @@ let hexstring x =
 		"\"";
 	])
 
-(*
-let error_unmarshal _ =
-  let open Xs_protocol.Response in
-  let enoent = 
-*)
 let _ =
   let verbose = ref false in
   Arg.parse [
@@ -206,7 +214,7 @@ let _ =
 		(List.map (fun example ->
 			let description = Xs_protocol.Op.to_string example.op in
 			description >:: f example.packet
-		) example_packets) in
+		) (unexpected_request_packets @ example_packets)) in
   let packet_printing =
 	  "packet_printing" >:::
 		  (List.map (fun example ->
