@@ -14,6 +14,12 @@
 
 (** A byte-level transport over the xenstore Unix domain socket *)
 
+(* The unix domain socket may not exist, or we may get a connection
+   refused error if the server is in the middle of restarting. *)
+let initial_retry_interval = 0.1 (* seconds *)
+let max_retry_interval = 5.0 (* seconds *)
+let retry_max = 100 (* attempts *)
+
 open Lwt
 
 (* Individual connections *)
@@ -21,7 +27,17 @@ type channel = Lwt_unix.file_descr * Lwt_unix.sockaddr
 let create () =
   let sockaddr = Lwt_unix.ADDR_UNIX(!Xs_transport.xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-  lwt () = Lwt_unix.connect fd sockaddr in
+  let start = Unix.gettimeofday () in
+  let rec retry n interval =
+    if n > retry_max
+    then fail (Failure (Printf.sprintf "Failed to connect to xenstore after %.0f seconds" (Unix.gettimeofday () -. start)))
+    else
+      try_lwt
+        Lwt_unix.connect fd sockaddr
+      with _ ->
+        lwt () = Lwt_unix.sleep interval in
+        retry (n + 1) (interval +. 0.1) in
+  lwt () = retry 0 initial_retry_interval in
   return (fd, sockaddr)
 let destroy (fd, _) = Lwt_unix.close fd
 let read (fd, _) = Lwt_unix.read fd
