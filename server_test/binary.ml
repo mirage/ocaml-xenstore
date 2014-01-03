@@ -14,11 +14,15 @@ let _ =
 
 module Server = Xenstore_server.Xs_server.Server(Xs_server_lwt_unix)
 
+let debug = ref false
+
 let rec logging_thread logger =
   lwt lines = Xenstore_server.Logging.get logger in
   lwt () = Lwt_list.iter_s
     (fun x ->
-      Lwt_io.write_line Lwt_io.stdout x
+      if !debug
+      then Lwt_io.write_line Lwt_io.stdout x
+      else return ()
     ) lines in
   logging_thread logger
 
@@ -44,6 +48,7 @@ let _ =
   Arg.parse [
     "-verbose", Arg.Unit (fun _ -> verbose := true), "Run in verbose mode";
     "-connect", Arg.Set_string Xs_transport.xenstored_socket, "Connect to a specified xenstored (otherwise use an internal server)";
+    "-debug",   Arg.Set debug, "Print debug logging";
   ] (fun x -> Printf.fprintf stderr "Ignoring argument: %s" x)
     "Test xenstore server code";
 
