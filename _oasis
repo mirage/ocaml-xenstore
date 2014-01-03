@@ -14,21 +14,13 @@ Library xenstore
   Modules:            Xs_protocol, Xs_handle
   BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax
 
-Library xenstore_lwt_unix
+Library xenstore_client
   CompiledObject:     best
-  Path:               lwt_unix
-  Findlibname: 	      lwt_unix
-  FindlibParent:      xenstore
-  Modules:            Xs_client_lwt, Xs_server_lwt_unix
-  BuildDepends:       lwt, lwt.unix, xenstore
-
-Library xenstore_client_unix
-  CompiledObject:     best
-  Path:               client_unix
-  Findlibname: 	      unix
-  FindlibParent:      xenstore
-  Modules:            Xs_client_unix
-  BuildDepends:       unix, threads, xenstore
+  Path:               client
+  Findlibname:        client
+  Findlibparent:      xenstore
+  Modules:            Xs_client_lwt
+  BuildDepends:       lwt, xenstore
 
 Library xenstore_server
   CompiledObject:     best
@@ -38,6 +30,22 @@ Library xenstore_server
   FindlibParent:      xenstore
   Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore
+
+Library xenstore_unix
+  CompiledObject:     best
+  Path:               unix
+  Findlibname: 	      unix
+  FindlibParent:      xenstore
+  Modules:            Xs_server_lwt_unix, Xs_transport, Xs_transport_lwt_unix_client
+  BuildDepends:       lwt, lwt.unix, xenstore
+
+Library xenstore_legacy_unix
+  CompiledObject:     best
+  Path:               legacy_unix
+  Findlibname: 	      legacy_unix
+  FindlibParent:      xenstore
+  Modules:            Xs_client_unix
+  BuildDepends:       unix, threads, xenstore
 
 Executable xs_test
   CompiledObject:     best
@@ -73,7 +81,7 @@ Executable server_binary_test
   Build$:             flag(tests)
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, xenstore, xenstore.server, xenstore.lwt_unix, oUnit
+  BuildDepends:       lwt, xenstore, xenstore.server, xenstore.unix, oUnit
 
 Test xs_test
   Run$:               flag(tests)
