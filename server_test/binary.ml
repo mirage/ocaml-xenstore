@@ -4,17 +4,6 @@ let debug fmt = Xenstore_server.Logging.debug "xenstored" fmt
 let info  fmt = Xenstore_server.Logging.info  "xenstored" fmt
 let error fmt = Xenstore_server.Logging.error "xenstored" fmt
 
-let requests_and_responses = [
-  "\002\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000",
-  "\024\000\000\000\000\000\000\000\000\000\000\000\007\000\000\000EINVAL\000";
-
-  "\013\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000",
-  "\024\000\000\000\000\000\000\000\000\000\000\000\007\000\000\000EINVAL\000";
-
-  "\012\000\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000",
-  "\012\000\000\000\000\000\000\000\000\000\000\000\024\000\000\000/local/domain/0\000";
-]
-
 let socket =
   let tmp = Filename.temp_file "xenstore-test" (string_of_int (Unix.getpid ())) in
   Unix.unlink tmp;
@@ -39,21 +28,29 @@ let server_thread =
   info "Starting test";
   Server.serve_forever ()
 
-let test (request, response) () =
-  return ()
-
 open OUnit
+
+let test (request, response) () =
+  let open Xs_transport_lwt_unix_client in
+  lwt c = create () in
+  lwt () = write c request 0 (String.length request) in
+  let buffer = String.make (String.length response) '\000' in
+  lwt _ = read c buffer 0 (String.length response) in
+  assert_equal ~printer:String.escaped response buffer;
+  return ()
 
 let _ =
   let verbose = ref false in
   Arg.parse [
     "-verbose", Arg.Unit (fun _ -> verbose := true), "Run in verbose mode";
+    "-connect", Arg.Set_string Xs_transport.xenstored_socket, "Connect to a specified xenstored (otherwise use an internal server)";
   ] (fun x -> Printf.fprintf stderr "Ignoring argument: %s" x)
     "Test xenstore server code";
 
-  let suite = "xenstore" >::: (List.map (fun x ->
-    "unknown" >:: (fun () -> Lwt_main.run (test x ()))
-  ) requests_and_responses) in
+  let suite = "xenstore" >::: (List.map (fun (x', x, y', y) ->
+    Printf.sprintf "%s -> %s" (String.escaped x') (String.escaped y')
+    >:: (fun () -> Lwt_main.run (test (x, y) ()))
+  ) Messages.all) in
   run_test_tt ~verbose:!verbose suite
 
 
