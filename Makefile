@@ -34,6 +34,7 @@ install: setup.bin
 test:
 	_build/core_test/xs_test.native
 	_build/server_test/server_test.native
+	_build/server_test/binary.native
 
 
 reinstall: setup.bin
