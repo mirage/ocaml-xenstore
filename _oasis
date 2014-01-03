@@ -14,13 +14,13 @@ Library xenstore
   Modules:            Xs_protocol, Xs_handle
   BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax
 
-Library xenstore_client_lwt
+Library xenstore_lwt_unix
   CompiledObject:     best
-  Path:               client_lwt
-  Findlibname: 	      client
+  Path:               lwt_unix
+  Findlibname: 	      lwt_unix
   FindlibParent:      xenstore
-  Modules:            Xs_client_lwt
-  BuildDepends:       lwt, xenstore
+  Modules:            Xs_client_lwt, Xs_server_lwt_unix
+  BuildDepends:       lwt, lwt.unix, xenstore
 
 Library xenstore_client_unix
   CompiledObject:     best
@@ -48,6 +48,15 @@ Executable xs_test
   Install:            false
   BuildDepends:       lwt, lwt.unix, xenstore, oUnit
 
+Executable xstest
+  CompiledObject:     best
+  Path:               core_test
+  MainIs:             xstest.ml
+  Build$:             flag(tests)
+  Custom:             true
+  Install:            false
+  BuildDepends:       xenbus, stdext, threads
+
 Executable server_test
   CompiledObject:     best
   Path:               server_test
@@ -56,6 +65,15 @@ Executable server_test
   Custom:             true
   Install:            false
   BuildDepends:       lwt, xenstore, xenstore.server, oUnit
+
+Executable server_binary_test
+  CompiledObject:     best
+  Path:               server_test
+  MainIs:             binary.ml
+  Build$:             flag(tests)
+  Custom:             true
+  Install:            false
+  BuildDepends:       lwt, xenstore, xenstore.server, xenstore.lwt_unix, oUnit
 
 Test xs_test
   Run$:               flag(tests)
@@ -67,10 +85,10 @@ Test server_test
   Command:            $server_test
   WorkingDirectory:   server_test
 
-Document api
-  Title: Documentation and API reference
-  Type: ocamlbuild (0.3)
-  BuildTools+: ocamldoc
-  XOcamlbuildPath: doc
-  XOcamlbuildModules: Xs_protocol, Xs_handle, Xs_client_lwt, Xs_client_unix
-  Install: false
+#Document api
+#  Title: Documentation and API reference
+#  Type: ocamlbuild (0.3)
+#  BuildTools+: ocamldoc
+#  XOcamlbuildPath: doc
+#  XOcamlbuildModules: Xs_protocol, Xs_handle, Xs_client_lwt, Xs_client_unix
+#  Install: false
