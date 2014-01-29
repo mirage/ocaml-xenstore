@@ -103,7 +103,7 @@ Executable oxenstored
   # Surely I don't actually need these
   CCOpt:              -I. -I/home/djs/.opam/system/lib -I/home/djs/.opam/system/lib/lwt -I/usr/lib/ocaml/lwt
   CClib:              -lxenctrl
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, xenstore.unix, cmdliner, shared-memory-ring, shared-memory-ring.xenstore
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, xenstore.unix, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations
 
 #Document api
 #  Title: Documentation and API reference
