@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 8581a987820250c58026a404dee28777)
+# DO NOT EDIT (digest: 9b067e2a1c6cc55b133979a6e32b6503)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -119,6 +119,8 @@
 <userspace/server_unix.{native,byte}>: pkg_xen-evtchn
 <userspace/server_unix.{native,byte}>: pkg_xen-evtchn.unix
 <userspace/server_unix.{native,byte}>: pkg_xen-evtchn.unix.activations
+<userspace/server_unix.{native,byte}>: pkg_io-page
+<userspace/server_unix.{native,byte}>: pkg_io-page.unix
 <userspace/server_unix.{native,byte}>: pkg_cstruct
 <userspace/server_unix.{native,byte}>: pkg_cstruct.syntax
 <userspace/*.ml{,i}>: use_xenstore_unix
@@ -132,6 +134,8 @@
 <userspace/*.ml{,i}>: pkg_xen-evtchn
 <userspace/*.ml{,i}>: pkg_xen-evtchn.unix
 <userspace/*.ml{,i}>: pkg_xen-evtchn.unix.activations
+<userspace/*.ml{,i}>: pkg_io-page
+<userspace/*.ml{,i}>: pkg_io-page.unix
 <userspace/*.ml{,i}>: pkg_cstruct
 <userspace/*.ml{,i}>: pkg_cstruct.syntax
 "userspace/xenstore_stubs.c": use_xenstore_unix
@@ -145,6 +149,8 @@
 "userspace/xenstore_stubs.c": pkg_xen-evtchn
 "userspace/xenstore_stubs.c": pkg_xen-evtchn.unix
 "userspace/xenstore_stubs.c": pkg_xen-evtchn.unix.activations
+"userspace/xenstore_stubs.c": pkg_io-page
+"userspace/xenstore_stubs.c": pkg_io-page.unix
 "userspace/xenstore_stubs.c": pkg_cstruct
 "userspace/xenstore_stubs.c": pkg_cstruct.syntax
 <userspace/server_unix.{native,byte}>: custom

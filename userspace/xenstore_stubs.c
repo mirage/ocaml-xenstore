@@ -109,34 +109,6 @@ CAMLprim value ml_sizeof_xc_domaininfo_t(value unit)
   CAMLreturn(Val_int(sizeof(xc_domaininfo_t)));
 }
 
-CAMLprim value ml_alloc_page_aligned(value bytes)
-{
-  CAMLparam1(bytes);
-  CAMLlocal2(result, some);
-  int toalloc = Int_val(bytes);
-  int ret;
-  void *buf;
-
-  toalloc = toalloc | 0xfff;
-  ret = posix_memalign((void **) ((void *) &buf), 4096, toalloc);
-  if (ret) {
-	syslog(LOG_ERR, "posix_memalign(%x, 4096, %d) = %d:%s", &buf, toalloc, errno, strerror(errno));
-	result = Val_int(0);
-  } else {
-	some = alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, bytes);
-	result = caml_alloc_tuple(1);
-	Store_field(result, 0, some);
-  }
-  CAMLreturn(result);
-}
-
-CAMLprim value ml_free_page_aligned(value ba)
-{
-  CAMLparam1(ba);
-  free(Data_bigarray_val(ba));
-  CAMLreturn(Val_unit);
-}
-
 CAMLprim value ml_domain_infolist_parse(value cstruct)
 {
   CAMLparam1(cstruct);

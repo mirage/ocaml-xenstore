@@ -11,10 +11,6 @@ external unmap_foreign: buf -> unit = "ml_unmap"
 
 external sizeof_xc_domaininfo_t: unit -> int = "ml_sizeof_xc_domaininfo_t"
 
-external alloc_page_aligned: int -> buf option = "ml_alloc_page_aligned"
-
-external free_page_aligned: buf -> unit = "ml_free_page_aligned"
-
 external domain_infolist_job: int -> int -> Cstruct.t -> int Lwt_unix.job = "lwt_domain_infolist_job"
 
 type info = {
@@ -31,11 +27,7 @@ let batch_size = 512 (* number of domains to query in one hypercall *)
 
 let xc_domain_getinfolist lowest_domid =
 	let sizeof = sizeof_xc_domaininfo_t () in
-	let buf = alloc_page_aligned (batch_size * sizeof) in
-	match buf with
-		| None -> return None
-		| Some buf ->
-			try_lwt
+	let buf = Io_page.get (batch_size * sizeof) in
 				let buf = Cstruct.of_bigarray buf in
 				lwt number_found = Lwt_unix.run_job (domain_infolist_job lowest_domid batch_size buf) in
 				let rec parse buf n acc =
@@ -43,8 +35,6 @@ let xc_domain_getinfolist lowest_domid =
 					then acc
 					else parse (Cstruct.shift buf sizeof) (n + 1) (xc_domaininfo_t_parse buf :: acc) in
 				return (Some(parse buf 0 []))
-			finally
-				return (free_page_aligned buf)
 
 let domain_infolist () =
 	let rec loop from =
