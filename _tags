@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e31abb66e933435a25cea4fd08579915)
+# DO NOT EDIT (digest: 0eebd16659a4d1556554d3c433a8e461)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -62,14 +62,14 @@
 # Executable xs_test
 <core_test/xs_test.{native,byte}>: use_xenstore
 <core_test/xs_test.{native,byte}>: pkg_lwt
-<core_test/xs_test.{native,byte}>: pkg_oUnit
 <core_test/xs_test.{native,byte}>: pkg_lwt.unix
+<core_test/xs_test.{native,byte}>: pkg_oUnit
 <core_test/xs_test.{native,byte}>: pkg_cstruct
 <core_test/xs_test.{native,byte}>: pkg_cstruct.syntax
 <core_test/*.ml{,i}>: use_xenstore
 <core_test/*.ml{,i}>: pkg_lwt
-<core_test/*.ml{,i}>: pkg_oUnit
 <core_test/*.ml{,i}>: pkg_lwt.unix
+<core_test/*.ml{,i}>: pkg_oUnit
 <core_test/*.ml{,i}>: pkg_cstruct
 <core_test/*.ml{,i}>: pkg_cstruct.syntax
 <core_test/xs_test.{native,byte}>: custom
@@ -86,19 +86,59 @@
 <server_test/binary.{native,byte}>: use_xenstore_server
 <server_test/binary.{native,byte}>: use_xenstore
 <server_test/binary.{native,byte}>: pkg_lwt
-<server_test/binary.{native,byte}>: pkg_oUnit
 <server_test/binary.{native,byte}>: pkg_lwt.unix
+<server_test/binary.{native,byte}>: pkg_oUnit
 <server_test/binary.{native,byte}>: pkg_cstruct
 <server_test/binary.{native,byte}>: pkg_cstruct.syntax
 <server_test/*.ml{,i}>: use_xenstore_unix
 <server_test/*.ml{,i}>: use_xenstore_server
 <server_test/*.ml{,i}>: use_xenstore
 <server_test/*.ml{,i}>: pkg_lwt
-<server_test/*.ml{,i}>: pkg_oUnit
 <server_test/*.ml{,i}>: pkg_lwt.unix
+<server_test/*.ml{,i}>: pkg_oUnit
 <server_test/*.ml{,i}>: pkg_cstruct
 <server_test/*.ml{,i}>: pkg_cstruct.syntax
 <server_test/binary.{native,byte}>: custom
+# Executable oxenstored
+<userspace/*.ml{,i}>: oasis_executable_oxenstored_ccopt
+"userspace/xenstore_stubs.c": oasis_executable_oxenstored_ccopt
+<userspace/server_unix.{native,byte}>: oasis_executable_oxenstored_cclib
+"userspace/liboxenstored_stubs.lib": oasis_executable_oxenstored_cclib
+"userspace/dlloxenstored_stubs.dll": oasis_executable_oxenstored_cclib
+"userspace/liboxenstored_stubs.a": oasis_executable_oxenstored_cclib
+"userspace/dlloxenstored_stubs.so": oasis_executable_oxenstored_cclib
+<userspace/server_unix.{native,byte}>: use_liboxenstored_stubs
+<userspace/server_unix.{native,byte}>: use_xenstore_unix
+<userspace/server_unix.{native,byte}>: use_xenstore_server
+<userspace/server_unix.{native,byte}>: use_xenstore
+<userspace/server_unix.{native,byte}>: pkg_lwt
+<userspace/server_unix.{native,byte}>: pkg_lwt.unix
+<userspace/server_unix.{native,byte}>: pkg_cmdliner
+<userspace/server_unix.{native,byte}>: pkg_shared-memory-ring
+<userspace/server_unix.{native,byte}>: pkg_shared-memory-ring.xenstore
+<userspace/server_unix.{native,byte}>: pkg_cstruct
+<userspace/server_unix.{native,byte}>: pkg_cstruct.syntax
+<userspace/*.ml{,i}>: use_xenstore_unix
+<userspace/*.ml{,i}>: use_xenstore_server
+<userspace/*.ml{,i}>: use_xenstore
+<userspace/*.ml{,i}>: pkg_lwt
+<userspace/*.ml{,i}>: pkg_lwt.unix
+<userspace/*.ml{,i}>: pkg_cmdliner
+<userspace/*.ml{,i}>: pkg_shared-memory-ring
+<userspace/*.ml{,i}>: pkg_shared-memory-ring.xenstore
+<userspace/*.ml{,i}>: pkg_cstruct
+<userspace/*.ml{,i}>: pkg_cstruct.syntax
+"userspace/xenstore_stubs.c": use_xenstore_unix
+"userspace/xenstore_stubs.c": use_xenstore_server
+"userspace/xenstore_stubs.c": use_xenstore
+"userspace/xenstore_stubs.c": pkg_lwt
+"userspace/xenstore_stubs.c": pkg_lwt.unix
+"userspace/xenstore_stubs.c": pkg_cmdliner
+"userspace/xenstore_stubs.c": pkg_shared-memory-ring
+"userspace/xenstore_stubs.c": pkg_shared-memory-ring.xenstore
+"userspace/xenstore_stubs.c": pkg_cstruct
+"userspace/xenstore_stubs.c": pkg_cstruct.syntax
+<userspace/server_unix.{native,byte}>: custom
 # OASIS_STOP
 true: annot
 <*/*.ml>: syntax_camlp4o
@@ -106,6 +146,7 @@ true: annot
 <client/*.ml>: pkg_lwt.syntax
 <server/*.ml>: pkg_lwt.syntax
 <server_test/binary.ml>: pkg_lwt.syntax
+<userspace/*.ml>: pkg_lwt.syntax
 <core>: include
 <client_lwt>: include
 <client_unix>: include

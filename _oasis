@@ -93,6 +93,18 @@ Test server_test
   Command:            $server_test
   WorkingDirectory:   server_test
 
+Executable oxenstored
+  CompiledObject:     best
+  Path:               userspace
+  MainIs:             server_unix.ml
+  Custom:             true
+  Install:            false
+  CSources:           xenstore_stubs.c
+  # Surely I don't actually need these
+  CCOpt:              -I. -I/home/djs/.opam/system/lib -I/home/djs/.opam/system/lib/lwt -I/usr/lib/ocaml/lwt
+  CClib:              -lxenctrl
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, xenstore.unix, cmdliner, shared-memory-ring, shared-memory-ring.xenstore
+
 #Document api
 #  Title: Documentation and API reference
 #  Type: ocamlbuild (0.3)
