@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9b067e2a1c6cc55b133979a6e32b6503)
+# DO NOT EDIT (digest: 13d2fcead666e22e09711d0be46bf256)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -100,8 +100,6 @@
 <server_test/*.ml{,i}>: pkg_cstruct.syntax
 <server_test/binary.{native,byte}>: custom
 # Executable oxenstored
-<userspace/*.ml{,i}>: oasis_executable_oxenstored_ccopt
-"userspace/xenstore_stubs.c": oasis_executable_oxenstored_ccopt
 <userspace/server_unix.{native,byte}>: oasis_executable_oxenstored_cclib
 "userspace/liboxenstored_stubs.lib": oasis_executable_oxenstored_cclib
 "userspace/dlloxenstored_stubs.dll": oasis_executable_oxenstored_cclib

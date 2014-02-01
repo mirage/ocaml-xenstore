@@ -25,7 +25,7 @@ let error fmt = Xenstore_server.Logging.error "xs_transport_xen" fmt
 
 type channel = {
   address: address;
-  page: Xenstore.buf;
+  page: Io_page.t;
   ring: Cstruct.t;
   port: int;
   c: unit Lwt_condition.t;
@@ -69,12 +69,7 @@ let virq_thread () =
   debug "Bound virq_port = %d" (Eventchn.to_int virq_port);
   let rec loop from =
     (* Check to see if any of our domains have shutdown *)
-    lwt dis = Xenstore.domain_infolist () in
-    let dis = match dis with
-      | None ->
-        debug "xc_domain_getinfolist failed";
-        failwith "xc_domain_getinfolist"               
-      | Some dis -> dis in
+    let dis = Xenstore.domain_infolist () in
 (*						debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.Xenstore.domid :: acc) [] dis)); *)
     List.iter (fun di ->
       if di.Xenstore.dying || di.Xenstore.shutdown
@@ -121,33 +116,29 @@ let service_domain d =
 let create_dom0 () =
   lwt remote_port = read_port () in
   let eventchn = Eventchn.init () in
-  match map_page () with
-  | Some page ->
-    let port = Eventchn.(bind_interdomain eventchn 0 remote_port) in
-    Eventchn.notify eventchn port;
-    let port = Eventchn.to_int port in
-    let d = {
-      address = {
-        domid = 0;
-        mfn = Nativeint.zero;
-        remote_port = remote_port;
-      };
-      page = page;
-      ring = Cstruct.of_bigarray page;
-      port = port;
-      c = Lwt_condition.create ();
-      shutdown = false;
-    } in
-    let (_: unit Lwt.t) = service_domain d in
-    Hashtbl.add domains 0 d;
-    Hashtbl.add by_port port d;
-    return (Some d)
-  | None ->
-    debug "failed to create connection to dom0";
-    return None
+  let page = map_page () in
+  let port = Eventchn.(bind_interdomain eventchn 0 remote_port) in
+  Eventchn.notify eventchn port;
+  let port = Eventchn.to_int port in
+  let d = {
+    address = {
+      domid = 0;
+      mfn = Nativeint.zero;
+      remote_port = remote_port;
+    };
+    page = page;
+    ring = Cstruct.of_bigarray page;
+    port = port;
+    c = Lwt_condition.create ();
+    shutdown = false;
+  } in
+  let (_: unit Lwt.t) = service_domain d in
+  Hashtbl.add domains 0 d;
+  Hashtbl.add by_port port d;
+  return (Some d)
 
 let create_domU address =
-  lwt page = Xenstore.map_foreign address.domid address.mfn in
+  let page = Xenstore.map_foreign address.domid address.mfn in
   let eventchn = Eventchn.init () in
   let port = Eventchn.(to_int (bind_interdomain eventchn address.domid address.remote_port)) in
   let d = {
