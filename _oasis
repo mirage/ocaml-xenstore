@@ -7,7 +7,7 @@ License:     LGPL-2.1 with OCaml linking exception
 Plugins:     META (0.3)
 BuildTools:  ocamlbuild
 
-Library xenstore
+Library xenstore_core
   CompiledObject:     best
   Path:               core
   Findlibname:        xenstore
@@ -18,7 +18,7 @@ Library xenstore_client
   CompiledObject:     best
   Path:               client
   Findlibname:        client
-  Findlibparent:      xenstore
+  Findlibparent:      xenstore_core
   Modules:            Xs_client_lwt
   BuildDepends:       lwt, xenstore
 
@@ -27,7 +27,7 @@ Library xenstore_server
   Pack:               true
   Path:               server
   Findlibname:        server
-  FindlibParent:      xenstore
+  FindlibParent:      xenstore_core
   Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore
 
@@ -35,15 +35,23 @@ Library xenstore_unix
   CompiledObject:     best
   Path:               unix
   Findlibname: 	      unix
-  FindlibParent:      xenstore
+  FindlibParent:      xenstore_core
   Modules:            Xs_server_lwt_unix, Xs_transport, Xs_transport_lwt_unix_client
   BuildDepends:       lwt, lwt.unix, xenstore
+
+Library xenstore
+  Pack:               true
+  CompiledObject:     best
+  Path:               std
+  Findlibname:        xstest
+  Modules:            Std
+  BuildDepends:       xenstore, xenstore.client, xenstore.server
 
 Library xenstore_legacy_unix
   CompiledObject:     best
   Path:               legacy_unix
   Findlibname: 	      legacy_unix
-  FindlibParent:      xenstore
+  FindlibParent:      xenstore_core
   Modules:            Xs_client_unix
   BuildDepends:       unix, threads, xenstore
 
@@ -101,7 +109,7 @@ Executable oxenstored
   Install:            false
   CSources:           xenstore_stubs.c
   CClib:              -lxenctrl
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.server, xenstore.unix, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
+  BuildDepends:       lwt, lwt.unix, xstest, xenstore.unix, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
 
 #Document api
 #  Title: Documentation and API reference

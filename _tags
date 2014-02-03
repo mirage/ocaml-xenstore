@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 13d2fcead666e22e09711d0be46bf256)
+# DO NOT EDIT (digest: 4c2628e9752bcd1b0047050ef1f58269)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -13,13 +13,13 @@
 ".git": not_hygienic
 "_darcs": -traverse
 "_darcs": not_hygienic
-# Library xenstore
-"core/xenstore.cmxs": use_xenstore
+# Library xenstore_core
+"core/xenstore_core.cmxs": use_xenstore_core
 <core/*.ml{,i}>: pkg_cstruct
 <core/*.ml{,i}>: pkg_cstruct.syntax
 # Library xenstore_client
 "client/xenstore_client.cmxs": use_xenstore_client
-<client/*.ml{,i}>: use_xenstore
+<client/*.ml{,i}>: use_xenstore_core
 <client/*.ml{,i}>: pkg_lwt
 <client/*.ml{,i}>: pkg_cstruct
 <client/*.ml{,i}>: pkg_cstruct.syntax
@@ -41,32 +41,41 @@
 "server/junk.cmx": for-pack(Xenstore_server)
 "server/introduce.cmx": for-pack(Xenstore_server)
 "server/heap_debug_interface.cmx": for-pack(Xenstore_server)
-<server/*.ml{,i}>: use_xenstore
+<server/*.ml{,i}>: use_xenstore_core
 <server/*.ml{,i}>: pkg_lwt
 <server/*.ml{,i}>: pkg_cstruct
 <server/*.ml{,i}>: pkg_cstruct.syntax
 # Library xenstore_unix
 "unix/xenstore_unix.cmxs": use_xenstore_unix
-<unix/*.ml{,i}>: use_xenstore
+<unix/*.ml{,i}>: use_xenstore_core
 <unix/*.ml{,i}>: pkg_lwt
 <unix/*.ml{,i}>: pkg_lwt.unix
 <unix/*.ml{,i}>: pkg_cstruct
 <unix/*.ml{,i}>: pkg_cstruct.syntax
+# Library xenstore
+"std/xenstore.cmxs": use_xenstore
+"std/std.cmx": for-pack(Xenstore)
+<std/*.ml{,i}>: use_xenstore_server
+<std/*.ml{,i}>: use_xenstore_client
+<std/*.ml{,i}>: use_xenstore_core
+<std/*.ml{,i}>: pkg_lwt
+<std/*.ml{,i}>: pkg_cstruct
+<std/*.ml{,i}>: pkg_cstruct.syntax
 # Library xenstore_legacy_unix
 "legacy_unix/xenstore_legacy_unix.cmxs": use_xenstore_legacy_unix
-<legacy_unix/*.ml{,i}>: use_xenstore
+<legacy_unix/*.ml{,i}>: use_xenstore_core
 <legacy_unix/*.ml{,i}>: pkg_unix
 <legacy_unix/*.ml{,i}>: pkg_threads
 <legacy_unix/*.ml{,i}>: pkg_cstruct
 <legacy_unix/*.ml{,i}>: pkg_cstruct.syntax
 # Executable xs_test
-<core_test/xs_test.{native,byte}>: use_xenstore
+<core_test/xs_test.{native,byte}>: use_xenstore_core
 <core_test/xs_test.{native,byte}>: pkg_lwt
 <core_test/xs_test.{native,byte}>: pkg_lwt.unix
 <core_test/xs_test.{native,byte}>: pkg_oUnit
 <core_test/xs_test.{native,byte}>: pkg_cstruct
 <core_test/xs_test.{native,byte}>: pkg_cstruct.syntax
-<core_test/*.ml{,i}>: use_xenstore
+<core_test/*.ml{,i}>: use_xenstore_core
 <core_test/*.ml{,i}>: pkg_lwt
 <core_test/*.ml{,i}>: pkg_lwt.unix
 <core_test/*.ml{,i}>: pkg_oUnit
@@ -75,7 +84,7 @@
 <core_test/xs_test.{native,byte}>: custom
 # Executable server_test
 <server_test/server_test.{native,byte}>: use_xenstore_server
-<server_test/server_test.{native,byte}>: use_xenstore
+<server_test/server_test.{native,byte}>: use_xenstore_core
 <server_test/server_test.{native,byte}>: pkg_lwt
 <server_test/server_test.{native,byte}>: pkg_oUnit
 <server_test/server_test.{native,byte}>: pkg_cstruct
@@ -84,7 +93,7 @@
 # Executable server_binary_test
 <server_test/binary.{native,byte}>: use_xenstore_unix
 <server_test/binary.{native,byte}>: use_xenstore_server
-<server_test/binary.{native,byte}>: use_xenstore
+<server_test/binary.{native,byte}>: use_xenstore_core
 <server_test/binary.{native,byte}>: pkg_lwt
 <server_test/binary.{native,byte}>: pkg_lwt.unix
 <server_test/binary.{native,byte}>: pkg_oUnit
@@ -92,7 +101,7 @@
 <server_test/binary.{native,byte}>: pkg_cstruct.syntax
 <server_test/*.ml{,i}>: use_xenstore_unix
 <server_test/*.ml{,i}>: use_xenstore_server
-<server_test/*.ml{,i}>: use_xenstore
+<server_test/*.ml{,i}>: use_xenstore_core
 <server_test/*.ml{,i}>: pkg_lwt
 <server_test/*.ml{,i}>: pkg_lwt.unix
 <server_test/*.ml{,i}>: pkg_oUnit
@@ -106,9 +115,11 @@
 "userspace/liboxenstored_stubs.a": oasis_executable_oxenstored_cclib
 "userspace/dlloxenstored_stubs.so": oasis_executable_oxenstored_cclib
 <userspace/server_unix.{native,byte}>: use_liboxenstored_stubs
+<userspace/server_unix.{native,byte}>: use_xenstore
 <userspace/server_unix.{native,byte}>: use_xenstore_unix
 <userspace/server_unix.{native,byte}>: use_xenstore_server
-<userspace/server_unix.{native,byte}>: use_xenstore
+<userspace/server_unix.{native,byte}>: use_xenstore_client
+<userspace/server_unix.{native,byte}>: use_xenstore_core
 <userspace/server_unix.{native,byte}>: pkg_lwt
 <userspace/server_unix.{native,byte}>: pkg_lwt.unix
 <userspace/server_unix.{native,byte}>: pkg_cmdliner
@@ -121,9 +132,11 @@
 <userspace/server_unix.{native,byte}>: pkg_io-page.unix
 <userspace/server_unix.{native,byte}>: pkg_cstruct
 <userspace/server_unix.{native,byte}>: pkg_cstruct.syntax
+<userspace/*.ml{,i}>: use_xenstore
 <userspace/*.ml{,i}>: use_xenstore_unix
 <userspace/*.ml{,i}>: use_xenstore_server
-<userspace/*.ml{,i}>: use_xenstore
+<userspace/*.ml{,i}>: use_xenstore_client
+<userspace/*.ml{,i}>: use_xenstore_core
 <userspace/*.ml{,i}>: pkg_lwt
 <userspace/*.ml{,i}>: pkg_lwt.unix
 <userspace/*.ml{,i}>: pkg_cmdliner
@@ -136,9 +149,11 @@
 <userspace/*.ml{,i}>: pkg_io-page.unix
 <userspace/*.ml{,i}>: pkg_cstruct
 <userspace/*.ml{,i}>: pkg_cstruct.syntax
+"userspace/xenstore_stubs.c": use_xenstore
 "userspace/xenstore_stubs.c": use_xenstore_unix
 "userspace/xenstore_stubs.c": use_xenstore_server
-"userspace/xenstore_stubs.c": use_xenstore
+"userspace/xenstore_stubs.c": use_xenstore_client
+"userspace/xenstore_stubs.c": use_xenstore_core
 "userspace/xenstore_stubs.c": pkg_lwt
 "userspace/xenstore_stubs.c": pkg_lwt.unix
 "userspace/xenstore_stubs.c": pkg_cmdliner

@@ -1,13 +1,13 @@
 # OASIS_START
-# DO NOT EDIT (digest: d95c0ec612c82ae4c01b9f5ca65a1cf4)
+# DO NOT EDIT (digest: 97d8c195d9f38f83a43b2b297cae3bf3)
 version = "1.2.5"
 description = "Xenstore protocol library"
 requires = "cstruct cstruct.syntax"
-archive(byte) = "xenstore.cma"
-archive(byte, plugin) = "xenstore.cma"
-archive(native) = "xenstore.cmxa"
-archive(native, plugin) = "xenstore.cmxs"
-exists_if = "xenstore.cma"
+archive(byte) = "xenstore_core.cma"
+archive(byte, plugin) = "xenstore_core.cma"
+archive(native) = "xenstore_core.cmxa"
+archive(native, plugin) = "xenstore_core.cmxs"
+exists_if = "xenstore_core.cma"
 package "unix" (
  version = "1.2.5"
  description = "Xenstore protocol library"

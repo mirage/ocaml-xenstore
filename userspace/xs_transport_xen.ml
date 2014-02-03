@@ -59,7 +59,7 @@ let read_port () =
 
 let map_page () =
   let fd = Unix.openfile xenstored_proc_kva [ Lwt_unix.O_RDWR ] 0o0 in
-  let page_opt = Xenstore.map_fd fd 4096 in
+  let page_opt = Domains.map_fd fd 4096 in
   Unix.close fd;
   page_opt
 
@@ -69,26 +69,26 @@ let virq_thread () =
   debug "Bound virq_port = %d" (Eventchn.to_int virq_port);
   let rec loop from =
     (* Check to see if any of our domains have shutdown *)
-    let dis = Xenstore.domain_infolist () in
+    let dis = Domains.domain_infolist () in
 (*						debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.Xenstore.domid :: acc) [] dis)); *)
     List.iter (fun di ->
-      if di.Xenstore.dying || di.Xenstore.shutdown
-      then debug "domid %d: %s%s%s" di.Xenstore.domid
-        (if di.Xenstore.dying then "dying" else "")
-        (if di.Xenstore.dying && di.Xenstore.shutdown then " and " else "")
-        (if di.Xenstore.shutdown then "shutdown" else "")
+      if di.Domains.dying || di.Domains.shutdown
+      then debug "domid %d: %s%s%s" di.Domains.domid
+        (if di.Domains.dying then "dying" else "")
+        (if di.Domains.dying && di.Domains.shutdown then " and " else "")
+        (if di.Domains.shutdown then "shutdown" else "")
       ) dis;
       let dis_by_domid = Hashtbl.create 128 in
-      List.iter (fun di -> Hashtbl.add dis_by_domid di.Xenstore.domid di) dis;
+      List.iter (fun di -> Hashtbl.add dis_by_domid di.Domains.domid di) dis;
         (* Connections to domains which are missing or 'dying' should be closed *)
         let to_close = Hashtbl.fold (fun domid _ acc ->
-          if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).Xenstore.dying
+          if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).Domains.dying
           then domid :: acc else acc) domains [] in
         (* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
         let release_domain = Hashtbl.fold (fun domid _ acc ->
           acc || (not(Hashtbl.mem dis_by_domid domid) ||
         (let di = Hashtbl.find dis_by_domid domid in
-         di.Xenstore.shutdown || di.Xenstore.dying))
+         di.Domains.shutdown || di.Domains.dying))
       ) domains false in
       (* Set the connections to "closing", wake up any readers/writers *)
       List.iter
@@ -138,7 +138,7 @@ let create_dom0 () =
   return (Some d)
 
 let create_domU address =
-  let page = Xenstore.map_foreign address.domid address.mfn in
+  let page = Domains.map_foreign address.domid address.mfn in
   let eventchn = Eventchn.init () in
   let port = Eventchn.(to_int (bind_interdomain eventchn address.domid address.remote_port)) in
   let d = {
@@ -183,7 +183,7 @@ let rec write t buf ofs len =
 let destroy t =
   let eventchn = Eventchn.init () in
   Eventchn.(unbind eventchn (of_int t.port));
-  Xenstore.unmap_foreign t.page;
+  Domains.unmap_foreign t.page;
   Hashtbl.remove domains t.address.domid;
   Hashtbl.remove by_port t.port;
   return ()

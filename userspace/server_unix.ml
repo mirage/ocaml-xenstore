@@ -13,19 +13,19 @@
  *)
 
 open Lwt
-open Xs_protocol
+open Xenstore.Std
 
-let debug fmt = Xenstore_server.Logging.debug "xenstored" fmt
-let info  fmt = Xenstore_server.Logging.info  "xenstored" fmt
-let error fmt = Xenstore_server.Logging.error "xenstored" fmt
+let debug fmt = Server.Logging.debug "xenstored" fmt
+let info  fmt = Server.Logging.info  "xenstored" fmt
+let error fmt = Server.Logging.error "xenstored" fmt
 
-module UnixServer = Xenstore_server.Xs_server.Server(Xs_server_lwt_unix)
-module DomainServer = Xenstore_server.Xs_server.Server(Xs_transport_xen)
+module UnixServer = Server.Make(Xs_server_lwt_unix)
+module DomainServer = Server.Make(Xs_transport_xen)
 
 let syslog = Lwt_log.syslog ~facility:`Daemon ()
 
 let rec logging_thread daemon logger =
-  lwt lines = Xenstore_server.Logging.get logger in
+  lwt lines = Server.Logging.get logger in
   lwt () = Lwt_list.iter_s
     (fun x ->
       lwt () =
@@ -69,8 +69,8 @@ let ensure_directory_exists dir_needed =
 let program_thread daemon path pidfile enable_xen enable_unix =
 
   info "User-space xenstored version %s starting" Version.version;
-  let (_: 'a) = logging_thread daemon Xenstore_server.Logging.logger in
-  let (_: 'a) = logging_thread daemon Xenstore_server.Logging.access_logger in
+  let (_: 'a) = logging_thread daemon Server.Logging.logger in
+  let (_: 'a) = logging_thread daemon Server.Logging.access_logger in
 
   lwt () = if not enable_xen && (not enable_unix) then begin
     error "You must specify at least one transport (--enable-unix and/or --enable-xen)";
@@ -112,7 +112,7 @@ let program_thread daemon path pidfile enable_xen enable_unix =
       info "Starting server on xen inter-domain transport";
       DomainServer.serve_forever ()
     end else return () in
-  Xenstore_server.Introduce.(introduce { domid = 0; mfn = 0n; remote_port = 0 });
+  Server.Introduce.(introduce { domid = 0; mfn = 0n; remote_port = 0 });
   debug "Introduced domain 0";
   lwt () = a in
   lwt () = b in
