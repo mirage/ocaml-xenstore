@@ -20,7 +20,7 @@ let info  fmt = Server.Logging.info  "xenstored" fmt
 let error fmt = Server.Logging.error "xenstored" fmt
 
 module UnixServer = Server.Make(Xs_server_lwt_unix)
-module DomainServer = Server.Make(Xs_transport_xen)
+module DomainServer = Server.Make(Interdomain)
 
 let syslog = Lwt_log.syslog ~facility:`Daemon ()
 
