@@ -19,7 +19,7 @@ let debug fmt = Server.Logging.debug "xenstored" fmt
 let info  fmt = Server.Logging.info  "xenstored" fmt
 let error fmt = Server.Logging.error "xenstored" fmt
 
-module UnixServer = Server.Make(Xs_server_lwt_unix)
+module UnixServer = Server.Make(Sockets)
 module DomainServer = Server.Make(Interdomain)
 
 let syslog = Lwt_log.syslog ~facility:`Daemon ()

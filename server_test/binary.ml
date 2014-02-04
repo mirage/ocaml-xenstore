@@ -12,7 +12,7 @@ let socket =
 let _ =
   Xs_transport.xenstored_socket := socket
 
-module Server = Xenstore_server.Xs_server.Server(Xs_server_lwt_unix)
+module Server = Xenstore_server.Xs_server.Server(Sockets)
 
 let debug = ref false
 
