@@ -28,7 +28,7 @@ Library xenstore_server
   Path:               server
   Findlibname:        server
   FindlibParent:      xenstore_core
-  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
+  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface, S
   BuildDepends:       lwt, xenstore
 
 Library xenstore_unix

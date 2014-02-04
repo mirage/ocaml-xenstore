@@ -12,4 +12,24 @@
  * GNU Lesser General Public License for more details.
  *)
 
-include Xenstore_server.S.TRANSPORT
+open Lwt
+open Xs_protocol
+
+module type TRANSPORT = sig
+  type 'a t = 'a Lwt.t
+  val return: 'a -> 'a Lwt.t
+  val ( >>= ): 'a t -> ('a -> 'b Lwt.t) -> 'b Lwt.t
+
+  type server
+  val listen: unit -> server Lwt.t
+
+  type channel
+  val read: channel -> string -> int -> int -> int Lwt.t
+  val write: channel -> string -> int -> int -> unit Lwt.t
+  val destroy: channel -> unit Lwt.t
+  val address_of: channel -> Xs_protocol.address Lwt.t
+
+  val namespace_of: channel -> (module Namespace.IO) option
+
+  val accept_forever: server -> (channel -> unit Lwt.t) -> 'a Lwt.t
+end
