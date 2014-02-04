@@ -69,7 +69,7 @@ let virq_thread () =
   debug "Bound virq_port = %d" (Eventchn.to_int virq_port);
   let rec loop from =
     (* Check to see if any of our domains have shutdown *)
-    let dis = Domains.domain_infolist () in
+    let dis = Domains.list () in
 (*						debug "valid domain ids: [%s]" (String.concat ", " (List.fold_left (fun acc di -> string_of_int di.Xenstore.domid :: acc) [] dis)); *)
     List.iter (fun di ->
       if di.Domains.dying || di.Domains.shutdown

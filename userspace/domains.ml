@@ -5,7 +5,7 @@ external unmap_foreign: Io_page.t -> unit           = "stub_unmap_foreign"
 
 let map_fd fd len = Bigarray.Array1.map_file fd Bigarray.char Bigarray.c_layout true len
 
-type info = {
+type domain = {
   domid: int;
   dying: bool;
   shutdown: bool;
@@ -13,7 +13,7 @@ type info = {
 
 external stub_sizeof_domaininfo_t: unit -> int                    = "stub_sizeof_domaininfo_t"
 external stub_domain_getinfolist:  int -> int -> Cstruct.t -> int = "stub_domain_getinfolist"
-external stub_domaininfo_t_parse:  Cstruct.t -> info              = "stub_domaininfo_t_parse"
+external stub_domaininfo_t_parse:  Cstruct.t -> domain            = "stub_domaininfo_t_parse"
 
 open Lwt
 
@@ -30,7 +30,7 @@ let domain_getinfolist lowest_domid =
     else parse (Cstruct.shift buf sizeof) (n + 1) (stub_domaininfo_t_parse buf :: acc) in
   parse getdomaininfo_buf 0 []
 
-let domain_infolist () =
+let list () =
   let rec loop from =
     let first = domain_getinfolist from in
     (* If we returned less than a batch then there are no more. *)
