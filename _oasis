@@ -104,10 +104,10 @@ Test server_test
 Executable oxenstored
   CompiledObject:     best
   Path:               userspace
-  MainIs:             server_unix.ml
+  MainIs:             main.ml
   Custom:             true
   Install:            false
-  CSources:           xenstore_stubs.c
+  CSources:           domains_stubs.c
   CClib:              -lxenctrl
   BuildDepends:       lwt, lwt.unix, xstest, xenstore.unix, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
 
