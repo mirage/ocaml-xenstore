@@ -76,7 +76,7 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
-module Client = functor(IO: S.TRANSPORT) -> struct
+module Make = functor(IO: S.TRANSPORT) -> struct
   module PS = PacketStream(IO)
 
   type 'a t = 'a IO.t

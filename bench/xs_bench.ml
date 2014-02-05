@@ -14,7 +14,7 @@
 
 open Lwt
 open Xs_protocol
-module Client = Xs_client_lwt.Client(Sockets)
+module Client = Client.Make(Sockets)
 open Client
 
 let ( |> ) a b = b a

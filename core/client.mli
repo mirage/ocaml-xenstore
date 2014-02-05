@@ -18,4 +18,4 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
-module Client : functor(IO: S.TRANSPORT) -> S.CLIENT
+module Make : functor(IO: S.TRANSPORT) -> S.CLIENT
