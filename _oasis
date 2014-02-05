@@ -11,8 +11,8 @@ Library xenstore_core
   CompiledObject:     best
   Path:               core
   Findlibname:        xenstore
-  Modules:            Xs_protocol, Xs_handle
-  BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax
+  Modules:            Xs_protocol, Xs_handle, S
+  BuildDepends:       lwt, cstruct (>= 0.6.0), cstruct.syntax
 
 Library xenstore_client
   CompiledObject:     best
@@ -28,7 +28,7 @@ Library xenstore_server
   Path:               server
   Findlibname:        server
   FindlibParent:      xenstore_core
-  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface, S
+  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore
 
 Library xenstore_unix
@@ -38,14 +38,6 @@ Library xenstore_unix
   FindlibParent:      xenstore_core
   Modules:            Sockets, Xs_transport, Xs_transport_lwt_unix_client
   BuildDepends:       lwt, lwt.unix, xenstore
-
-Library xenstore
-  Pack:               true
-  CompiledObject:     best
-  Path:               std
-  Findlibname:        xstest
-  Modules:            Std
-  BuildDepends:       xenstore, xenstore.client, xenstore.server
 
 Library xenstore_legacy_unix
   CompiledObject:     best
@@ -109,7 +101,7 @@ Executable oxenstored
   Install:            false
   CSources:           domains_stubs.c
   CClib:              -lxenctrl
-  BuildDepends:       lwt, lwt.unix, xstest, xenstore.unix, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix, xenstore.server, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
 
 #Document api
 #  Title: Documentation and API reference

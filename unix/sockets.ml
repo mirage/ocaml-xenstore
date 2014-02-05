@@ -89,28 +89,13 @@ let rec accept_forever fd process =
   let (_: unit Lwt.t list) = List.map process conns in
   accept_forever fd process
 
-let namespace_of (fd, _) =
-	let module Interface = struct
-		include Xenstore_server.Namespace.Unsupported
+module Introspect = struct
+  let read (fd, _) = function
+    | [ "readable" ] -> Some (string_of_bool (Lwt_unix.readable fd))
+    | [ "writable" ] -> Some (string_of_bool (Lwt_unix.writable fd))
+    | _ -> None
 
-	let read t (perms: Xenstore_server.Perms.t) (path: Xenstore_server.Store.Path.t) =
-		Xenstore_server.Perms.has perms Xenstore_server.Perms.CONFIGURE;
-		match Xenstore_server.Store.Path.to_string_list path with
-		| [] -> ""
-		| [ "readable" ] ->
-			string_of_bool (Lwt_unix.readable fd)
-		| [ "writable" ] ->
-			string_of_bool (Lwt_unix.writable fd)
-		| _ -> Xenstore_server.Store.Path.doesnt_exist path
-
-	let exists t perms path = try ignore(read t perms path); true with Xenstore_server.Store.Path.Doesnt_exist _ -> false
-
-	let list t perms path =
-		Xenstore_server.Perms.has perms Xenstore_server.Perms.CONFIGURE;
-		match Xenstore_server.Store.Path.to_string_list path with
-		| [] -> [ "readable"; "writable" ]
-		| _ -> []
-
-	end in
-	Some (module Interface: Xenstore_server.Namespace.IO)
-
+  let list t = function
+    | [] -> [ "readable"; "writable" ]
+    | _ -> []
+end

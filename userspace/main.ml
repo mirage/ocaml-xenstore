@@ -13,19 +13,19 @@
  *)
 
 open Lwt
-open Xenstore.Std
+open Xenstore_server
 
-let debug fmt = Server.Logging.debug "xenstored" fmt
-let info  fmt = Server.Logging.info  "xenstored" fmt
-let error fmt = Server.Logging.error "xenstored" fmt
+let debug fmt = Logging.debug "xenstored" fmt
+let info  fmt = Logging.info  "xenstored" fmt
+let error fmt = Logging.error "xenstored" fmt
 
-module UnixServer = Server.Make(Sockets)
-module DomainServer = Server.Make(Interdomain)
+module UnixServer = Xs_server.Server(Sockets)
+module DomainServer = Xs_server.Server(Interdomain)
 
 let syslog = Lwt_log.syslog ~facility:`Daemon ()
 
 let rec logging_thread daemon logger =
-  lwt lines = Server.Logging.get logger in
+  lwt lines = Logging.get logger in
   lwt () = Lwt_list.iter_s
     (fun x ->
       lwt () =
@@ -69,8 +69,8 @@ let ensure_directory_exists dir_needed =
 let program_thread daemon path pidfile enable_xen enable_unix =
 
   info "User-space xenstored version %s starting" Version.version;
-  let (_: 'a) = logging_thread daemon Server.Logging.logger in
-  let (_: 'a) = logging_thread daemon Server.Logging.access_logger in
+  let (_: 'a) = logging_thread daemon Logging.logger in
+  let (_: 'a) = logging_thread daemon Logging.access_logger in
 
   lwt () = if not enable_xen && (not enable_unix) then begin
     error "You must specify at least one transport (--enable-unix and/or --enable-xen)";
@@ -112,7 +112,7 @@ let program_thread daemon path pidfile enable_xen enable_unix =
       info "Starting server on xen inter-domain transport";
       DomainServer.serve_forever ()
     end else return () in
-  Server.Introduce.(introduce { domid = 0; mfn = 0n; remote_port = 0 });
+  Introduce.(introduce { domid = 0; mfn = 0n; remote_port = 0 });
   debug "Introduced domain 0";
   lwt () = a in
   lwt () = b in

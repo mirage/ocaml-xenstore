@@ -12,4 +12,4 @@
  * GNU Lesser General Public License for more details.
  *)
 
-include Xenstore_server.S.TRANSPORT
+include S.TRANSPORT

@@ -208,41 +208,28 @@ let rec accept_forever stream process =
   end;
   accept_forever stream process
 
-let namespace_of t =
-  let module Interface = struct
-    include Xenstore_server.Namespace.Unsupported
-
-    let read _ (perms: Xenstore_server.Perms.t) (path: Xenstore_server.Store.Path.t) =
-      Xenstore_server.Perms.has perms Xenstore_server.Perms.CONFIGURE;
+module Introspect = struct
+  let read t path =
       let pairs = Xenstore_ring.Ring.to_debug_map t.ring in
-      match Xenstore_server.Store.Path.to_string_list path with
-      | [] -> ""
-      | [ "mfn" ] -> Nativeint.to_string t.address.mfn
-      | [ "local-port" ] -> string_of_int t.port
-      | [ "remote-port" ] -> string_of_int t.address.remote_port
-      | [ "shutdown" ] -> string_of_bool t.shutdown
+      match path with
+      | [] -> Some ""
+      | [ "mfn" ] -> Some (Nativeint.to_string t.address.mfn)
+      | [ "local-port" ] -> Some (string_of_int t.port)
+      | [ "remote-port" ] -> Some (string_of_int t.address.remote_port)
+      | [ "shutdown" ] -> Some (string_of_bool t.shutdown)
       | [ "wakeup" ]
       | [ "request" ]
-      | [ "response" ] -> ""
-      | [ x ] when List.mem_assoc x pairs -> List.assoc x pairs
-      | _ -> Xenstore_server.Store.Path.doesnt_exist path
+      | [ "response" ] -> Some ""
+      | [ x ] when List.mem_assoc x pairs -> Some (List.assoc x pairs)
+      | _ -> None
 
-    let write _ _ perms path v =
-      Xenstore_server.Perms.has perms Xenstore_server.Perms.CONFIGURE;
-      match Xenstore_server.Store.Path.to_string_list path with
-      | [ "wakeup" ] -> Lwt_condition.broadcast t.c ()
-      | _ -> raise Xenstore_server.Perms.Permission_denied
+  let write t path v = match path with
+    | [ "wakeup" ] -> Lwt_condition.broadcast t.c ()
+    | _ -> ()
 
-    let exists t perms path = try ignore(read t perms path); true with Xenstore_server.Store.Path.Doesnt_exist _ -> false
-
-    let list t perms path =
-      Xenstore_server.Perms.has perms Xenstore_server.Perms.CONFIGURE;
-      match Xenstore_server.Store.Path.to_string_list path with
-      | [] -> [ "mfn"; "local-port"; "remote-port"; "shutdown"; "wakeup"; "request"; "response" ]
-      | [ "request" ]
-      | [ "response" ] -> [ "cons"; "prod"; "data" ]
-      | _ -> []
-
-  end in
-  Some (module Interface: Xenstore_server.Namespace.IO)
-
+  let list t = function
+    | [] -> [ "mfn"; "local-port"; "remote-port"; "shutdown"; "wakeup"; "request"; "response" ]
+    | [ "request" ]
+    | [ "response" ] -> [ "cons"; "prod"; "data" ]
+    | _ -> []
+end

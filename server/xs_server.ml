@@ -31,12 +31,30 @@ let store =
 		) [ "/local"; "/local/domain"; "/tool"; "/tool/xenstored"; "/tool/xenstored/quota"; "/tool/xenstored/connection"; "/tool/xenstored/log"; "/tool/xenstored/memory" ];
 	store
 
+module Make_namespace(T: S.TRANSPORT) = struct
+  let namespace_of channel =
+    let module Interface = struct
+      include Namespace.Unsupported
+      let read t (perms: Perms.t) (path: Store.Path.t) =
+        Perms.has perms Perms.CONFIGURE;
+        match T.Introspect.read channel (Store.Path.to_string_list path) with
+        | Some x -> x
+        | None -> raise (Store.Path.Doesnt_exist (Store.Path.to_string path))
+      let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
+      let list t perms path =
+        Perms.has perms Perms.CONFIGURE;
+        T.Introspect.list channel (Store.Path.to_string_list path)
+    end in
+    Some (module Interface: Namespace.IO)
+end
+
 module Server = functor(T: S.TRANSPORT) -> struct
 	module PS = PacketStream(T)
+        module NS = Make_namespace(T)
 
 	let handle_connection t =
 		lwt address = T.address_of t in
-		let interface = T.namespace_of t in
+		let interface = NS.namespace_of t in
 		let c = Connection.create address interface in
 		let channel = PS.make t in
 		let m = Lwt_mutex.create () in

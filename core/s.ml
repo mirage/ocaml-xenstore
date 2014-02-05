@@ -28,8 +28,11 @@ module type TRANSPORT = sig
   val write: channel -> string -> int -> int -> unit Lwt.t
   val destroy: channel -> unit Lwt.t
   val address_of: channel -> Xs_protocol.address Lwt.t
-
-  val namespace_of: channel -> (module Namespace.IO) option
-
   val accept_forever: server -> (channel -> unit Lwt.t) -> 'a Lwt.t
+
+  module Introspect : sig
+    val list: channel -> string list -> string list
+    val read: channel -> string list -> string option
+  end
 end
+
