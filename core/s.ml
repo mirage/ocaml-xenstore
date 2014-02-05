@@ -41,3 +41,32 @@ module type TRANSPORT = sig
     val write: channel -> string list -> string -> bool
   end
 end
+
+module type CLIENT = sig
+  include IO
+
+  type client
+
+  val make : unit -> client t
+  val suspend : client -> unit t
+  val resume : client -> unit t
+
+  type handle
+
+  val immediate : client -> (handle -> 'a t) -> 'a t
+  val transaction : client -> (handle -> 'a t) -> 'a t
+  val wait : client -> (handle -> 'a t) -> 'a t
+  val directory : handle -> string -> string list t
+  val read : handle -> string -> string t
+  val write : handle -> string -> string -> unit t
+  val rm : handle -> string -> unit t
+  val mkdir : handle -> string -> unit t
+  val setperms : handle -> string -> Xs_protocol.ACL.t -> unit t
+  val debug : handle -> string list -> string list t
+  val restrict : handle -> int -> unit t
+  val getdomainpath : handle -> int -> string t
+  val watch : handle -> string -> Xs_protocol.Token.t -> unit t
+  val unwatch : handle -> string -> Xs_protocol.Token.t -> unit t
+  val introduce : handle -> int -> nativeint -> int -> unit t
+  val set_target : handle -> int -> int -> unit t
+end
