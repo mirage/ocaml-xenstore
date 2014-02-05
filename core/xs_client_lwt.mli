@@ -14,21 +14,6 @@
 
 (** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
 
-module type IO = sig
-  type 'a t = 'a Lwt.t
-  val return: 'a -> 'a t
-  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
-
-  type backend = [ `xen | `unix ]
-  val backend : backend
-
-  type channel
-  val create: unit -> channel t
-  val destroy: channel -> unit t
-  val read: channel -> string -> int -> int -> int t
-  val write: channel -> string -> int -> int -> unit t
-end
-
 exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
@@ -111,4 +96,4 @@ module type S = sig
     [stubdom_domid] the permissions owned by [domid]. *)
 end
 
-module Client : functor(IO: IO) -> S
+module Client : functor(IO: S.TRANSPORT) -> S

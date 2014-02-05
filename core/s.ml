@@ -25,6 +25,7 @@ module type TRANSPORT = sig
   val listen: unit -> server t
 
   type channel
+  val create: unit -> channel t
   val read: channel -> string -> int -> int -> int t
   val write: channel -> string -> int -> int -> unit t
   val destroy: channel -> unit t

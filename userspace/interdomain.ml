@@ -42,6 +42,8 @@ let by_port : (int, channel) Hashtbl.t = Hashtbl.create 128
 let xenstored_proc_port = "/proc/xen/xsd_port"
 let xenstored_proc_kva  = "/proc/xen/xsd_kva"
 
+let proc_xen_xenbus = "/proc/xen/xenbus"
+
 let read_port () =
   try_lwt
     Lwt_io.with_file ~mode:Lwt_io.input xenstored_proc_port
@@ -58,8 +60,8 @@ let read_port () =
     error "Ensure this system is running xen and try again.";
     fail e
 
-let map_page () =
-  let fd = Unix.openfile xenstored_proc_kva [ Lwt_unix.O_RDWR ] 0o0 in
+let map_page filename =
+  let fd = Unix.openfile filename [ Lwt_unix.O_RDWR ] 0o0 in
   let page_opt = Domains.map_fd fd 4096 in
   Unix.close fd;
   page_opt
@@ -117,7 +119,7 @@ let service_domain d =
 let create_dom0 () =
   lwt remote_port = read_port () in
   let eventchn = Eventchn.init () in
-  let page = map_page () in
+  let page = map_page xenstored_proc_kva in
   let port = Eventchn.(bind_interdomain eventchn 0 remote_port) in
   Eventchn.notify eventchn port;
   let port = Eventchn.to_int port in
@@ -154,6 +156,9 @@ let create_domU address =
   Hashtbl.add domains address.domid d;
   Hashtbl.add by_port port d;
   return (Some d)
+
+let create () =
+  failwith "It's not possible to directly 'create' an interdomain ring."
 
 let rec read t buf ofs len =
   if t.shutdown

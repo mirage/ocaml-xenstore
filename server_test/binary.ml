@@ -36,7 +36,7 @@ let server_thread =
 open OUnit
 
 let test (request, response) () =
-  let open Xs_transport_lwt_unix_client in
+  let open Sockets in
   lwt c = create () in
   lwt () = write c request 0 (String.length request) in
   let buffer = String.make (String.length response) '\000' in

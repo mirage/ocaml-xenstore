@@ -28,7 +28,7 @@ Library xenstore_unix
   Path:               unix
   Findlibname: 	      unix
   FindlibParent:      xenstore
-  Modules:            Sockets, Xs_transport, Xs_transport_lwt_unix_client
+  Modules:            Sockets, Xs_transport
   BuildDepends:       lwt, lwt.unix, xenstore
 
 Library xenstore_legacy_unix
