@@ -17,18 +17,6 @@
 open Lwt
 open Xs_protocol
 
-module type IO = sig
-  type 'a t = 'a Lwt.t
-  val return: 'a -> 'a t
-  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
-
-  type channel
-  val create: unit -> channel t
-  val destroy: channel -> unit t
-  val read: channel -> string -> int -> int -> int t
-  val write: channel -> string -> int -> int -> unit t
-end
-
 module type S = sig
   type client
 
@@ -115,7 +103,7 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
-module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
+module Client = functor(IO: S.TRANSPORT) -> struct
   module PS = PacketStream(IO)
 
   (* Represents a single acive connection to a server *)
