@@ -160,7 +160,7 @@ let main () =
 		!result, args in
 	let path, args = extract args "-path" in
 	begin match path with
-	| Some path -> Xs_transport.xenstored_socket := path
+	| Some path -> Sockets.xenstored_socket := path
 	| None -> ()
 	end;
 	let restrict_domid, args = extract args "-restrict" in

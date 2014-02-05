@@ -50,7 +50,7 @@ let daemon =
 
 let path =
   let doc = "The path to the Unix domain socket" in
-  Arg.(value & opt string !Xs_transport.xenstored_socket & info [ "path" ] ~docv:"PATH" ~doc)
+  Arg.(value & opt string !Sockets.xenstored_socket & info [ "path" ] ~docv:"PATH" ~doc)
 
 let enable_xen =
   let doc = "Provide service to VMs over shared memory" in
@@ -104,15 +104,15 @@ let program_thread daemon path pidfile enable_xen enable_unix =
   end in
   let (a: unit Lwt.t) =
     if enable_unix then begin
-      info "Starting server on unix domain socket %s" !Xs_transport.xenstored_socket;
+      info "Starting server on unix domain socket %s" !Sockets.xenstored_socket;
       try_lwt
         UnixServer.serve_forever ()
       with Unix.Unix_error(Unix.EACCES, _, _) as e ->
-        error "Permission denied (EACCES) binding to %s" !Xs_transport.xenstored_socket;
+        error "Permission denied (EACCES) binding to %s" !Sockets.xenstored_socket;
         error "To resolve this problem either run this program with more privileges or change the path.";
         fail e
       | Unix.Unix_error(Unix.EADDRINUSE, _, _) as e ->
-        error "The unix domain socket %s is already in use (EADDRINUSE)" !Xs_transport.xenstored_socket;
+        error "The unix domain socket %s is already in use (EADDRINUSE)" !Sockets.xenstored_socket;
         error "To resolve this program either run this program with more privileges (so that it may delete the current socket) or change the path.";
         fail e
     end else return () in
@@ -129,7 +129,7 @@ let program_thread daemon path pidfile enable_xen enable_unix =
   return ()
 
 let program pidfile daemon path enable_xen enable_unix =
-  Xs_transport.xenstored_socket := path;
+  Sockets.xenstored_socket := path;
   if daemon then Lwt_daemon.daemonize ();
   try
     Lwt_main.run (program_thread daemon path pidfile enable_xen enable_unix)

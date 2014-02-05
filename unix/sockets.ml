@@ -20,6 +20,8 @@ let initial_retry_interval = 0.1 (* seconds *)
 let max_retry_interval = 5.0 (* seconds *)
 let retry_max = 100 (* attempts *)
 
+let xenstored_socket = ref "/var/run/xenstored/socket"
+
 open Lwt
 
 type 'a t = 'a Lwt.t
@@ -29,7 +31,7 @@ let ( >>= ) m f = m >>= f
 (* Individual connections *)
 type channel = Lwt_unix.file_descr * Lwt_unix.sockaddr
 let create () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(!Xs_transport.xenstored_socket) in
+  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
   let start = Unix.gettimeofday () in
   let rec retry n interval =
@@ -88,9 +90,9 @@ let _ =
 	Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
 let listen () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(!Xs_transport.xenstored_socket) in
+  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-  lwt () = try_lwt Lwt_unix.unlink !Xs_transport.xenstored_socket with _ -> return () in
+  lwt () = try_lwt Lwt_unix.unlink !xenstored_socket with _ -> return () in
   Lwt_unix.bind fd sockaddr;
   Lwt_unix.listen fd 5;
   return fd

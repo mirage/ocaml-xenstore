@@ -11,7 +11,7 @@ let socket =
   tmp
 
 let _ =
-  Xs_transport.xenstored_socket := socket
+  Sockets.xenstored_socket := socket
 
 module Server = Xs_server.Server(Sockets)
 
@@ -48,7 +48,7 @@ let _ =
   let verbose = ref false in
   Arg.parse [
     "-verbose", Arg.Unit (fun _ -> verbose := true), "Run in verbose mode";
-    "-connect", Arg.Set_string Xs_transport.xenstored_socket, "Connect to a specified xenstored (otherwise use an internal server)";
+    "-connect", Arg.Set_string Sockets.xenstored_socket, "Connect to a specified xenstored (otherwise use an internal server)";
     "-debug",   Arg.Set debug, "Print debug logging";
   ] (fun x -> Printf.fprintf stderr "Ignoring argument: %s" x)
     "Test xenstore server code";
