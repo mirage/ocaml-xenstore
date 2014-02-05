@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 42cc0292c6a80084af6cff20b3d74048)
+# DO NOT EDIT (digest: 43ec9c4cdfe2cc1b90f63d8a35516db2)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -16,7 +16,7 @@
 # Library xenstore
 "core/xenstore.cmxs": use_xenstore
 "core/xs_protocol.cmx": for-pack(Xenstore)
-"core/xs_handle.cmx": for-pack(Xenstore)
+"core/handle.cmx": for-pack(Xenstore)
 "core/xs_client_lwt.cmx": for-pack(Xenstore)
 "core/s.cmx": for-pack(Xenstore)
 <core/*.ml{,i}>: pkg_lwt
