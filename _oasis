@@ -103,10 +103,10 @@ Executable xs
   Install:            false
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
 
-Executable xsbench
+Executable bench
   CompiledObject:     best
   Path:               bench
-  MainIs:             xs_bench.ml
+  MainIs:             bench.ml
   Custom:             true
   Install:            false
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
