@@ -1,7 +1,6 @@
 .PHONY: all clean install build
 all: build doc
 
-NAME=xenstore
 J=4
 
 export OCAMLRUNPARAM=b
@@ -38,7 +37,8 @@ test:
 
 
 reinstall: setup.bin
-	@ocamlfind remove $(NAME) || true
+	@ocamlfind remove xenstore || true
+	@ocamlfind remove xenstored || true
 	@./setup.bin -reinstall
 
 clean:

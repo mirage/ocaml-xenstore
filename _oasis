@@ -23,6 +23,13 @@ Library xenstored
   Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Server, Junk, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore
 
+# For backwards compat
+Library xenstore_client
+  CompiledObject:     best
+  Path:               core
+  Findlibname:        client
+  Findlibparent:      xenstore
+
 Library xenstore_unix
   CompiledObject:     best
   Path:               unix

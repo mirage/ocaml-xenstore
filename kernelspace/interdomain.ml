@@ -16,12 +16,13 @@ open OS
 
 open Lwt
 open Gnt
-open Xenstore_server
+open Xenstore
+open Xenstored
 open Introduce
 
-let debug fmt = Logging.debug "xs_transport_domain" fmt
-let warn  fmt = Logging.warn  "xs_transport_domain" fmt
-let error fmt = Logging.error "xs_transport_domain" fmt
+let debug fmt = Logging.debug "interdomain" fmt
+let warn  fmt = Logging.warn  "interdomain" fmt
+let error fmt = Logging.error "interdomain" fmt
 
 type channel = {
 	address: address;
@@ -102,15 +103,6 @@ let (_: 'a Lwt.t) =
 	virq_thread port
 *)
 
-cstruct xenstore_ring{
-	uint8_t req[1024];
-	uint8_t rsp[1024];
-	uint32_t req_cons;
-	uint32_t req_prod;
-	uint32_t rsp_cons;
-	uint32_t rsp_prod
-} as little_endian
-
 let create_domain address =
 	match Gnttab.map interface { Gnttab.domid = address.domid; ref = Gnt.xenstore } true with
 	| Some h ->
@@ -129,12 +121,7 @@ let create_domain address =
 				debug "Waiting for signal from domid %d on local port %d (remote port %d)" address.domid (Eventchn.to_int port) address.remote_port;
 				lwt () = Activations.wait port in
 				debug "Waking domid %d" d.address.domid;
-
-				debug "req_cons = %ld; req_prod = %ld; rsp_cons = %ld; rsp_prod = %ld"
-					(get_xenstore_ring_req_cons page)
-					(get_xenstore_ring_req_prod page)
-					(get_xenstore_ring_rsp_cons page)
-					(get_xenstore_ring_rsp_prod page);
+                                List.iter (fun (k, v) -> debug "%s = %s\n" k v) (Xenstore_ring.Ring.to_debug_map page);
 
 				Lwt_condition.broadcast d.c ();
 				return ()
@@ -146,7 +133,11 @@ let create_domain address =
 	| None ->
 		error "Failed to map grant reference: cannot connect to domid %d" address.domid;
 		None
- 
+
+let domain_of t = t.address.domid
+
+let create () = failwith "interdomain.ml:create unimplemented"
+
 let rec read t buf ofs len =
 	debug "read size=%d ofs=%d len=%d" (String.length buf) ofs len;
 	if t.closing then begin
@@ -202,7 +193,7 @@ let destroy t =
 	return ()
 
 let address_of t =
-	return (Xs_protocol.Domain t.address.domid)
+	return (Uri.make ~scheme:"domain" ~path:(string_of_int t.address.domid) ())
 
 type server = address Lwt_stream.t
 
@@ -220,48 +211,27 @@ let rec accept_forever stream process =
 	end;
 	accept_forever stream process
 
-let namespace_of t =
-	let module Interface = struct
-		include Namespace.Unsupported
+module Introspect = struct
+  let read t = function
+    | []                -> Some ""
+    | [ "mfn" ]         -> Some (Nativeint.to_string t.address.mfn)
+    | [ "local-port" ]  -> Some (string_of_int (Eventchn.to_int t.port))
+    | [ "remote-port" ] -> Some (string_of_int t.address.remote_port)
+    | [ "closing" ]     -> Some (string_of_bool t.closing)
+    | [ "wakeup" ]
+    | [ "request" ]
+    | [ "response" ]    -> Some ""
+    | _                 -> None
 
-	let read _ (perms: Perms.t) (path: Store.Path.t) =
-		Perms.has perms Perms.CONFIGURE;
-		match Store.Path.to_string_list path with
-		| [] -> ""
-		| [ "mfn" ] -> Nativeint.to_string t.address.mfn
-		| [ "local-port" ] -> string_of_int (Eventchn.to_int t.port)
-		| [ "remote-port" ] -> string_of_int t.address.remote_port
-		| [ "closing" ] -> string_of_bool t.closing
-		| [ "wakeup" ]
-		| [ "request" ]
-		| [ "response" ] -> ""
-(*
-		| [ "request"; "cons" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.cons))
-		| [ "request"; "prod" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.prod))
-		| [ "request"; "data" ] -> string_of_int (Xenstore.((get_ring_state t.page).request.data))
-		| [ "response"; "cons" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.cons))
-		| [ "response"; "prod" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.prod))
-		| [ "response"; "data" ] -> string_of_int (Xenstore.((get_ring_state t.page).response.data))
-*)
-		| _ -> Store.Path.doesnt_exist path
+  let write t path v = match path with
+    | [ "wakeup" ] ->
+	Lwt_condition.broadcast t.c ();
+        true
+    | _ -> false
 
-	let write _ _ perms path v =
-		Perms.has perms Perms.CONFIGURE;
-		match Store.Path.to_string_list path with
-		| [ "wakeup" ] ->
-			Lwt_condition.broadcast t.c ()
-		| _ -> raise Perms.Permission_denied
-
-	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
-
-	let list t perms path =
-		Perms.has perms Perms.CONFIGURE;
-		match Store.Path.to_string_list path with
-		| [] -> [ "mfn"; "local-port"; "remote-port"; "closing"; "wakeup"; "request"; "response" ]
-		| [ "request" ]
-		| [ "response" ] -> [ "cons"; "prod"; "data" ]
-		| _ -> []
-
-	end in
-	Some (module Interface: Namespace.IO)
-
+  let list t = function
+    | [] -> [ "mfn"; "local-port"; "remote-port"; "closing"; "wakeup"; "request"; "response" ]
+    | [ "request" ]
+    | [ "response" ] -> [ "cons"; "prod"; "data" ]
+    | _ -> []
+end
