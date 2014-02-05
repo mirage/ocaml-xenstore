@@ -57,7 +57,9 @@ let address_of (fd, _) =
 		with Not_found -> cmdline in
 	let basename = Filename.basename filename in
 	let name = Printf.sprintf "%d:%s:%d" pid basename (int_of_file_descr fd) in
-	return (Xs_protocol.Unix name)
+	return (Uri.make ~scheme:"unix" ~path:name ())
+
+let domain_of _ = 0
 
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr

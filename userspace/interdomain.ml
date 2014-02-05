@@ -189,7 +189,9 @@ let destroy t =
   return ()
 
 let address_of t =
-  return (Xs_protocol.Domain t.address.domid)
+  return (Uri.make ~scheme:"domain" ~path:(string_of_int t.address.domid) ())
+
+let domain_of t = t.address.domid
 
 type server = address Lwt_stream.t
 

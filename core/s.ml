@@ -12,27 +12,30 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Lwt
-open Xs_protocol
+module type IO = sig
+  type 'a t = 'a Lwt.t
+  val return: 'a -> 'a t
+  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
+end
 
 module type TRANSPORT = sig
-  type 'a t = 'a Lwt.t
-  val return: 'a -> 'a Lwt.t
-  val ( >>= ): 'a t -> ('a -> 'b Lwt.t) -> 'b Lwt.t
+  include IO
 
   type server
-  val listen: unit -> server Lwt.t
+  val listen: unit -> server t
 
   type channel
-  val read: channel -> string -> int -> int -> int Lwt.t
-  val write: channel -> string -> int -> int -> unit Lwt.t
-  val destroy: channel -> unit Lwt.t
-  val address_of: channel -> Xs_protocol.address Lwt.t
-  val accept_forever: server -> (channel -> unit Lwt.t) -> 'a Lwt.t
+  val read: channel -> string -> int -> int -> int t
+  val write: channel -> string -> int -> int -> unit t
+  val destroy: channel -> unit t
+
+  val address_of: channel -> Uri.t t
+  val domain_of: channel -> int
+
+  val accept_forever: server -> (channel -> unit t) -> 'a t
 
   module Introspect : sig
     val list: channel -> string list -> string list
     val read: channel -> string list -> string option
   end
 end
-

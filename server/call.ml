@@ -204,7 +204,7 @@ let reply_exn store c (request: t) : Response.payload =
 			Perms.has c.Connection.perm Perms.SET_TARGET;
 			Hashtbl.iter
 				(fun address c ->
-					if Xs_protocol.domain_of_address address = mine
+					if c.Connection.domid = mine
 					then c.Connection.perm <- Perms.set_target c.Connection.perm yours;
 				) Connection.by_address;
 			Response.Set_target

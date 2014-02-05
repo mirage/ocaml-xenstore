@@ -232,10 +232,3 @@ val response: string -> t -> t -> (t -> 'a option) -> 'a
 (** [response debug_hint sent received unmarshal] returns the
     [unmarshal]led response corresponding to the [received] packet
     relative to the [sent] packet. *)
-
-type address =
-| Unix of string
-| Domain of int
-
-val string_of_address: address -> string
-val domain_of_address: address -> int
