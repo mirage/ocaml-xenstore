@@ -226,8 +226,8 @@ module Introspect = struct
       | _ -> None
 
   let write t path v = match path with
-    | [ "wakeup" ] -> Lwt_condition.broadcast t.c ()
-    | _ -> ()
+    | [ "wakeup" ] -> Lwt_condition.broadcast t.c (); true
+    | _ -> false
 
   let list t = function
     | [] -> [ "mfn"; "local-port"; "remote-port"; "shutdown"; "wakeup"; "request"; "response" ]

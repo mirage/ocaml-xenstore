@@ -100,4 +100,6 @@ module Introspect = struct
   let list t = function
     | [] -> [ "readable"; "writable" ]
     | _ -> []
+
+  let write _ _ _ = false
 end

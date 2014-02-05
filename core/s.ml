@@ -37,5 +37,6 @@ module type TRANSPORT = sig
   module Introspect : sig
     val list: channel -> string list -> string list
     val read: channel -> string list -> string option
+    val write: channel -> string list -> string -> bool
   end
 end

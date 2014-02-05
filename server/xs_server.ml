@@ -44,6 +44,10 @@ module Make_namespace(T: S.TRANSPORT) = struct
       let list t perms path =
         Perms.has perms Perms.CONFIGURE;
         T.Introspect.list channel (Store.Path.to_string_list path)
+      let write t _ perms path v =
+        Perms.has perms Perms.CONFIGURE;
+        if not(T.Introspect.write channel (Store.Path.to_string_list path) v)
+        then raise Perms.Permission_denied
     end in
     Some (module Interface: Namespace.IO)
 end
