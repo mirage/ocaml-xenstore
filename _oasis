@@ -98,7 +98,7 @@ Executable oxenstored
 Executable xs
   CompiledObject:     best
   Path:               cli
-  MainIs:             xs_client_cli.ml
+  MainIs:             cli.ml
   Custom:             true
   Install:            false
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix

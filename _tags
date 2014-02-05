@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 735dc934e56bf3a3476c3b4af5e8e29f)
+# DO NOT EDIT (digest: 6cbd53d73d306ec8228e591a5cec3111)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -165,13 +165,13 @@
 "userspace/domains_stubs.c": pkg_uri
 <userspace/main.{native,byte}>: custom
 # Executable xs
-<cli/xs_client_cli.{native,byte}>: use_xenstore_unix
-<cli/xs_client_cli.{native,byte}>: use_xenstore
-<cli/xs_client_cli.{native,byte}>: pkg_lwt
-<cli/xs_client_cli.{native,byte}>: pkg_lwt.unix
-<cli/xs_client_cli.{native,byte}>: pkg_cstruct
-<cli/xs_client_cli.{native,byte}>: pkg_cstruct.syntax
-<cli/xs_client_cli.{native,byte}>: pkg_uri
+<cli/cli.{native,byte}>: use_xenstore_unix
+<cli/cli.{native,byte}>: use_xenstore
+<cli/cli.{native,byte}>: pkg_lwt
+<cli/cli.{native,byte}>: pkg_lwt.unix
+<cli/cli.{native,byte}>: pkg_cstruct
+<cli/cli.{native,byte}>: pkg_cstruct.syntax
+<cli/cli.{native,byte}>: pkg_uri
 <cli/*.ml{,i}>: use_xenstore_unix
 <cli/*.ml{,i}>: use_xenstore
 <cli/*.ml{,i}>: pkg_lwt
@@ -179,7 +179,7 @@
 <cli/*.ml{,i}>: pkg_cstruct
 <cli/*.ml{,i}>: pkg_cstruct.syntax
 <cli/*.ml{,i}>: pkg_uri
-<cli/xs_client_cli.{native,byte}>: custom
+<cli/cli.{native,byte}>: custom
 # Executable bench
 <bench/bench.{native,byte}>: use_xenstore_unix
 <bench/bench.{native,byte}>: use_xenstore
