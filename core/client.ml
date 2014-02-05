@@ -15,7 +15,7 @@
 (** A multiplexing xenstore protocol client over a byte-level transport *)
 
 open Lwt
-open Xs_protocol
+open Protocol
 
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
@@ -87,7 +87,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
   type client = {
     mutable transport: IO.channel;
     ps: PS.stream;
-    rid_to_wakeup: (int32, Xs_protocol.t Lwt.u) Hashtbl.t;
+    rid_to_wakeup: (int32, Protocol.t Lwt.u) Hashtbl.t;
     mutable dispatcher_thread: unit Lwt.t;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
@@ -114,7 +114,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
     Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
     lwt () = begin 
       match e with
-      | Xs_protocol.Response_parser_failed x ->
+      | Protocol.Response_parser_failed x ->
       (* Lwt_io.hexdump Lwt_io.stderr x *)
          return ()
       | _ -> return () end in

@@ -61,12 +61,12 @@ module type CLIENT = sig
   val write : handle -> string -> string -> unit t
   val rm : handle -> string -> unit t
   val mkdir : handle -> string -> unit t
-  val setperms : handle -> string -> Xs_protocol.ACL.t -> unit t
+  val setperms : handle -> string -> Protocol.ACL.t -> unit t
   val debug : handle -> string list -> string list t
   val restrict : handle -> int -> unit t
   val getdomainpath : handle -> int -> string t
-  val watch : handle -> string -> Xs_protocol.Token.t -> unit t
-  val unwatch : handle -> string -> Xs_protocol.Token.t -> unit t
+  val watch : handle -> string -> Protocol.Token.t -> unit t
+  val unwatch : handle -> string -> Protocol.Token.t -> unit t
   val introduce : handle -> int -> nativeint -> int -> unit t
   val set_target : handle -> int -> int -> unit t
 end

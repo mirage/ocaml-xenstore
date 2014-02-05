@@ -13,7 +13,7 @@
  *)
 
 open Lwt
-open Xs_protocol
+open Protocol
 module Client = Client.Make(Sockets)
 open Client
 

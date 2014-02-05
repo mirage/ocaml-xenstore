@@ -23,7 +23,7 @@ module Node = struct
 type t = {
 	name: Symbol.t;
 	creator: int;
-	perms: Xs_protocol.ACL.t;
+	perms: Protocol.ACL.t;
 	value: string;
 	children: t list;
 }
@@ -429,7 +429,7 @@ let dump_store_buf root_node =
 	let dump_node path node =
 		let pathstr = String.concat "/" path in
 		Printf.bprintf buf "%s/%s{%s}" pathstr (Symbol.to_string node.Node.name)
-		               (String.escaped (Xs_protocol.ACL.to_string node.Node.perms));
+		               (String.escaped (Protocol.ACL.to_string node.Node.perms));
 		if String.length node.Node.value > 0 then
 			Printf.bprintf buf " = %s\n" (String.escaped node.Node.value)
 		else
@@ -498,7 +498,7 @@ let setperms store perm path nperms =
 let create () = {
 	stat_transaction_coalesce = 0;
 	stat_transaction_abort = 0;
-	root = Node.create "" 0 (Xs_protocol.ACL.({ owner = 0; other = NONE; acl = [] })) "";
+	root = Node.create "" 0 (Protocol.ACL.({ owner = 0; other = NONE; acl = [] })) "";
 	quota = Quota.create ();
 }
 let copy store = {

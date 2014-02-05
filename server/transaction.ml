@@ -68,8 +68,8 @@ type t = {
 	ty: ty;
 	store: Store.t;
 	quota: Quota.t;
-	mutable paths: (Xs_protocol.Op.t * Store.Name.t) list;
-	mutable operations: (Xs_protocol.Request.payload * Xs_protocol.Response.payload) list;
+	mutable paths: (Protocol.Op.t * Store.Name.t) list;
+	mutable operations: (Protocol.Request.payload * Protocol.Response.payload) list;
 	mutable read_lowpath: Store.Path.t option;
 	mutable write_lowpath: Store.Path.t option;
 }
@@ -104,23 +104,23 @@ let write t creator perm path value =
 	if path_existed
 	then set_write_lowpath t path
 	else set_write_lowpath t (Store.Path.get_parent path);
-	add_wop t Xs_protocol.Op.Write path
+	add_wop t Protocol.Op.Write path
 
 let mkdir ?(with_watch=true) t creator perm path =
 	Store.mkdir t.store creator perm path;
 	set_write_lowpath t path;
 	if with_watch then
-		add_wop t Xs_protocol.Op.Mkdir path
+		add_wop t Protocol.Op.Mkdir path
 
 let setperms t perm path perms =
 	Store.setperms t.store perm path perms;
 	set_write_lowpath t path;
-	add_wop t Xs_protocol.Op.Setperms path
+	add_wop t Protocol.Op.Setperms path
 
 let rm t perm path =
 	Store.rm t.store perm path;
 	set_write_lowpath t (Store.Path.get_parent path);
-	add_wop t Xs_protocol.Op.Rm path
+	add_wop t Protocol.Op.Rm path
 
 let list t perm path =	
 	let r = Store.ls t.store perm path in

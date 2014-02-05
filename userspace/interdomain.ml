@@ -102,7 +102,7 @@ let virq_thread () =
           Lwt_condition.broadcast t.c ()
         ) to_close;
       if release_domain
-      then Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
+      then Connection.fire (Protocol.Op.Write, Store.Name.releaseDomain);
     lwt after = Unix_activations.after virq_port from in
     loop after in
   loop Unix_activations.program_start

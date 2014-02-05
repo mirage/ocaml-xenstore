@@ -91,7 +91,7 @@ module Client : functor(IO: IO) -> sig
   val mkdir : handle -> string -> unit IO.t
   (** [mkdir h k] creates the node [k] with an empty value. *)
 
-  val setperms : handle -> string -> Xs_protocol.ACL.t -> unit IO.t
+  val setperms : handle -> string -> Protocol.ACL.t -> unit IO.t
   (** [setperms h k acl] sets the permissions of [k] to [acl]. *)
 
   val debug : handle -> string list -> string list IO.t

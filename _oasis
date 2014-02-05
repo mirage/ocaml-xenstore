@@ -12,7 +12,7 @@ Library xenstore
   CompiledObject:     best
   Path:               core
   Findlibname:        xenstore
-  Modules:            Xs_protocol, Handle, Client, S
+  Modules:            Protocol, Handle, Client, S
   BuildDepends:       lwt, cstruct (>= 0.6.0), cstruct.syntax, uri
 
 Library xenstored

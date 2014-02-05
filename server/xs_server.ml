@@ -13,7 +13,7 @@
  *)
 
 open Lwt
-open Xs_protocol
+open Protocol
 
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
@@ -70,7 +70,7 @@ module Server = functor(T: S.TRANSPORT) -> struct
 		let flush_watch_events q =
 			Lwt_list.iter_s
 				(fun (path, token) ->
-					PS.send channel (Xs_protocol.(Response.(print (Watchevent(path, token)) 0l 0l)))
+					PS.send channel (Protocol.(Response.(print (Watchevent(path, token)) 0l 0l)))
 				) q in
 		let (background_watch_event_flusher: unit Lwt.t) =
 			while_lwt true do
