@@ -13,14 +13,14 @@
  *)
 
 open Lwt
-open Xs_protocol
-open Xenstore_server
+open Xenstore
+open Xenstored
 
 let debug fmt = Logging.debug "server_xen" fmt
 let warn  fmt = Logging.warn  "server_xen" fmt
 let error fmt = Logging.error "server_xen" fmt
 
-module DomainServer = Xs_server.Server(Xs_transport_domain)
+module DomainServer = Server.Make(Interdomain)
 
 let rec logging_thread logger =
 	lwt lines = Logging.get logger in
