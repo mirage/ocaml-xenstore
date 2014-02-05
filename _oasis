@@ -103,6 +103,14 @@ Executable xs
   Install:            false
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
 
+Executable xsbench
+  CompiledObject:     best
+  Path:               bench
+  MainIs:             xs_bench.ml
+  Custom:             true
+  Install:            false
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
+
 #Document api
 #  Title: Documentation and API reference
 #  Type: ocamlbuild (0.3)
