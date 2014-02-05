@@ -13,15 +13,16 @@
  *)
 
 open Lwt
+open Xenstored
 
 type 'a t = 'a Lwt.t
 let return x = return x
 let ( >>= ) m f = m >>= f
 
-open Xenstore_server.Introduce
+open Introduce
 
-let debug fmt = Xenstore_server.Logging.debug "xs_transport_xen" fmt
-let error fmt = Xenstore_server.Logging.error "xs_transport_xen" fmt
+let debug fmt = Logging.debug "xs_transport_xen" fmt
+let error fmt = Logging.error "xs_transport_xen" fmt
 
 type channel = {
   address: address;
@@ -99,7 +100,7 @@ let virq_thread () =
           Lwt_condition.broadcast t.c ()
         ) to_close;
       if release_domain
-      then Xenstore_server.Connection.fire (Xs_protocol.Op.Write, Xenstore_server.Store.Name.releaseDomain);
+      then Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
     lwt after = Unix_activations.after virq_port from in
     loop after in
   loop Unix_activations.program_start

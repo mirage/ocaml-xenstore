@@ -1,8 +1,9 @@
 open Lwt
+open Xenstored
 
-let debug fmt = Xenstore_server.Logging.debug "xenstored" fmt
-let info  fmt = Xenstore_server.Logging.info  "xenstored" fmt
-let error fmt = Xenstore_server.Logging.error "xenstored" fmt
+let debug fmt = Logging.debug "xenstored" fmt
+let info  fmt = Logging.info  "xenstored" fmt
+let error fmt = Logging.error "xenstored" fmt
 
 let socket =
   let tmp = Filename.temp_file "xenstore-test" (string_of_int (Unix.getpid ())) in
@@ -12,12 +13,12 @@ let socket =
 let _ =
   Xs_transport.xenstored_socket := socket
 
-module Server = Xenstore_server.Xs_server.Server(Sockets)
+module Server = Xs_server.Server(Sockets)
 
 let debug = ref false
 
 let rec logging_thread logger =
-  lwt lines = Xenstore_server.Logging.get logger in
+  lwt lines = Logging.get logger in
   lwt () = Lwt_list.iter_s
     (fun x ->
       if !debug
@@ -27,8 +28,8 @@ let rec logging_thread logger =
   logging_thread logger
 
 let server_thread =
-  let (_: 'a) = logging_thread Xenstore_server.Logging.logger in
-  let (_: 'a) = logging_thread Xenstore_server.Logging.access_logger in
+  let (_: 'a) = logging_thread Logging.logger in
+  let (_: 'a) = logging_thread Logging.access_logger in
   info "Starting test";
   Server.serve_forever ()
 

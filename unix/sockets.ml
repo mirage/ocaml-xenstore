@@ -20,18 +20,15 @@ type 'a t = 'a Lwt.t
 let return x = return x
 let ( >>= ) m f = m >>= f
 
-let error fmt = Xenstore_server.Logging.error "sockets" fmt
-
 (* Individual connections *)
 type channel = Lwt_unix.file_descr * Lwt_unix.sockaddr
 let destroy (fd, _) = Lwt_unix.close fd
 let read (fd, _) = Lwt_unix.read fd
 let write (fd, _) bufs ofs len =
 	lwt n = Lwt_unix.write fd bufs ofs len in
-	if n <> len then begin
-		error "Short write (%d<%d)" n len;
-		fail End_of_file
-	end else return ()
+	if n <> len
+        then fail End_of_file
+	else return ()
 
 let int_of_file_descr fd =
 	let fd = Lwt_unix.unix_file_descr fd in
@@ -72,19 +69,10 @@ let _ =
 let listen () =
   let sockaddr = Lwt_unix.ADDR_UNIX(!Xs_transport.xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-  try_lwt
-    lwt () = try_lwt Lwt_unix.unlink !Xs_transport.xenstored_socket with _ -> return () in
-    Lwt_unix.bind fd sockaddr;
-    Lwt_unix.listen fd 5;
-    return fd
-  with Unix.Unix_error(Unix.EACCES, _, _) as e ->
-    error "Permission denied (EACCES) binding to %s" !Xs_transport.xenstored_socket;
-    error "To resolve this problem either run this program with more privileges or change the path.";
-    fail e
-  | Unix.Unix_error(Unix.EADDRINUSE, _, _) as e ->
-    error "The unix domain socket %s is already in use (EADDRINUSE)" !Xs_transport.xenstored_socket;
-    error "To resolve this program either run this program with more privileges (so that it may delete the current socket) or change the path.";
-    fail e
+  lwt () = try_lwt Lwt_unix.unlink !Xs_transport.xenstored_socket with _ -> return () in
+  Lwt_unix.bind fd sockaddr;
+  Lwt_unix.listen fd 5;
+  return fd
 
 let rec accept_forever fd process =
   lwt conns, _ (*exn_option*) = Lwt_unix.accept_n fd 16 in

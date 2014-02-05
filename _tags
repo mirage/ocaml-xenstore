@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a078723ef7a5d1c2b756dec653a7a154)
+# DO NOT EDIT (digest: deb3cb3d493b1d76d2fd9b45ebd01e49)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -13,45 +13,42 @@
 ".git": not_hygienic
 "_darcs": -traverse
 "_darcs": not_hygienic
-# Library xenstore_core
-"core/xenstore_core.cmxs": use_xenstore_core
+# Library xenstore
+"core/xenstore.cmxs": use_xenstore
+"core/xs_protocol.cmx": for-pack(Xenstore)
+"core/xs_handle.cmx": for-pack(Xenstore)
+"core/xs_client_lwt.cmx": for-pack(Xenstore)
+"core/s.cmx": for-pack(Xenstore)
 <core/*.ml{,i}>: pkg_lwt
 <core/*.ml{,i}>: pkg_cstruct
 <core/*.ml{,i}>: pkg_cstruct.syntax
 <core/*.ml{,i}>: pkg_uri
-# Library xenstore_client
-"client/xenstore_client.cmxs": use_xenstore_client
-<client/*.ml{,i}>: use_xenstore_core
-<client/*.ml{,i}>: pkg_lwt
-<client/*.ml{,i}>: pkg_cstruct
-<client/*.ml{,i}>: pkg_cstruct.syntax
-<client/*.ml{,i}>: pkg_uri
-# Library xenstore_server
-"server/xenstore_server.cmxs": use_xenstore_server
-"server/logging.cmx": for-pack(Xenstore_server)
-"server/logging_interface.cmx": for-pack(Xenstore_server)
-"server/connection.cmx": for-pack(Xenstore_server)
-"server/call.cmx": for-pack(Xenstore_server)
-"server/trie.cmx": for-pack(Xenstore_server)
-"server/symbol.cmx": for-pack(Xenstore_server)
-"server/namespace.cmx": for-pack(Xenstore_server)
-"server/quota.cmx": for-pack(Xenstore_server)
-"server/quota_interface.cmx": for-pack(Xenstore_server)
-"server/perms.cmx": for-pack(Xenstore_server)
-"server/store.cmx": for-pack(Xenstore_server)
-"server/transaction.cmx": for-pack(Xenstore_server)
-"server/xs_server.cmx": for-pack(Xenstore_server)
-"server/junk.cmx": for-pack(Xenstore_server)
-"server/introduce.cmx": for-pack(Xenstore_server)
-"server/heap_debug_interface.cmx": for-pack(Xenstore_server)
-<server/*.ml{,i}>: use_xenstore_core
+# Library xenstored
+"server/xenstored.cmxs": use_xenstored
+"server/logging.cmx": for-pack(Xenstored)
+"server/logging_interface.cmx": for-pack(Xenstored)
+"server/connection.cmx": for-pack(Xenstored)
+"server/call.cmx": for-pack(Xenstored)
+"server/trie.cmx": for-pack(Xenstored)
+"server/symbol.cmx": for-pack(Xenstored)
+"server/namespace.cmx": for-pack(Xenstored)
+"server/quota.cmx": for-pack(Xenstored)
+"server/quota_interface.cmx": for-pack(Xenstored)
+"server/perms.cmx": for-pack(Xenstored)
+"server/store.cmx": for-pack(Xenstored)
+"server/transaction.cmx": for-pack(Xenstored)
+"server/xs_server.cmx": for-pack(Xenstored)
+"server/junk.cmx": for-pack(Xenstored)
+"server/introduce.cmx": for-pack(Xenstored)
+"server/heap_debug_interface.cmx": for-pack(Xenstored)
+<server/*.ml{,i}>: use_xenstore
 <server/*.ml{,i}>: pkg_lwt
 <server/*.ml{,i}>: pkg_cstruct
 <server/*.ml{,i}>: pkg_cstruct.syntax
 <server/*.ml{,i}>: pkg_uri
 # Library xenstore_unix
 "unix/xenstore_unix.cmxs": use_xenstore_unix
-<unix/*.ml{,i}>: use_xenstore_core
+<unix/*.ml{,i}>: use_xenstore
 <unix/*.ml{,i}>: pkg_lwt
 <unix/*.ml{,i}>: pkg_lwt.unix
 <unix/*.ml{,i}>: pkg_cstruct
@@ -59,7 +56,7 @@
 <unix/*.ml{,i}>: pkg_uri
 # Library xenstore_legacy_unix
 "legacy_unix/xenstore_legacy_unix.cmxs": use_xenstore_legacy_unix
-<legacy_unix/*.ml{,i}>: use_xenstore_core
+<legacy_unix/*.ml{,i}>: use_xenstore
 <legacy_unix/*.ml{,i}>: pkg_lwt
 <legacy_unix/*.ml{,i}>: pkg_unix
 <legacy_unix/*.ml{,i}>: pkg_threads
@@ -67,14 +64,14 @@
 <legacy_unix/*.ml{,i}>: pkg_cstruct.syntax
 <legacy_unix/*.ml{,i}>: pkg_uri
 # Executable xs_test
-<core_test/xs_test.{native,byte}>: use_xenstore_core
+<core_test/xs_test.{native,byte}>: use_xenstore
 <core_test/xs_test.{native,byte}>: pkg_lwt
 <core_test/xs_test.{native,byte}>: pkg_lwt.unix
 <core_test/xs_test.{native,byte}>: pkg_oUnit
 <core_test/xs_test.{native,byte}>: pkg_cstruct
 <core_test/xs_test.{native,byte}>: pkg_cstruct.syntax
 <core_test/xs_test.{native,byte}>: pkg_uri
-<core_test/*.ml{,i}>: use_xenstore_core
+<core_test/*.ml{,i}>: use_xenstore
 <core_test/*.ml{,i}>: pkg_lwt
 <core_test/*.ml{,i}>: pkg_lwt.unix
 <core_test/*.ml{,i}>: pkg_oUnit
@@ -83,8 +80,8 @@
 <core_test/*.ml{,i}>: pkg_uri
 <core_test/xs_test.{native,byte}>: custom
 # Executable server_test
-<server_test/server_test.{native,byte}>: use_xenstore_server
-<server_test/server_test.{native,byte}>: use_xenstore_core
+<server_test/server_test.{native,byte}>: use_xenstored
+<server_test/server_test.{native,byte}>: use_xenstore
 <server_test/server_test.{native,byte}>: pkg_lwt
 <server_test/server_test.{native,byte}>: pkg_oUnit
 <server_test/server_test.{native,byte}>: pkg_cstruct
@@ -93,8 +90,8 @@
 <server_test/server_test.{native,byte}>: custom
 # Executable server_binary_test
 <server_test/binary.{native,byte}>: use_xenstore_unix
-<server_test/binary.{native,byte}>: use_xenstore_server
-<server_test/binary.{native,byte}>: use_xenstore_core
+<server_test/binary.{native,byte}>: use_xenstored
+<server_test/binary.{native,byte}>: use_xenstore
 <server_test/binary.{native,byte}>: pkg_lwt
 <server_test/binary.{native,byte}>: pkg_lwt.unix
 <server_test/binary.{native,byte}>: pkg_oUnit
@@ -102,8 +99,8 @@
 <server_test/binary.{native,byte}>: pkg_cstruct.syntax
 <server_test/binary.{native,byte}>: pkg_uri
 <server_test/*.ml{,i}>: use_xenstore_unix
-<server_test/*.ml{,i}>: use_xenstore_server
-<server_test/*.ml{,i}>: use_xenstore_core
+<server_test/*.ml{,i}>: use_xenstored
+<server_test/*.ml{,i}>: use_xenstore
 <server_test/*.ml{,i}>: pkg_lwt
 <server_test/*.ml{,i}>: pkg_lwt.unix
 <server_test/*.ml{,i}>: pkg_oUnit
@@ -119,8 +116,8 @@
 "userspace/dlloxenstored_stubs.so": oasis_executable_oxenstored_cclib
 <userspace/main.{native,byte}>: use_liboxenstored_stubs
 <userspace/main.{native,byte}>: use_xenstore_unix
-<userspace/main.{native,byte}>: use_xenstore_server
-<userspace/main.{native,byte}>: use_xenstore_core
+<userspace/main.{native,byte}>: use_xenstored
+<userspace/main.{native,byte}>: use_xenstore
 <userspace/main.{native,byte}>: pkg_lwt
 <userspace/main.{native,byte}>: pkg_lwt.unix
 <userspace/main.{native,byte}>: pkg_cmdliner
@@ -135,8 +132,8 @@
 <userspace/main.{native,byte}>: pkg_cstruct.syntax
 <userspace/main.{native,byte}>: pkg_uri
 <userspace/*.ml{,i}>: use_xenstore_unix
-<userspace/*.ml{,i}>: use_xenstore_server
-<userspace/*.ml{,i}>: use_xenstore_core
+<userspace/*.ml{,i}>: use_xenstored
+<userspace/*.ml{,i}>: use_xenstore
 <userspace/*.ml{,i}>: pkg_lwt
 <userspace/*.ml{,i}>: pkg_lwt.unix
 <userspace/*.ml{,i}>: pkg_cmdliner
@@ -151,8 +148,8 @@
 <userspace/*.ml{,i}>: pkg_cstruct.syntax
 <userspace/*.ml{,i}>: pkg_uri
 "userspace/domains_stubs.c": use_xenstore_unix
-"userspace/domains_stubs.c": use_xenstore_server
-"userspace/domains_stubs.c": use_xenstore_core
+"userspace/domains_stubs.c": use_xenstored
+"userspace/domains_stubs.c": use_xenstore
 "userspace/domains_stubs.c": pkg_lwt
 "userspace/domains_stubs.c": pkg_lwt.unix
 "userspace/domains_stubs.c": pkg_cmdliner
@@ -167,6 +164,22 @@
 "userspace/domains_stubs.c": pkg_cstruct.syntax
 "userspace/domains_stubs.c": pkg_uri
 <userspace/main.{native,byte}>: custom
+# Executable xs
+<cli/xs_client_cli.{native,byte}>: use_xenstore_unix
+<cli/xs_client_cli.{native,byte}>: use_xenstore
+<cli/xs_client_cli.{native,byte}>: pkg_lwt
+<cli/xs_client_cli.{native,byte}>: pkg_lwt.unix
+<cli/xs_client_cli.{native,byte}>: pkg_cstruct
+<cli/xs_client_cli.{native,byte}>: pkg_cstruct.syntax
+<cli/xs_client_cli.{native,byte}>: pkg_uri
+<cli/*.ml{,i}>: use_xenstore_unix
+<cli/*.ml{,i}>: use_xenstore
+<cli/*.ml{,i}>: pkg_lwt
+<cli/*.ml{,i}>: pkg_lwt.unix
+<cli/*.ml{,i}>: pkg_cstruct
+<cli/*.ml{,i}>: pkg_cstruct.syntax
+<cli/*.ml{,i}>: pkg_uri
+<cli/xs_client_cli.{native,byte}>: custom
 # OASIS_STOP
 true: annot
 <*/*.ml>: syntax_camlp4o
@@ -175,6 +188,8 @@ true: annot
 <server/*.ml>: pkg_lwt.syntax
 <server_test/binary.ml>: pkg_lwt.syntax
 <userspace/*.ml>: pkg_lwt.syntax
+<core/xs_client_lwt.ml>: pkg_lwt.syntax
+<cli/*.ml>: pkg_lwt.syntax
 <core>: include
 <client_lwt>: include
 <client_unix>: include
