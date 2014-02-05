@@ -14,6 +14,7 @@
 
 open Lwt
 open Printf
+open Xenstore
 
 type logger = {
 	stream: string Lwt_stream.t;

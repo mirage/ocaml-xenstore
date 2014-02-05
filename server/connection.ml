@@ -11,6 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Xenstore
 
 let debug fmt = Logging.debug "connection" fmt
 let info  fmt = Logging.info  "connection" fmt
@@ -176,7 +177,7 @@ let fire_one name watch =
 			then Store.Path.make_relative watch.con.domainpath name
 			else name in
 	let name = Store.Name.to_string name in
-	let open Protocol in
+	let open Xenstore.Protocol in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
 	watch.count <- watch.count + 1;
 	if Queue.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin

@@ -12,6 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val reply: Store.t -> Connection.t -> Protocol.t -> Protocol.t
+val reply: Store.t -> Connection.t -> Xenstore.Protocol.t -> Xenstore.Protocol.t
 (** [reply store con request] modifies [store] according to the request in
     [request] from connection [con] and returns the response to be sent to the client. *)

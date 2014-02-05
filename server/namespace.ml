@@ -1,3 +1,4 @@
+open Xenstore
 
 module type IO = sig
 	val exists: Transaction.t -> Perms.t -> Store.Path.t -> bool

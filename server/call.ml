@@ -13,6 +13,7 @@
  *)
 
 open Lwt
+open Xenstore
 open Protocol
 open Junk
 
@@ -143,9 +144,9 @@ let reply_exn store c (request: t) : Response.payload =
 		if tid = Transaction.none
 		then Transaction.make tid store
 		else Connection.get_transaction c tid in
-	let payload : Protocol.Request.payload = match Protocol.Request.parse (request: t) with
+	let payload : Request.payload = match Request.parse (request: t) with
 		| None ->
- 			error "Failed to parse request: got %s" (hexify (Protocol.to_string request));
+ 			error "Failed to parse request: got %s" (hexify (to_string request));
 			raise Parse_failure
 		| Some x -> x in
 
@@ -189,7 +190,7 @@ let reply_exn store c (request: t) : Response.payload =
 		| Request.Introduce(domid, mfn, remote_port) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
 			Introduce.(introduce { domid = domid; mfn = mfn; remote_port = remote_port });
-			Connection.fire (Protocol.Op.Write, Store.Name.introduceDomain);
+			Connection.fire (Op.Write, Store.Name.introduceDomain);
 			Response.Introduce
 		| Request.Resume(domid) ->
 			Perms.has c.Connection.perm Perms.RESUME;
@@ -198,7 +199,7 @@ let reply_exn store c (request: t) : Response.payload =
 		| Request.Release(domid) ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
-			Connection.fire (Protocol.Op.Write, Store.Name.releaseDomain);
+			Connection.fire (Op.Write, Store.Name.releaseDomain);
 			Response.Release
 		| Request.Set_target(mine, yours) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;

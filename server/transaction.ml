@@ -13,7 +13,7 @@
  *)
 
 let debug fmt = Logging.debug "transaction" fmt
-
+open Xenstore
 open Junk
 
 let none = 0l

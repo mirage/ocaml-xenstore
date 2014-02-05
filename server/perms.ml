@@ -13,7 +13,7 @@
  *)
 
 let info fmt = Logging.info "perms" fmt
-
+open Xenstore
 open Junk
 
 exception Permission_denied

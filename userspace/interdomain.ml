@@ -13,6 +13,7 @@
  *)
 
 open Lwt
+open Xenstore
 open Xenstored
 
 type 'a t = 'a Lwt.t

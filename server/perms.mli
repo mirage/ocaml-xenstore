@@ -12,6 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
+open Xenstore
+
 type t
 (** A role containing a set of privileges *)
 

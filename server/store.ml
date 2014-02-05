@@ -13,7 +13,7 @@
  *)
 let debug fmt = Logging.debug "store" fmt
 let error fmt = Logging.debug "error" fmt
-
+open Xenstore
 open Junk
 
 exception Already_exists of string

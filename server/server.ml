@@ -13,6 +13,7 @@
  *)
 
 open Lwt
+open Xenstore
 open Protocol
 
 let ( |> ) a b = b a
