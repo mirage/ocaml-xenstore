@@ -32,7 +32,7 @@ install: setup.bin
 #test: setup.bin build
 #	@./setup.bin -test
 test:
-	_build/core_test/xs_test.native
+	_build/core_test/core_test.native
 	_build/server_test/server_test.native
 	_build/server_test/binary.native
 

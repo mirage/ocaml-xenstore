@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6cbd53d73d306ec8228e591a5cec3111)
+# DO NOT EDIT (digest: 39f6fcc25f66b5f01627114637824e24)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -63,14 +63,14 @@
 <legacy_unix/*.ml{,i}>: pkg_cstruct
 <legacy_unix/*.ml{,i}>: pkg_cstruct.syntax
 <legacy_unix/*.ml{,i}>: pkg_uri
-# Executable xs_test
-<core_test/xs_test.{native,byte}>: use_xenstore
-<core_test/xs_test.{native,byte}>: pkg_lwt
-<core_test/xs_test.{native,byte}>: pkg_lwt.unix
-<core_test/xs_test.{native,byte}>: pkg_oUnit
-<core_test/xs_test.{native,byte}>: pkg_cstruct
-<core_test/xs_test.{native,byte}>: pkg_cstruct.syntax
-<core_test/xs_test.{native,byte}>: pkg_uri
+# Executable core_test
+<core_test/core_test.{native,byte}>: use_xenstore
+<core_test/core_test.{native,byte}>: pkg_lwt
+<core_test/core_test.{native,byte}>: pkg_lwt.unix
+<core_test/core_test.{native,byte}>: pkg_oUnit
+<core_test/core_test.{native,byte}>: pkg_cstruct
+<core_test/core_test.{native,byte}>: pkg_cstruct.syntax
+<core_test/core_test.{native,byte}>: pkg_uri
 <core_test/*.ml{,i}>: use_xenstore
 <core_test/*.ml{,i}>: pkg_lwt
 <core_test/*.ml{,i}>: pkg_lwt.unix
@@ -78,7 +78,7 @@
 <core_test/*.ml{,i}>: pkg_cstruct
 <core_test/*.ml{,i}>: pkg_cstruct.syntax
 <core_test/*.ml{,i}>: pkg_uri
-<core_test/xs_test.{native,byte}>: custom
+<core_test/core_test.{native,byte}>: custom
 # Executable server_test
 <server_test/server_test.{native,byte}>: use_xenstored
 <server_test/server_test.{native,byte}>: use_xenstore

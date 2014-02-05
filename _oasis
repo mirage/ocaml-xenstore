@@ -39,10 +39,10 @@ Library xenstore_legacy_unix
   Modules:            Xs_client_unix
   BuildDepends:       unix, threads, xenstore
 
-Executable xs_test
+Executable core_test
   CompiledObject:     best
   Path:               core_test
-  MainIs:             xs_test.ml
+  MainIs:             core_test.ml
   Build$:             flag(tests)
   Custom:             true
   Install:            false
@@ -75,9 +75,9 @@ Executable server_binary_test
   Install:            false
   BuildDepends:       lwt, xenstore, xenstore.unix, xenstored, oUnit
 
-Test xs_test
+Test core_test
   Run$:               flag(tests)
-  Command:            $xs_test
+  Command:            $core_test
   WorkingDirectory:   core_test
 
 Test server_test
