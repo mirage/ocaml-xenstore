@@ -70,3 +70,9 @@ module type CLIENT = sig
   val introduce : handle -> int -> nativeint -> int -> unit t
   val set_target : handle -> int -> int -> unit t
 end
+
+module type SERVER = sig
+  include IO
+
+  val serve_forever: unit -> unit t
+end

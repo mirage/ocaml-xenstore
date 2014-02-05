@@ -13,7 +13,7 @@ let socket =
 let _ =
   Sockets.xenstored_socket := socket
 
-module Server = Xs_server.Server(Sockets)
+module Server = Server.Make(Sockets)
 
 let debug = ref false
 

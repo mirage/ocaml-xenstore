@@ -18,8 +18,8 @@ open Protocol
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
 
-let debug fmt = Logging.debug "xs_server" fmt
-let error fmt = Logging.error "xs_server" fmt
+let debug fmt = Logging.debug "server" fmt
+let error fmt = Logging.error "server" fmt
 
 let store =
 	let store = Store.create () in
@@ -52,9 +52,11 @@ module Make_namespace(T: S.TRANSPORT) = struct
     Some (module Interface: Namespace.IO)
 end
 
-module Server = functor(T: S.TRANSPORT) -> struct
+module Make = functor(T: S.TRANSPORT) -> struct
 	module PS = PacketStream(T)
         module NS = Make_namespace(T)
+
+        include T
 
 	let handle_connection t =
 		lwt address = T.address_of t in

@@ -20,7 +20,7 @@ Library xenstored
   Pack:               true
   Path:               server
   Findlibname:        xenstored
-  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
+  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Server, Junk, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore
 
 Library xenstore_unix
