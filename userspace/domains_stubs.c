@@ -31,7 +31,7 @@
 #include <caml/callback.h>
 #include <caml/bigarray.h>
 
-static struct xc_interface *get_xc_interface() {
+static xc_interface *get_xc_interface() {
   static xc_interface *xch = NULL;
   if (!xch) {
     xch = xc_interface_open(NULL, NULL, 0);
@@ -54,7 +54,7 @@ stub_domain_getinfolist(value lowest_domid, value number_requested, value result
   int lowest_domid_ = Int_val(lowest_domid);
   int number_requested_ = Int_val(number_requested);
   void *result_;
-  struct xc_interface *xch = get_xc_interface();
+  xc_interface *xch = get_xc_interface();
 
   v_ba = Field(result, 0);
   v_ofs = Field(result, 1);
@@ -98,7 +98,7 @@ stub_map_foreign(value domid, value mfn)
 {
   CAMLparam2(domid, mfn);
   CAMLlocal1(result);
-  struct xc_interface *xch = get_xc_interface();
+  xc_interface *xch = get_xc_interface();
   uint32_t domid_ = Int_val(domid);
   int mfn_ = Nativeint_val(mfn);
   void *buf = xc_map_foreign_range(xch, domid_, getpagesize(), PROT_READ|PROT_WRITE, mfn_);
