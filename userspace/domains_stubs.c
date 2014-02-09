@@ -63,7 +63,7 @@ stub_domain_getinfolist(value lowest_domid, value number_requested, value result
   ret = xc_domain_getinfolist(xch, lowest_domid_, number_requested_, result_);
   if (ret < 0) {
     error = xc_get_last_error(xch);
-    syslog(LOG_ERR, "xc_domain_getinfolist(%x, %d, %d, %x) = %d:%s", xch, lowest_domid_, number_requested_, result_, error->code, xc_error_code_to_desc(error->code));
+    syslog(LOG_ERR, "xc_domain_getinfolist(%p, %d, %d, %p) = %d:%s", (void*) xch, lowest_domid_, number_requested_, result_, error->code, xc_error_code_to_desc(error->code));
     caml_failwith("xc_domain_getinfolist failed");
   }
   CAMLreturn(Int_val(ret));
@@ -116,6 +116,6 @@ stub_unmap_foreign(value ba)
   CAMLparam1(ba);
   int ret = munmap(Data_bigarray_val(ba), getpagesize());
   if (ret != 0)
-    syslog(LOG_ERR, "munmap %x = %d:%s", Data_bigarray_val(ba), errno, strerror(errno));
+    syslog(LOG_ERR, "munmap %p = %d:%s", (void*) (Data_bigarray_val(ba)), errno, strerror(errno));
   CAMLreturn(Val_unit);
 }
