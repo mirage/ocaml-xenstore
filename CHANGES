@@ -4,6 +4,9 @@ trunk (unreleased)
   depending on the environment
 * fix a number of string NULL parse/printing errors (thanks to Jonathan Davies)
 * incorporate a binary RPC test from the origin xenstored (server_test/binary)
+* build both userspace and kernelspace (via mirage) xenstore servers
+* revamp the module namespace, removing modules with names like Xs_foo_bar_baz
+  and replacing them with Xenstore.Server.Make etc
 
 1.2.5 (04-Oct-2013):
 * Add Travis continuous integration scripts

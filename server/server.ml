@@ -13,13 +13,14 @@
  *)
 
 open Lwt
-open Xs_protocol
+open Xenstore
+open Protocol
 
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
 
-let debug fmt = Logging.debug "xs_server" fmt
-let error fmt = Logging.error "xs_server" fmt
+let debug fmt = Logging.debug "server" fmt
+let error fmt = Logging.error "server" fmt
 
 let store =
 	let store = Store.create () in
@@ -31,32 +32,38 @@ let store =
 		) [ "/local"; "/local/domain"; "/tool"; "/tool/xenstored"; "/tool/xenstored/quota"; "/tool/xenstored/connection"; "/tool/xenstored/log"; "/tool/xenstored/memory" ];
 	store
 
-module type TRANSPORT = sig
-  type 'a t = 'a Lwt.t
-  val return: 'a -> 'a Lwt.t
-  val ( >>= ): 'a t -> ('a -> 'b Lwt.t) -> 'b Lwt.t
-
-  type server
-  val listen: unit -> server Lwt.t
-
-  type channel
-  val read: channel -> string -> int -> int -> int Lwt.t
-  val write: channel -> string -> int -> int -> unit Lwt.t
-  val destroy: channel -> unit Lwt.t
-  val address_of: channel -> Xs_protocol.address Lwt.t
-
-  val namespace_of: channel -> (module Namespace.IO) option
-
-  val accept_forever: server -> (channel -> unit Lwt.t) -> 'a Lwt.t
+module Make_namespace(T: S.TRANSPORT) = struct
+  let namespace_of channel =
+    let module Interface = struct
+      include Namespace.Unsupported
+      let read t (perms: Perms.t) (path: Store.Path.t) =
+        Perms.has perms Perms.CONFIGURE;
+        match T.Introspect.read channel (Store.Path.to_string_list path) with
+        | Some x -> x
+        | None -> raise (Store.Path.Doesnt_exist (Store.Path.to_string path))
+      let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
+      let list t perms path =
+        Perms.has perms Perms.CONFIGURE;
+        T.Introspect.list channel (Store.Path.to_string_list path)
+      let write t _ perms path v =
+        Perms.has perms Perms.CONFIGURE;
+        if not(T.Introspect.write channel (Store.Path.to_string_list path) v)
+        then raise Perms.Permission_denied
+    end in
+    Some (module Interface: Namespace.IO)
 end
 
-module Server = functor(T: TRANSPORT) -> struct
+module Make = functor(T: S.TRANSPORT) -> struct
 	module PS = PacketStream(T)
+        module NS = Make_namespace(T)
+
+        include T
 
 	let handle_connection t =
 		lwt address = T.address_of t in
-		let interface = T.namespace_of t in
-		let c = Connection.create address interface in
+                let dom = T.domain_of t in
+		let interface = NS.namespace_of t in
+		let c = Connection.create (address, dom) interface in
 		let channel = PS.make t in
 		let m = Lwt_mutex.create () in
 		let take_watch_events () =
@@ -66,7 +73,7 @@ module Server = functor(T: TRANSPORT) -> struct
 		let flush_watch_events q =
 			Lwt_list.iter_s
 				(fun (path, token) ->
-					PS.send channel (Xs_protocol.(Response.(print (Watchevent(path, token)) 0l 0l)))
+					PS.send channel (Protocol.(Response.(print (Watchevent(path, token)) 0l 0l)))
 				) q in
 		let (background_watch_event_flusher: unit Lwt.t) =
 			while_lwt true do

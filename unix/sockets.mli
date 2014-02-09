@@ -12,4 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-let xenstored_socket = ref "/var/run/xenstored/socket"
+val xenstored_socket: string ref
+(** path to the xenstored Unix domain socket *)
+
+include S.TRANSPORT

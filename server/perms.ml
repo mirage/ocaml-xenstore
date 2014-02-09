@@ -13,7 +13,7 @@
  *)
 
 let info fmt = Logging.info "perms" fmt
-
+open Xenstore
 open Junk
 
 exception Permission_denied
@@ -21,7 +21,7 @@ exception Permission_denied
 type domid = int
 
 (* permission of connections *)
-open Xs_protocol.ACL
+open Protocol.ACL
 
 type elt = domid * (perm list)
 type t =
@@ -82,30 +82,30 @@ let has (t: t) p =
 	if not(is_dom0 t) then raise Permission_denied
 
 (* check if owner of the current connection and of the current node are the same *)
-let check_owner (connection:t) (node:Xs_protocol.ACL.t) =
+let check_owner (connection:t) (node:Protocol.ACL.t) =
 	if not (is_dom0 connection)
-	then is_owner connection node.Xs_protocol.ACL.owner
+	then is_owner connection node.Protocol.ACL.owner
 	else true
 
 (* check if the current connection has the requested perm on the current node *)
-let check (connection:t) request (node:Xs_protocol.ACL.t) =
+let check (connection:t) request (node:Protocol.ACL.t) =
 	let check_acl domainid =
 		let perm =
-			if List.mem_assoc domainid node.Xs_protocol.ACL.acl
-			then List.assoc domainid node.Xs_protocol.ACL.acl
-			else node.Xs_protocol.ACL.other
+			if List.mem_assoc domainid node.Protocol.ACL.acl
+			then List.assoc domainid node.Protocol.ACL.acl
+			else node.Protocol.ACL.other
 		in
 		match perm, request with
-		| Xs_protocol.ACL.NONE, _ ->
+		| Protocol.ACL.NONE, _ ->
 			info "Permission denied: Domain %d has no permission" domainid;
 			false
-		| Xs_protocol.ACL.RDWR, _ -> true
-		| Xs_protocol.ACL.READ, READ -> true
-		| Xs_protocol.ACL.WRITE, WRITE -> true
-		| Xs_protocol.ACL.READ, _ ->
+		| Protocol.ACL.RDWR, _ -> true
+		| Protocol.ACL.READ, READ -> true
+		| Protocol.ACL.WRITE, WRITE -> true
+		| Protocol.ACL.READ, _ ->
 			info "Permission denied: Domain %d has read only access" domainid;
 			false
-		| Xs_protocol.ACL.WRITE, _ ->
+		| Protocol.ACL.WRITE, _ ->
 			info "Permission denied: Domain %d has write only access" domainid;
 			false
 	in

@@ -11,7 +11,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Xenstore
 
-val reply: Store.t -> Connection.t -> Xenstore.Protocol.t -> Xenstore.Protocol.t
-(** [reply store con request] modifies [store] according to the request in
-    [request] from connection [con] and returns the response to be sent to the client. *)
+include S.TRANSPORT

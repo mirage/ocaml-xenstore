@@ -11,6 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Xenstore
 
 let debug fmt = Logging.debug "connection" fmt
 let info  fmt = Logging.info  "connection" fmt
@@ -26,7 +27,7 @@ type watch = {
 }
 
 and t = {
-	address: Xs_protocol.address;
+	address: Uri.t;
 	interface: (module Namespace.IO) option;
 	domid: int;
 	domstr: string;
@@ -43,8 +44,8 @@ and t = {
 	domainpath: Store.Path.t;
 }
 
-let by_address : (Xs_protocol.address, t) Hashtbl.t = Hashtbl.create 128
-let by_index   : (int,               t) Hashtbl.t = Hashtbl.create 128
+let by_address : (Uri.t, t) Hashtbl.t = Hashtbl.create 128
+let by_index   : (int,   t) Hashtbl.t = Hashtbl.create 128
 
 let watches : (string, watch list) Trie.t ref = ref (Trie.create ())
 
@@ -82,23 +83,22 @@ let destroy address =
 		Hashtbl.remove by_address address;
 		Hashtbl.remove by_index c.idx;
 	with Not_found ->
-		error "Failed to remove connection for: %s" (Xs_protocol.string_of_address address)
+		error "Failed to remove connection for: %s" (Uri.to_string address)
 
 let counter = ref 0
 
-let create address interface =
+let create (address, dom) interface =
 	if Hashtbl.mem by_address address then begin
-		info "Connection.create: found existing connection for %s: closing" (Xs_protocol.string_of_address address);
+		info "Connection.create: found existing connection for %s: closing" (Uri.to_string address);
 		destroy address
 	end;
-	let dom = Xs_protocol.domain_of_address address in
 	let con = 
 	{
 		address = address;
 		interface = interface;
 		domid = dom;
 		idx = !counter;
-		domstr = Xs_protocol.string_of_address address;
+		domstr = Uri.to_string address;
 		transactions = Hashtbl.create 5;
 		next_tid = 1l;
 		watches = Hashtbl.create 8;
@@ -177,7 +177,7 @@ let fire_one name watch =
 			then Store.Path.make_relative watch.con.domainpath name
 			else name in
 	let name = Store.Name.to_string name in
-	let open Xs_protocol in
+	let open Xenstore.Protocol in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
 	watch.count <- watch.count + 1;
 	if Queue.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
@@ -196,7 +196,7 @@ let fire (op, name) =
 		| Some ws -> List.iter (fire_one (Some name)) ws
 		) !watches key;
 	
-	if op = Xs_protocol.Op.Rm
+	if op = Protocol.Op.Rm
 	then Trie.iter
 		(fun _ w -> match w with
 		| None -> ()
@@ -249,7 +249,7 @@ module Interface = struct
 		| [] ->
 			""
 		| "address" :: [] ->
-			Xs_protocol.string_of_address c.address
+			Uri.to_string c.address
 		| "current-transactions" :: [] ->
 			string_of_int (Hashtbl.length c.transactions)
 		| "total-operations" :: [] ->
@@ -301,7 +301,7 @@ module Interface = struct
 			read_connection t perms path c rest
 		| "domain" :: [] -> ""
 		| "domain" :: domid :: rest ->
-			let address = Xs_protocol.Domain(int_of_string domid) in
+			let address = Uri.make ~scheme:"domain" ~path:domid () in
 			if not(Hashtbl.mem by_address address) then Store.Path.doesnt_exist path;
 			let c = Hashtbl.find by_address address in
 			read_connection t perms path c rest
@@ -328,7 +328,7 @@ module Interface = struct
 			let c = Hashtbl.find by_index idx in
 			write_connection t creator perms path c v rest
 		| "domain" :: domid :: rest ->
-			let address = Xs_protocol.Domain(int_of_string domid) in
+			let address = Uri.make ~scheme:"domain" ~path:domid () in
 			if not(Hashtbl.mem by_address address) then Store.Path.doesnt_exist path;
 			let c = Hashtbl.find by_address address in
 			write_connection t creator perms path c v rest
@@ -357,15 +357,15 @@ module Interface = struct
 		match Store.Path.to_string_list path with
 		| [] -> [ "socket"; "domain" ]
 		| [ "socket" ] ->
-			Hashtbl.fold (fun x c acc -> match x with
-			| Xs_protocol.Unix _ -> string_of_int c.idx :: acc
+			Hashtbl.fold (fun x c acc -> match Uri.scheme x with
+                        | Some "unix" -> string_of_int c.idx :: acc
 			| _ -> acc) by_address []
 		| [ "domain" ] ->
-			Hashtbl.fold (fun x _ acc -> match x with
-			| Xs_protocol.Domain x -> string_of_int x :: acc
+			Hashtbl.fold (fun x _ acc -> match Uri.scheme x with
+			| Some "domain" -> Uri.path x :: acc
 			| _ -> acc) by_address []
 		| "domain" :: domid :: rest ->
-			let address = Xs_protocol.Domain(int_of_string domid) in
+			let address = Uri.make ~scheme:"domain" ~path:domid () in
 			if not(Hashtbl.mem by_address address) then Store.Path.doesnt_exist path;
 			let c = Hashtbl.find by_address address in
 			list_connection t perms c rest

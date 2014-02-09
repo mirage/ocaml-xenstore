@@ -195,4 +195,4 @@ module FakeServer = struct
 
 end
 
-module Server = Xenstore_server.Xs_server.Server(FakeServer)
+module Server = Xenstore_server.Server.Make(FakeServer)

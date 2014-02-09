@@ -1,6 +1,4 @@
 # OASIS_START
-# DO NOT EDIT (digest: a0e3eb9b56cc4c13a0e93038dfa04c2f)
-Xs_server_lwt_unix
-Xs_transport
-Xs_transport_lwt_unix_client
+# DO NOT EDIT (digest: 0e188ae3ee5a940b73d1ae230248307d)
+Sockets
 # OASIS_STOP

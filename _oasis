@@ -8,35 +8,34 @@ Plugins:     META (0.3)
 BuildTools:  ocamlbuild
 
 Library xenstore
+  Pack:               true
   CompiledObject:     best
   Path:               core
   Findlibname:        xenstore
-  Modules:            Xs_protocol, Xs_handle
-  BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax
+  Modules:            Protocol, Handle, Client, S
+  BuildDepends:       lwt, cstruct (>= 0.6.0), cstruct.syntax, uri
 
-Library xenstore_client
-  CompiledObject:     best
-  Path:               client
-  Findlibname:        client
-  Findlibparent:      xenstore
-  Modules:            Xs_client_lwt
-  BuildDepends:       lwt, xenstore
-
-Library xenstore_server
+Library xenstored
   CompiledObject:     best
   Pack:               true
   Path:               server
-  Findlibname:        server
-  FindlibParent:      xenstore
-  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
+  Findlibname:        xenstored
+  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Server, Junk, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore
+
+# For backwards compat
+Library xenstore_client
+  CompiledObject:     best
+  Path:               core
+  Findlibname:        client
+  Findlibparent:      xenstore
 
 Library xenstore_unix
   CompiledObject:     best
   Path:               unix
   Findlibname: 	      unix
   FindlibParent:      xenstore
-  Modules:            Xs_server_lwt_unix, Xs_transport, Xs_transport_lwt_unix_client
+  Modules:            Sockets
   BuildDepends:       lwt, lwt.unix, xenstore
 
 Library xenstore_legacy_unix
@@ -47,23 +46,14 @@ Library xenstore_legacy_unix
   Modules:            Xs_client_unix
   BuildDepends:       unix, threads, xenstore
 
-Executable xs_test
+Executable core_test
   CompiledObject:     best
   Path:               core_test
-  MainIs:             xs_test.ml
+  MainIs:             core_test.ml
   Build$:             flag(tests)
   Custom:             true
   Install:            false
   BuildDepends:       lwt, lwt.unix, xenstore, oUnit
-
-#Executable xstest
-#  CompiledObject:     best
-#  Path:               core_test
-#  MainIs:             xstest.ml
-#  Build$:             flag(tests)
-#  Custom:             true
-#  Install:            false
-#  BuildDepends:       xenbus, stdext, threads
 
 Executable server_test
   CompiledObject:     best
@@ -72,7 +62,7 @@ Executable server_test
   Build$:             flag(tests)
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, xenstore, xenstore.server, oUnit
+  BuildDepends:       lwt, xenstore, xenstored, oUnit
 
 Executable server_binary_test
   CompiledObject:     best
@@ -81,17 +71,43 @@ Executable server_binary_test
   Build$:             flag(tests)
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, xenstore, xenstore.server, xenstore.unix, oUnit
+  BuildDepends:       lwt, xenstore, xenstore.unix, xenstored, oUnit
 
-Test xs_test
+Test core_test
   Run$:               flag(tests)
-  Command:            $xs_test
+  Command:            $core_test
   WorkingDirectory:   core_test
 
 Test server_test
   Run$:               flag(tests)
   Command:            $server_test
   WorkingDirectory:   server_test
+
+Executable oxenstored
+  CompiledObject:     best
+  Path:               userspace
+  MainIs:             main.ml
+  Custom:             true
+  Install:            false
+  CSources:           domains_stubs.c
+  CClib:              -lxenctrl
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix, xenstored, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
+
+Executable xs
+  CompiledObject:     best
+  Path:               cli
+  MainIs:             cli.ml
+  Custom:             true
+  Install:            false
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
+
+Executable bench
+  CompiledObject:     best
+  Path:               bench
+  MainIs:             bench.ml
+  Custom:             true
+  Install:            false
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
 
 #Document api
 #  Title: Documentation and API reference

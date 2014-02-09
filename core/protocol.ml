@@ -699,16 +699,3 @@ let response hint sent received f = match get_ty sent, get_ty received with
     end
   | x, y ->
     raise (Error (Printf.sprintf "unexpected packet: expected %s; got %s" (Op.to_string x) (Op.to_string y)))
-
-type address =
-| Unix of string
-| Domain of int
-
-let string_of_address = function
-| Unix x -> x
-| Domain x -> string_of_int x
-
-let domain_of_address = function
-| Unix _ -> 0
-| Domain x -> x
-

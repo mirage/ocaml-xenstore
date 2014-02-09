@@ -12,6 +12,10 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val reply: Store.t -> Connection.t -> Xenstore.Protocol.t -> Xenstore.Protocol.t
-(** [reply store con request] modifies [store] according to the request in
-    [request] from connection [con] and returns the response to be sent to the client. *)
+(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
+
+exception Malformed_watch_event
+exception Unexpected_rid of int32
+exception Dispatcher_failed
+
+module Make : functor(IO: S.TRANSPORT) -> S.CLIENT

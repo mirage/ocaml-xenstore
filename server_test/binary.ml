@@ -1,8 +1,9 @@
 open Lwt
+open Xenstored
 
-let debug fmt = Xenstore_server.Logging.debug "xenstored" fmt
-let info  fmt = Xenstore_server.Logging.info  "xenstored" fmt
-let error fmt = Xenstore_server.Logging.error "xenstored" fmt
+let debug fmt = Logging.debug "xenstored" fmt
+let info  fmt = Logging.info  "xenstored" fmt
+let error fmt = Logging.error "xenstored" fmt
 
 let socket =
   let tmp = Filename.temp_file "xenstore-test" (string_of_int (Unix.getpid ())) in
@@ -10,14 +11,14 @@ let socket =
   tmp
 
 let _ =
-  Xs_transport.xenstored_socket := socket
+  Sockets.xenstored_socket := socket
 
-module Server = Xenstore_server.Xs_server.Server(Xs_server_lwt_unix)
+module Server = Server.Make(Sockets)
 
 let debug = ref false
 
 let rec logging_thread logger =
-  lwt lines = Xenstore_server.Logging.get logger in
+  lwt lines = Logging.get logger in
   lwt () = Lwt_list.iter_s
     (fun x ->
       if !debug
@@ -27,15 +28,15 @@ let rec logging_thread logger =
   logging_thread logger
 
 let server_thread =
-  let (_: 'a) = logging_thread Xenstore_server.Logging.logger in
-  let (_: 'a) = logging_thread Xenstore_server.Logging.access_logger in
+  let (_: 'a) = logging_thread Logging.logger in
+  let (_: 'a) = logging_thread Logging.access_logger in
   info "Starting test";
   Server.serve_forever ()
 
 open OUnit
 
 let test (request, response) () =
-  let open Xs_transport_lwt_unix_client in
+  let open Sockets in
   lwt c = create () in
   lwt () = write c request 0 (String.length request) in
   let buffer = String.make (String.length response) '\000' in
@@ -47,7 +48,7 @@ let _ =
   let verbose = ref false in
   Arg.parse [
     "-verbose", Arg.Unit (fun _ -> verbose := true), "Run in verbose mode";
-    "-connect", Arg.Set_string Xs_transport.xenstored_socket, "Connect to a specified xenstored (otherwise use an internal server)";
+    "-connect", Arg.Set_string Sockets.xenstored_socket, "Connect to a specified xenstored (otherwise use an internal server)";
     "-debug",   Arg.Set debug, "Print debug logging";
   ] (fun x -> Printf.fprintf stderr "Ignoring argument: %s" x)
     "Test xenstore server code";

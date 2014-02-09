@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 552a6362b00efe3d3b785d823d0efbd6)
+# DO NOT EDIT (digest: 4f5e92c59768a817ab62397648a327b5)
 Logging
 Logging_interface
 Connection
@@ -12,7 +12,7 @@ Quota_interface
 Perms
 Store
 Transaction
-Xs_server
+Server
 Junk
 Introduce
 Heap_debug_interface

@@ -14,29 +14,44 @@
 
 (** A byte-level transport over the xenstore Unix domain socket *)
 
+(* The unix domain socket may not exist, or we may get a connection
+   refused error if the server is in the middle of restarting. *)
+let initial_retry_interval = 0.1 (* seconds *)
+let max_retry_interval = 5.0 (* seconds *)
+let retry_max = 100 (* attempts *)
+
+let xenstored_socket = ref "/var/run/xenstored/socket"
+
 open Lwt
 
 type 'a t = 'a Lwt.t
 let return x = return x
 let ( >>= ) m f = m >>= f
 
-let error fmt = Xenstore_server.Logging.error "xs_transport_unix" fmt
-
 (* Individual connections *)
 type channel = Lwt_unix.file_descr * Lwt_unix.sockaddr
 let create () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(!Xs_transport.xenstored_socket) in
+  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-  lwt () = Lwt_unix.connect fd sockaddr in
+  let start = Unix.gettimeofday () in
+  let rec retry n interval =
+    if n > retry_max
+    then fail (Failure (Printf.sprintf "Failed to connect to xenstore after %.0f seconds" (Unix.gettimeofday () -. start)))
+    else
+      try_lwt
+        Lwt_unix.connect fd sockaddr
+      with _ ->
+        lwt () = Lwt_unix.sleep interval in
+        retry (n + 1) (interval +. 0.1) in
+  lwt () = retry 0 initial_retry_interval in
   return (fd, sockaddr)
 let destroy (fd, _) = Lwt_unix.close fd
 let read (fd, _) = Lwt_unix.read fd
 let write (fd, _) bufs ofs len =
 	lwt n = Lwt_unix.write fd bufs ofs len in
-	if n <> len then begin
-		error "Short write (%d<%d)" n len;
-		fail End_of_file
-	end else return ()
+	if n <> len
+        then fail End_of_file
+	else return ()
 
 let int_of_file_descr fd =
 	let fd = Lwt_unix.unix_file_descr fd in
@@ -62,7 +77,9 @@ let address_of (fd, _) =
 		with Not_found -> cmdline in
 	let basename = Filename.basename filename in
 	let name = Printf.sprintf "%d:%s:%d" pid basename (int_of_file_descr fd) in
-	return (Xs_protocol.Unix name)
+	return (Uri.make ~scheme:"unix" ~path:name ())
+
+let domain_of _ = 0
 
 (* Servers which accept connections *)
 type server = Lwt_unix.file_descr
@@ -73,49 +90,27 @@ let _ =
 	Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
 let listen () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(!Xs_transport.xenstored_socket) in
+  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-  try_lwt
-    lwt () = try_lwt Lwt_unix.unlink !Xs_transport.xenstored_socket with _ -> return () in
-    Lwt_unix.bind fd sockaddr;
-    Lwt_unix.listen fd 5;
-    return fd
-  with Unix.Unix_error(Unix.EACCES, _, _) as e ->
-    error "Permission denied (EACCES) binding to %s" !Xs_transport.xenstored_socket;
-    error "To resolve this problem either run this program with more privileges or change the path.";
-    fail e
-  | Unix.Unix_error(Unix.EADDRINUSE, _, _) as e ->
-    error "The unix domain socket %s is already in use (EADDRINUSE)" !Xs_transport.xenstored_socket;
-    error "To resolve this program either run this program with more privileges (so that it may delete the current socket) or change the path.";
-    fail e
+  lwt () = try_lwt Lwt_unix.unlink !xenstored_socket with _ -> return () in
+  Lwt_unix.bind fd sockaddr;
+  Lwt_unix.listen fd 5;
+  return fd
 
 let rec accept_forever fd process =
   lwt conns, _ (*exn_option*) = Lwt_unix.accept_n fd 16 in
   let (_: unit Lwt.t list) = List.map process conns in
   accept_forever fd process
 
-let namespace_of (fd, _) =
-	let module Interface = struct
-		include Xenstore_server.Namespace.Unsupported
+module Introspect = struct
+  let read (fd, _) = function
+    | [ "readable" ] -> Some (string_of_bool (Lwt_unix.readable fd))
+    | [ "writable" ] -> Some (string_of_bool (Lwt_unix.writable fd))
+    | _ -> None
 
-	let read t (perms: Xenstore_server.Perms.t) (path: Xenstore_server.Store.Path.t) =
-		Xenstore_server.Perms.has perms Xenstore_server.Perms.CONFIGURE;
-		match Xenstore_server.Store.Path.to_string_list path with
-		| [] -> ""
-		| [ "readable" ] ->
-			string_of_bool (Lwt_unix.readable fd)
-		| [ "writable" ] ->
-			string_of_bool (Lwt_unix.writable fd)
-		| _ -> Xenstore_server.Store.Path.doesnt_exist path
+  let list t = function
+    | [] -> [ "readable"; "writable" ]
+    | _ -> []
 
-	let exists t perms path = try ignore(read t perms path); true with Xenstore_server.Store.Path.Doesnt_exist _ -> false
-
-	let list t perms path =
-		Xenstore_server.Perms.has perms Xenstore_server.Perms.CONFIGURE;
-		match Xenstore_server.Store.Path.to_string_list path with
-		| [] -> [ "readable"; "writable" ]
-		| _ -> []
-
-	end in
-	Some (module Interface: Xenstore_server.Namespace.IO)
-
+  let write _ _ _ = false
+end

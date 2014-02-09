@@ -14,6 +14,7 @@
 
 open Lwt
 open Printf
+open Xenstore
 
 type logger = {
 	stream: string Lwt_stream.t;
@@ -99,8 +100,8 @@ type access_type =
 	| Debug of string
 	| Start_transaction
 	| End_transaction
-	| Request of Xs_protocol.Request.payload
-	| Response of Xs_protocol.Response.payload * string option
+	| Request of Protocol.Request.payload
+	| Response of Protocol.Response.payload * string option
 
 let string_of_tid ~con tid =
 	if tid = 0l
@@ -116,8 +117,8 @@ let string_of_access_type = function
 	| Debug x                 -> "         " ^ x
 	| Start_transaction       -> "t start  "
 	| End_transaction         -> "t end    "
-	| Request r               -> " <- in   " ^ (Xs_protocol.Request.prettyprint_payload r)
-	| Response (r, info_opt)  -> " -> out  " ^ (Xs_protocol.Response.prettyprint_payload r) ^ (match info_opt with Some x -> " (" ^ x ^ ")" | None -> "")
+	| Request r               -> " <- in   " ^ (Protocol.Request.prettyprint_payload r)
+	| Response (r, info_opt)  -> " -> out  " ^ (Protocol.Response.prettyprint_payload r) ^ (match info_opt with Some x -> " (" ^ x ^ ")" | None -> "")
 
 let disable_coalesce = ref false
 let disable_conflict = ref false
@@ -143,14 +144,14 @@ let access_type_disabled = function
 	| Debug _  -> false
 	| Start_transaction
 	| End_transaction   -> !disable_transaction
-	| Request r -> List.mem (Xs_protocol.(Op.to_string (Request.ty_of_payload r))) !disable_request
+	| Request r -> List.mem (Protocol.(Op.to_string (Request.ty_of_payload r))) !disable_request
 	| Response (r, _) ->
 		begin match r with
-			| Xs_protocol.Response.Error x ->
+			| Protocol.Response.Error x ->
 				List.mem x !disable_reply_err
 			| _ ->
-				let ty = Xs_protocol.Response.ty_of_payload r in
-				List.mem (Xs_protocol.Op.to_string ty) !disable_reply_ok
+				let ty = Protocol.Response.ty_of_payload r in
+				List.mem (Protocol.Op.to_string ty) !disable_reply_ok
 		end
 
 let access_type_enabled x = not(access_type_disabled x)

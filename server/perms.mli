@@ -12,6 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
+open Xenstore
+
 type t
 (** A role containing a set of privileges *)
 
@@ -44,7 +46,7 @@ type permission =
 exception Permission_denied
 (** Thrown by the [check] function if role does not have a specific permission *)
 
-val check: t -> permission -> Xs_protocol.ACL.t -> unit
+val check: t -> permission -> Protocol.ACL.t -> unit
 (** [check role permission acl] throws [Permission_denied] if [role] does not
     have [permission] according to the access control list [acl] *)
 
