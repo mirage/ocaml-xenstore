@@ -150,7 +150,6 @@ let make_example_response op response wire_fmt =
 
 (* We use the example requests to generate example responses *)
 let example_response_packets =
-        let einval = "\016\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x00\x00\x00" ^ "EINVAL\000" in
 	let open Protocol in
 	let open Protocol.Response in [
 		make_example_response Op.Read (Read "theresult")
