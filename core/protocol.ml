@@ -623,6 +623,8 @@ module Request = struct
 		| Set_target (_, _) -> Op.Set_target
 		| Restrict _ -> Op.Restrict
 		| Isintroduced _ -> Op.Isintroduced
+                | Watchevent _ -> Op.Watchevent
+                | Error _ -> Op.Error
 
 	let transactional_of_payload = function
 		| PathOp(_, _)
@@ -654,6 +656,12 @@ module Request = struct
 			data_concat [ Printf.sprintf "%u" domid; ]
 		| Set_target (mine, yours) ->
 			data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours; ]
+                | Watchevent _
+                | Error _ ->
+                        (* It's illegal to create a request with a Watchevent or an Error.
+                           A well-behaved client (like ours) will never do this, so this code
+                           is never reached. *)
+                        failwith "it's illegal to create a request with a Watchevent or an Error"
 
 	let print x tid rid =
 		create
