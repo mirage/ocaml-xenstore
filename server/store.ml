@@ -18,49 +18,20 @@ open Junk
 
 exception Already_exists of string
 
-let char_is_valid c =
-	(c >= 'a' && c <= 'z') ||
-	(c >= 'A' && c <= 'Z') ||
-	(c >= '0' && c <= '9') ||
-	c = '_' || c = '-' || c = '@'
-
-let name_is_valid name =
-	name <> "" && String.fold_left (fun accu c -> accu && char_is_valid c) true name
-
-let is_valid = List.for_all name_is_valid
-
-type path = string list
-
-let path_of_string = function
-	| "/" -> []
-	| path ->
-		if String.length path > 1024
-		then invalid_arg "paths larger than 1024 bytes are invalid";
-		begin match String.split '/' path with
-		| "" :: path ->
-			if not(is_valid path)
-			then invalid_arg "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
-			path
-		| path ->
-			invalid_arg "valid paths have a /-prefix"
-		end
-
-let path_to_string path = String.concat "/" ("" :: path)
-
 module Name = struct
 
 	type t =
 		| IntroduceDomain
 		| ReleaseDomain
-		| Absolute of path
-		| Relative of path
+		| Absolute of Protocol.Path.t
+		| Relative of Protocol.Path.t
 
 	let is_relative = function
 		| Relative _ -> true
 		| _ -> false
 
 	let make_absolute t path = match t with
-		| Relative p -> Absolute (path_of_string path @ p)
+		| Relative p -> Absolute (Protocol.Path.of_string path @ p)
 		| x -> x
 
 	let introduceDomain = IntroduceDomain
@@ -75,15 +46,15 @@ module Name = struct
 			if String.length path > 1024
 			then invalid_arg "paths larger than 1024 bytes are invalid";
 			let path = String.split '/' path in
-            if not(is_valid path)
+            if not(Protocol.Path.is_valid path)
 			then invalid_arg "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
             Relative path
-		| path -> Absolute (path_of_string path)
+		| path -> Absolute (Protocol.Path.of_string path)
 
 	let to_string = function
 		| IntroduceDomain -> "@introduceDomain"
 		| ReleaseDomain -> "@releaseDomain"
-		| Absolute path -> path_to_string path
+		| Absolute path -> Protocol.Path.to_string path
 		| Relative path -> String.concat "/" path
 
 	let to_key = function
@@ -111,8 +82,8 @@ let create path connection_path =
 
 let to_name x = Name.Absolute x
 
-let of_string = path_of_string
-let to_string = path_to_string
+let of_string = Protocol.Path.of_string
+let to_string = Protocol.Path.to_string
 let to_string_list x = x
 let of_string_list x = x
 

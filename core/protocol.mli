@@ -145,6 +145,32 @@ module Token : sig
   (** [to_string token] is the marshalled representation of [token]. *)
 end
 
+module Path : sig
+  module Element : sig
+    type t = string
+    (** an element of a path *)
+
+    val is_valid: t -> bool
+    (** [is_valid t] is true if [t] is an acceptable path element *)
+  end
+
+  type t = Element.t list
+  (** a path is a sequence of elements *)
+
+  val is_valid: t -> bool
+  (** [is_valid t] is true if [t] is an acceptable path *)
+
+  exception Invalid_path of string * string
+  (** [Invalid_path (path, reason)] indicates that [path] is invalid
+      because [reason] *)
+
+  val of_string: string -> t
+  (** [of_string x] converts string [x] into a [t], or raises Invalid_path *)
+
+  val to_string: t -> string
+  (** [to_string t] converts [t] into a string *)
+end
+
 module Response : sig
   type payload =
   | Read of string

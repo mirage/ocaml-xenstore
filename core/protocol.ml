@@ -347,6 +347,54 @@ let set_data pkt (data: string) =
   Buffer.add_string b data;
   { pkt with len = len; data = b }
 
+
+module Path = struct
+  module Element = struct
+    type t = string
+
+    let char_is_valid c =
+      (c >= 'a' && c <= 'z') ||
+      (c >= 'A' && c <= 'Z') ||
+      (c >= '0' && c <= '9') ||
+      c = '_' || c = '-' || c = '@'
+
+    exception Invalid_char of char
+
+    let is_valid x =
+      try
+        for i = 0 to String.length x - 1 do
+          if not(char_is_valid x.[i])
+          then raise (Invalid_char x.[i])
+        done;
+        true
+      with Invalid_char _ -> false
+  end
+
+  type t = Element.t list
+
+  exception Invalid_path of string * string
+
+  let rec is_valid = function
+  | [] -> true
+  | e :: es -> Element.is_valid e && (is_valid es)
+
+  let of_string = function
+  | "/" -> []
+  | path ->
+    if String.length path > 1024
+    then raise (Invalid_path (path, "paths larger than 1024 bytes are invalid"));
+    begin match split_string '/' path with
+    | "" :: path' ->
+      if not(is_valid path')
+      then raise (Invalid_path (path, "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+"));
+      path'
+    | path' ->
+      raise (Invalid_path (path, "valid paths have a /-prefix"))
+    end
+
+  let to_string path = String.concat "/" ("" :: path)
+end
+
 module Response = struct
 
   type payload =
