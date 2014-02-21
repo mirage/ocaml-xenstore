@@ -26,7 +26,7 @@ let check_parents_perms_identical root1 root2 path =
 		and n2 = Store.lookup root2 path in
 		match n1, n2 with
 		| Some n1, Some n2 ->
-			(Store.Node.get_perms n1) <> (Store.Node.get_perms n2) || acc
+			(Node.get_perms n1) <> (Node.get_perms n2) || acc
 		| _ ->
 			true || acc
 	) false hierarch in
@@ -62,7 +62,7 @@ let test_coalesce oldroot currentroot path =
 let can_coalesce oldroot currentroot path =
 	try test_coalesce oldroot currentroot path with _ -> false
 
-type ty = No | Full of (int32 * Store.Node.t * Store.t)
+type ty = No | Full of (int32 * Node.t * Store.t)
 
 type t = {
 	ty: ty;

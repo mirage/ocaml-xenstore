@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4f5e92c59768a817ab62397648a327b5)
+# DO NOT EDIT (digest: 62363c66533891ee27ae1db43a8735dc)
 Logging
 Logging_interface
 Connection
@@ -10,6 +10,7 @@ Namespace
 Quota
 Quota_interface
 Perms
+Node
 Store
 Transaction
 Server

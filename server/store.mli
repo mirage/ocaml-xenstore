@@ -16,19 +16,6 @@ open Xenstore
 exception Already_exists of string
 (** thrown when a (watch) name already exists *)
 
-module Node : sig
-	(** A Node in the main xenstore tree *)
-
-	type t
-
-	val create : string -> int -> Protocol.ACL.t -> string -> t
-	(** [create name creator perms value] returns fresh Node.t *)
-
-	val get_perms: t -> Protocol.ACL.t
-	(** [get_perms t] returns the permissions attached to [t] *)
-
-end
-
 module Name : sig
 
 	type t

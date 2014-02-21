@@ -18,69 +18,6 @@ open Junk
 
 exception Already_exists of string
 
-module Node = struct
-
-type t = {
-	name: Symbol.t;
-	creator: int;
-	perms: Protocol.ACL.t;
-	value: string;
-	children: t list;
-}
-
-let create _name _creator _perms _value =
-	{ name = Symbol.of_string _name; creator = _creator; perms = _perms; value = _value; children = []; }
-
-let get_creator node = node.creator
-
-let set_value node nvalue = 
-	if node.value = nvalue
-	then node
-	else { node with value = nvalue }
-
-let set_perms node nperms = { node with perms = nperms }
-let get_perms node = node.perms
-
-let add_child node child =
-	{ node with children = child :: node.children }
-
-let exists node childname =
-	let childname = Symbol.of_string childname in
-	List.exists (fun n -> n.name = childname) node.children
-
-let find node childname =
-	let childname = Symbol.of_string childname in
-	List.find (fun n -> n.name = childname) node.children
-
-let replace_child node child nchild =
-	(* this is the on-steroid version of the filter one-replace one *)
-	let rec replace_one_in_list l =
-		match l with
-		| []                               -> []
-		| h :: tl when h.name = child.name -> nchild :: tl
-		| h :: tl                          -> h :: replace_one_in_list tl
-		in
-	{ node with children = (replace_one_in_list node.children) }
-
-let del_childname node childname =
-	let sym = Symbol.of_string childname in
-	let rec delete_one_in_list l =
-		match l with
-		| []                        -> raise Not_found
-		| h :: tl when h.name = sym -> tl
-		| h :: tl                   -> h :: delete_one_in_list tl
-		in
-	{ node with children = (delete_one_in_list node.children) }
-
-let del_all_children node =
-	{ node with children = [] }
-
-let rec recurse fct node = fct node; List.iter (recurse fct) node.children
-
-let unpack node = (Symbol.to_string node.name, node.perms, node.value)
-
-end
-
 let char_is_valid c =
 	(c >= 'a' && c <= 'z') ||
 	(c >= 'A' && c <= 'Z') ||
@@ -287,11 +224,11 @@ let path_mkdir store creator perm path =
 	let do_mkdir node name =
 		try
 			let ent = Node.find node name in
-			Perms.check perm Perms.WRITE ent.Node.perms;
+			Perms.check perm Perms.WRITE (Node.get_perms ent);
 			raise (Already_exists (Path.to_string path))
 		with Not_found ->
-			Perms.check perm Perms.WRITE node.Node.perms;
-			Node.add_child node (Node.create name creator node.Node.perms "") in
+			Perms.check perm Perms.WRITE (Node.get_perms node);
+			Node.add_child node (Node.create name creator (Node.get_perms node) "") in
 	if path = [] then
 		store.root
 	else
@@ -302,15 +239,15 @@ let path_write store creator perm path value =
 	let do_write node name =
 		try
 			let ent = Node.find node name in
-			Perms.check perm Perms.WRITE ent.Node.perms;
+			Perms.check perm Perms.WRITE (Node.get_perms ent);
 			let nent = Node.set_value ent value in
 			Node.replace_child node ent nent
 		with Not_found ->
 			node_created := true;
-			Perms.check perm Perms.WRITE node.Node.perms;
-			Node.add_child node (Node.create name creator node.Node.perms value) in
+			Perms.check perm Perms.WRITE (Node.get_perms node);
+			Node.add_child node (Node.create name creator (Node.get_perms node) value) in
 	if path = [] then (
-		Perms.check perm Perms.WRITE store.root.Node.perms;
+		Perms.check perm Perms.WRITE (Node.get_perms store.root);
 		Node.set_value store.root value, false
 	) else
 		Path.apply_modify store.root path do_write, !node_created
@@ -319,7 +256,7 @@ let path_rm store perm path =
 	let do_rm node name =
 		try
 			let ent = Node.find node name in
-			Perms.check perm Perms.WRITE ent.Node.perms;
+			Perms.check perm Perms.WRITE (Node.get_perms ent);
 			Node.del_childname node name
 		with Not_found -> Path.doesnt_exist path in
 	if path = [] then
@@ -333,8 +270,8 @@ let path_setperms store perm path perms =
 	else
 		let do_setperms node name =
 			let c = Node.find node name in
-			Perms.check perm Perms.CHANGE_ACL c.Node.perms;
-			Perms.check perm Perms.WRITE c.Node.perms;
+			Perms.check perm Perms.CHANGE_ACL (Node.get_perms c);
+			Perms.check perm Perms.WRITE (Node.get_perms c);
 			let nc = Node.set_perms c perms in
 			Node.replace_child node c nc
 		in
@@ -361,13 +298,13 @@ let read store perm path =
 	try
 		let do_read node name =
 			let ent = Node.find node name in
-			Perms.check perm Perms.READ ent.Node.perms;
-			ent.Node.value
+			Perms.check perm Perms.READ (Node.get_perms ent);
+			Node.get_value ent
 		in
 		if path = [] then (
 			let ent = store.root in
-			Perms.check perm Perms.READ ent.Node.perms;
-			ent.Node.value
+			Perms.check perm Perms.READ (Node.get_perms ent);
+			Node.get_value ent
 		) else
 			Path.apply store.root path do_read
 	with
@@ -377,7 +314,7 @@ let ls store perm path =
 	try
 		let children =
 			if path = [] then
-				store.root.Node.children
+				Node.get_children store.root
 			else
 				let do_ls node name =
 					let cnode =
@@ -385,22 +322,22 @@ let ls store perm path =
 						with Not_found ->
 							Path.doesnt_exist path
 					in
-					Perms.check perm Perms.READ cnode.Node.perms;
-					cnode.Node.children in
+					Perms.check perm Perms.READ (Node.get_perms cnode);
+					Node.get_children cnode in
 				Path.apply store.root path do_ls in
-		List.rev (List.map (fun n -> Symbol.to_string n.Node.name) children)
+		List.rev (List.map Node.get_name children)
 	with
 		| Not_found -> Path.doesnt_exist path
 
 let getperms store perm path =
 	try
 		if path = [] then
-			store.root.Node.perms
+			Node.get_perms store.root
 		else
 			let fct n name =
 				let c = Node.find n name in
-				Perms.check perm Perms.READ c.Node.perms;
-				c.Node.perms in
+				Perms.check perm Perms.READ (Node.get_perms c);
+				Node.get_perms c in
 			Path.apply store.root path fct
 	with
 		| Not_found -> Path.doesnt_exist path
@@ -420,7 +357,7 @@ let exists store path =
 let traversal root_node f =
 	let rec _traversal path node =
 		f path node;
-		List.iter (_traversal (path @ [ Symbol.to_string node.Node.name ])) node.Node.children
+		List.iter (_traversal (path @ [ Node.get_name node ])) (Node.get_children node)
 		in
 	_traversal [] root_node
 		
@@ -428,10 +365,10 @@ let dump_store_buf root_node =
 	let buf = Buffer.create 8192 in
 	let dump_node path node =
 		let pathstr = String.concat "/" path in
-		Printf.bprintf buf "%s/%s{%s}" pathstr (Symbol.to_string node.Node.name)
-		               (String.escaped (Protocol.ACL.to_string node.Node.perms));
-		if String.length node.Node.value > 0 then
-			Printf.bprintf buf " = %s\n" (String.escaped node.Node.value)
+		Printf.bprintf buf "%s/%s{%s}" pathstr (Node.get_name node)
+		               (String.escaped (Protocol.ACL.to_string (Node.get_perms node)));
+		if String.length (Node.get_value node) > 0 then
+			Printf.bprintf buf " = %s\n" (String.escaped (Node.get_value node))
 		else
 			Printf.bprintf buf "\n";
 		in
@@ -482,7 +419,7 @@ let rm store perm path =
 				invalid_arg "removing the root node is forbidden"
 			| Some rmed_node ->
 				store.root <- path_rm store perm path;
-				Node.recurse (fun node -> Quota.decr store.quota (Node.get_creator node)) rmed_node
+				Node.fold (fun () node -> Quota.decr store.quota (Node.get_creator node)) rmed_node ()
 	with
 		| Not_found -> Path.doesnt_exist path		
 
@@ -509,7 +446,7 @@ let copy store = {
 }
 
 let mark_symbols store =
-	Node.recurse (fun node -> Symbol.mark_as_used node.Node.name) store.root
+	Node.fold (fun () node -> Symbol.mark_as_used (Node.get_symbol node)) store.root ()
 
 let incr_transaction_coalesce store =
 	store.stat_transaction_coalesce <- store.stat_transaction_coalesce + 1
