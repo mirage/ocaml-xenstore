@@ -11,10 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-let debug fmt = Logging.debug "store" fmt
-let error fmt = Logging.debug "error" fmt
 open Xenstore
-open Junk
 
 type t = {
 	name: Symbol.t;
@@ -56,13 +53,13 @@ let find node childname =
 	let childname = Symbol.of_string childname in
 	List.find (fun n -> n.name = childname) node.children
 
-let replace_child node child nchild =
+let replace_child node symbol nchild =
 	(* this is the on-steroid version of the filter one-replace one *)
 	let rec replace_one_in_list l =
 		match l with
-		| []                               -> []
-		| h :: tl when h.name = child.name -> nchild :: tl
-		| h :: tl                          -> h :: replace_one_in_list tl
+		| []                           -> [ nchild ]
+		| h :: tl when h.name = symbol -> nchild :: tl
+		| h :: tl                      -> h :: replace_one_in_list tl
 		in
 	{ node with children = (replace_one_in_list node.children) }
 
@@ -84,3 +81,37 @@ let rec fold f node acc =
 
 let unpack node = (Symbol.to_string node.name, node.perms, node.value)
 
+open Protocol.Path
+
+exception Doesnt_exist of t
+
+let doesnt_exist t = raise (Doesnt_exist t)
+
+let lookup node path =
+  Protocol.Path.walk (fun e node -> match node with
+    | None -> None
+    | Some node ->
+      let e = Protocol.Path.Element.to_string e in
+      if exists node e then Some (find node e) else None
+  ) path (Some node)
+
+(* read | ls | getperms use this *)
+let with_parent node path fct =
+  match lookup node (Protocol.Path.dirname path) with
+  | None -> raise Not_found
+  | Some parent -> fct parent (Protocol.Path.basename path)
+
+let modify node path f =
+  let rec aux node = function
+  | []      -> raise Not_found
+  | h :: [] -> f node h
+  | h :: l  ->
+    if not (exists node h) then raise (Doesnt_exist path);
+    let new_h = aux (find node h) l in
+    replace_child node (Symbol.of_string h) new_h in
+  aux node (Protocol.Path.to_string_list path)
+
+let replace node path node' =
+  if path = Protocol.Path.empty
+  then node'
+  else modify node path (fun node name -> replace_child node (Symbol.of_string name) node')

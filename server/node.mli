@@ -57,12 +57,13 @@ val find: t -> string -> t
 (** [find t childname]: returns the child of [t] with name [childname]
     or raises Not_found *)
 
-val replace_child: t -> t -> t -> t
-(** [replace_child t existing_child new_child] returns a copy of [t]
-    where [existing_child] has been replaced by [new_child] *)
+val replace_child: t -> Symbol.t -> t -> t
+(** [replace_child t symbol new_child] returns a copy of [t] where the
+    child named [symbol] has been replaced by [new_child] *)
 
 val add_child: t -> t -> t
 (** [add_child t new_child] returns [t] with [new_child] added *)
+
 
 val del_childname: t -> string -> t
 (** [del_childname t childname] returns [t] without the child named
@@ -70,3 +71,21 @@ val del_childname: t -> string -> t
 
 val del_all_children: t -> t
 (** [del_all_children t] returns [t] with no children *)
+
+exception Doesnt_exist of Protocol.Path.t
+
+val with_parent: t -> Protocol.Path.t -> (t -> Protocol.Path.Element.t -> 'a) -> 'a
+(** [with_parent t path f] returns [f t' element] where [t'] is the node which
+    would contain a child calle [element] which would be found by following
+    [path] from [t]. Raises Not_found if the parent node does not exist. *)
+
+val modify: t -> Protocol.Path.t -> (t -> string -> t) -> t
+(** [modify t path f] constructs a new tree where the node at [path] in [t]
+    has been replaced by [f parent name] *)
+
+val replace: t -> Protocol.Path.t -> t -> t
+(** [replace t path t'] replaces the node at [path] with [t'] *)
+
+val lookup: t -> Protocol.Path.t -> t option
+(** [lookup t path] returns [Some t] where [t] can be found at the end of
+    [path] from [t], or [None] otherwise. *)

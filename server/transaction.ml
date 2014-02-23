@@ -20,10 +20,10 @@ let none = 0l
 let test_eagain = ref false
 
 let check_parents_perms_identical root1 root2 path =
-	let hierarch = Store.Path.get_hierarchy path in
+        let hierarch = Protocol.Path.empty :: (List.rev (Protocol.Path.fold (fun path acc -> path :: acc) path [])) in
 	let permdiff = List.fold_left (fun acc path ->
-		let n1 = Store.lookup root1 path
-		and n2 = Store.lookup root2 path in
+		let n1 = Node.lookup root1 path
+		and n2 = Node.lookup root2 path in
 		match n1, n2 with
 		| Some n1, Some n2 ->
 			(Node.get_perms n1) <> (Node.get_perms n2) || acc
@@ -35,11 +35,11 @@ let check_parents_perms_identical root1 root2 path =
 let get_lowest path1 path2 =
 	match path2 with
 	| None       -> Some path1
-	| Some path2 -> Some (Store.Path.get_common_prefix path1 path2)
+	| Some path2 -> Some (Protocol.Path.common_prefix path1 path2)
 
 let test_coalesce oldroot currentroot path =
-	let oldnode = Store.lookup oldroot path
-	and currentnode = Store.lookup currentroot path in
+	let oldnode = Node.lookup oldroot path
+	and currentnode = Node.lookup currentroot path in
 
 	match oldnode, currentnode with
 		| (Some oldnode), (Some currentnode) ->
@@ -51,7 +51,7 @@ let test_coalesce oldroot currentroot path =
 		| None, None -> (
 			(* ok then it doesn't exists in the old version and the current version,
 			   just sneak it in as a child of the parent node if it exists, or else fail *)
-			let pnode = Store.lookup currentroot (Store.Path.get_parent path) in
+			let pnode = Node.lookup currentroot (Protocol.Path.dirname path) in
 			match pnode with
 			| None       -> false (* ok it doesn't exists, just bail out. *)
 			| Some pnode -> true
@@ -68,10 +68,10 @@ type t = {
 	ty: ty;
 	store: Store.t;
 	quota: Quota.t;
-	mutable paths: (Protocol.Op.t * Store.Name.t) list;
+	mutable paths: (Protocol.Op.t * Protocol.Name.t) list;
 	mutable operations: (Protocol.Request.payload * Protocol.Response.payload) list;
-	mutable read_lowpath: Store.Path.t option;
-	mutable write_lowpath: Store.Path.t option;
+	mutable read_lowpath: Protocol.Path.t option;
+	mutable write_lowpath: Protocol.Path.t option;
 }
 
 let make id store =
@@ -90,7 +90,7 @@ let get_id t = match t.ty with No -> none | Full (id, _, _) -> id
 let get_store t = t.store
 let get_paths t = t.paths
 
-let add_wop t ty path = t.paths <- (ty, Store.Path.to_name path) :: t.paths
+let add_wop t ty path = t.paths <- (ty, Protocol.Name.Absolute path) :: t.paths
 let add_operation t request response = t.operations <- (request, response) :: t.operations
 let get_operations t = List.rev t.operations
 let set_read_lowpath t path = t.read_lowpath <- get_lowest path t.read_lowpath
@@ -103,7 +103,7 @@ let write t creator perm path value =
 	Store.write t.store creator perm path value;
 	if path_existed
 	then set_write_lowpath t path
-	else set_write_lowpath t (Store.Path.get_parent path);
+	else set_write_lowpath t (Protocol.Path.dirname path);
 	add_wop t Protocol.Op.Write path
 
 let mkdir ?(with_watch=true) t creator perm path =
@@ -119,10 +119,10 @@ let setperms t perm path perms =
 
 let rm t perm path =
 	Store.rm t.store perm path;
-	set_write_lowpath t (Store.Path.get_parent path);
+	set_write_lowpath t (Protocol.Path.dirname path);
 	add_wop t Protocol.Op.Rm path
 
-let list t perm path =	
+let ls t perm path =	
 	let r = Store.ls t.store perm path in
 	set_read_lowpath t path;
 	r
@@ -155,15 +155,15 @@ let commit ~con t =
 				| Some path -> can_coalesce oldroot cstore.Store.root path in
 			if readpath_ok && writepath_ok then (
 				maybe (fun p ->
-					let n = Store.lookup store.Store.root p in
+					let n = Node.lookup store.Store.root p in
 
 					(* it has to be in the store, otherwise it means bugs
 					   in the lowpath registration. we don't need to handle none. *)
-					maybe (fun n -> Store.set_node cstore p n t.quota store.Store.quota) n;
-					Logging.write_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p);
+					maybe (fun n -> Store.replace cstore p n t.quota store.Store.quota) n;
+					Logging.write_coalesce ~tid:(get_id t) ~con (Protocol.Path.to_string p);
 				) t.write_lowpath;
 				maybe (fun p ->
-					Logging.read_coalesce ~tid:(get_id t) ~con (Store.Path.to_string p)
+					Logging.read_coalesce ~tid:(get_id t) ~con (Protocol.Path.to_string p)
 					) t.read_lowpath;
 				has_coalesced := true;
 				cstore.Store.stat_transaction_coalesce <- cstore.Store.stat_transaction_coalesce + 1;

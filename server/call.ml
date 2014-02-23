@@ -29,24 +29,21 @@ exception Transaction_again
 
 exception Transaction_nested
 
-let get_namespace_implementation path = match Store.Path.to_string_list path with
+let get_namespace_implementation path = match Protocol.Path.to_string_list path with
 	| "tool" :: "xenstored" :: "quota" :: rest ->
-		Store.Path.of_string_list rest, (module Quota_interface: Namespace.IO)
+		Protocol.Path.of_string_list rest, (module Quota_interface: Namespace.IO)
 	| "tool" :: "xenstored" :: "connection" :: rest ->
-		Store.Path.of_string_list rest, (module Connection.Interface: Namespace.IO)
+		Protocol.Path.of_string_list rest, (module Connection.Interface: Namespace.IO)
 	| "tool" :: "xenstored" :: "log" :: rest ->
-		Store.Path.of_string_list rest, (module Logging_interface: Namespace.IO)
+		Protocol.Path.of_string_list rest, (module Logging_interface: Namespace.IO)
 	| "tool" :: "xenstored" :: "memory" :: rest ->
-		Store.Path.of_string_list rest, (module Heap_debug_interface: Namespace.IO)
+		Protocol.Path.of_string_list rest, (module Heap_debug_interface: Namespace.IO)
 	| _ ->
 		path, (module Transaction: Namespace.IO)
 
 (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
 let op_exn store c t (payload: Request.payload) : Response.payload =
-	let connection_path = c.Connection.domainpath in
-	let resolve data = Store.Path.create data connection_path in
-
 	let open Request in
 	match payload with
 		| Transaction_start
@@ -63,34 +60,28 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 		| Error _
 		| Watchevent _ -> assert false
 		| Getdomainpath domid ->
-			let v = Store.Path.getdomainpath domid |> Store.Path.to_string in
+			let v = Store.getdomainpath domid |> Protocol.Name.to_string in
 			Response.Getdomainpath v
 		| PathOp(path, op) ->
-			let path = resolve path in
-
+			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
 			let path, m = get_namespace_implementation path in
 			let module Impl = (val m: Namespace.IO) in
 
+                        (* creating /a/b/c will implicitly create /a and /a/b without watches *)
 			let mkdir_p t creator perm path =
-				let dirname = Store.Path.get_parent path in
+				let dirname = Protocol.Path.dirname path in
 				if not (Impl.exists t perm dirname) then (
-					let rec check_path p =
-						match p with
-						| []      -> []
-						| h :: l  ->
-							if Impl.exists t perm h then
-								check_path l
-							else
-								p in
-					let ret = check_path (List.tl (Store.Path.get_hierarchy dirname)) in
-					List.iter (fun s -> Impl.mkdir ~with_watch:false t creator perm s) ret
+                                        Protocol.Path.iter (fun prefix ->
+                                                if not(Impl.exists t perm prefix)
+                                                then Impl.mkdir ~with_watch:false t creator perm prefix
+                                        ) dirname
 				) in
 			begin match op with
 			| Read ->
 				let v = Impl.read t c.Connection.perm path in
 				Response.Read v
 			| Directory ->
-				let entries = Impl.list t c.Connection.perm path in
+				let entries = Impl.ls t c.Connection.perm path in
 				Response.Directory entries
 			| Getperms ->
 				let v = Impl.getperms t c.Connection.perm path in
@@ -172,11 +163,11 @@ let reply_exn store c (request: t) : Response.payload =
 				Response.Transaction_end
 			end
 		| Request.Watch(path, token) ->
-			let watch = Connection.add_watch c (Store.Name.of_string path) token in
+			let watch = Connection.add_watch c (Protocol.Name.of_string path) token in
 			Connection.fire_one None watch;
 			Response.Watch
 		| Request.Unwatch(path, token) ->
-			Connection.del_watch c (Store.Name.of_string path) token;
+			Connection.del_watch c (Protocol.Name.of_string path) token;
 			Response.Unwatch
 		| Request.Debug cmd ->
 			Perms.has c.Connection.perm Perms.DEBUG;
@@ -190,7 +181,7 @@ let reply_exn store c (request: t) : Response.payload =
 		| Request.Introduce(domid, mfn, remote_port) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
 			Introduce.(introduce { domid = domid; mfn = mfn; remote_port = remote_port });
-			Connection.fire (Op.Write, Store.Name.introduceDomain);
+                        Connection.fire (Op.Write, Protocol.Name.(Predefined IntroduceDomain));
 			Response.Introduce
 		| Request.Resume(domid) ->
 			Perms.has c.Connection.perm Perms.RESUME;
@@ -199,7 +190,7 @@ let reply_exn store c (request: t) : Response.payload =
 		| Request.Release(domid) ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
-			Connection.fire (Op.Write, Store.Name.releaseDomain);
+			Connection.fire (Op.Write, Protocol.Name.(Predefined ReleaseDomain));
 			Response.Release
 		| Request.Set_target(mine, yours) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;
@@ -254,7 +245,8 @@ let reply store c request =
 			let reply code = Response.Error code in
 			begin match e with
 				| Store.Already_exists p           -> reply "EEXIST", Some p
-				| Store.Path.Doesnt_exist p        -> reply "ENOENT", Some p
+				| Node.Doesnt_exist p              -> reply "ENOENT", Some (Protocol.Path.to_string p)
+                                | Protocol.Path.Invalid_path(p, reason) -> reply "EINVAL", Some (Printf.sprintf "%s: %s" p reason)
 				| Perms.Permission_denied          -> reply "EACCES", default
 				| Not_found                        -> reply "ENOENT", default
 				| Parse_failure                    -> reply "EINVAL", default
@@ -266,7 +258,10 @@ let reply store c request =
 				| Quota.Transaction_opened         -> reply "EQUOTA", default
 				| (Failure "int_of_string")        -> reply "EINVAL", default
 				| Namespace.Unsupported            -> reply "ENOTSUP",default
-				| _                                -> reply "EIO",    default
+				| _                                ->
+                                                Printf.fprintf stderr "Uncaught exception: %s\n%!" (Printexc.to_string e);
+                                                Printexc.print_backtrace stderr;
+                                                reply "EIO",    default
 			end in
 	Logging.response ~tid ~con:c.Connection.domstr ?info response_payload;
 

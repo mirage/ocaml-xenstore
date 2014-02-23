@@ -75,7 +75,7 @@ let check quota id size =
 		raise Data_too_big
 	)
 
-let list quota =
+let ls quota =
 	Hashtbl.fold (fun domid x acc -> (domid, x) :: acc) quota.cur []
 
 let get quota id =
