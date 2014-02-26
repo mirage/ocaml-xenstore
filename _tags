@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9987a793b4e2a73d8ff958986808e747)
+# DO NOT EDIT (digest: aefeb81ee9fcae3e6e092368498efc1a)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -43,6 +43,7 @@
 "server/heap_debug_interface.cmx": for-pack(Xenstored)
 <server/*.ml{,i}>: use_xenstore
 <server/*.ml{,i}>: pkg_lwt
+<server/*.ml{,i}>: pkg_irminsule.backend.git
 <server/*.ml{,i}>: pkg_cstruct
 <server/*.ml{,i}>: pkg_cstruct.syntax
 <server/*.ml{,i}>: pkg_uri
@@ -86,6 +87,7 @@
 <server_test/server_test.{native,byte}>: use_xenstore
 <server_test/server_test.{native,byte}>: pkg_lwt
 <server_test/server_test.{native,byte}>: pkg_oUnit
+<server_test/server_test.{native,byte}>: pkg_irminsule.backend.git
 <server_test/server_test.{native,byte}>: pkg_cstruct
 <server_test/server_test.{native,byte}>: pkg_cstruct.syntax
 <server_test/server_test.{native,byte}>: pkg_uri
@@ -97,6 +99,7 @@
 <server_test/binary.{native,byte}>: pkg_lwt
 <server_test/binary.{native,byte}>: pkg_lwt.unix
 <server_test/binary.{native,byte}>: pkg_oUnit
+<server_test/binary.{native,byte}>: pkg_irminsule.backend.git
 <server_test/binary.{native,byte}>: pkg_cstruct
 <server_test/binary.{native,byte}>: pkg_cstruct.syntax
 <server_test/binary.{native,byte}>: pkg_uri
@@ -106,6 +109,7 @@
 <server_test/*.ml{,i}>: pkg_lwt
 <server_test/*.ml{,i}>: pkg_lwt.unix
 <server_test/*.ml{,i}>: pkg_oUnit
+<server_test/*.ml{,i}>: pkg_irminsule.backend.git
 <server_test/*.ml{,i}>: pkg_cstruct
 <server_test/*.ml{,i}>: pkg_cstruct.syntax
 <server_test/*.ml{,i}>: pkg_uri
@@ -130,6 +134,7 @@
 <userspace/main.{native,byte}>: pkg_xen-evtchn.unix.activations
 <userspace/main.{native,byte}>: pkg_io-page
 <userspace/main.{native,byte}>: pkg_io-page.unix
+<userspace/main.{native,byte}>: pkg_irminsule.backend.git
 <userspace/main.{native,byte}>: pkg_cstruct
 <userspace/main.{native,byte}>: pkg_cstruct.syntax
 <userspace/main.{native,byte}>: pkg_uri
@@ -146,6 +151,7 @@
 <userspace/*.ml{,i}>: pkg_xen-evtchn.unix.activations
 <userspace/*.ml{,i}>: pkg_io-page
 <userspace/*.ml{,i}>: pkg_io-page.unix
+<userspace/*.ml{,i}>: pkg_irminsule.backend.git
 <userspace/*.ml{,i}>: pkg_cstruct
 <userspace/*.ml{,i}>: pkg_cstruct.syntax
 <userspace/*.ml{,i}>: pkg_uri
@@ -162,6 +168,7 @@
 "userspace/domains_stubs.c": pkg_xen-evtchn.unix.activations
 "userspace/domains_stubs.c": pkg_io-page
 "userspace/domains_stubs.c": pkg_io-page.unix
+"userspace/domains_stubs.c": pkg_irminsule.backend.git
 "userspace/domains_stubs.c": pkg_cstruct
 "userspace/domains_stubs.c": pkg_cstruct.syntax
 "userspace/domains_stubs.c": pkg_uri

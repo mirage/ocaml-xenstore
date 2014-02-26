@@ -22,7 +22,20 @@ let ( ++ ) f g x = f (g x)
 let debug fmt = Logging.debug "server" fmt
 let error fmt = Logging.error "server" fmt
 
-let persist store side_effects = ()
+module DB = (val IrminGit.local ~bare:false "/tmp/xenstore/test")
+
+let db_t = DB.create ()
+
+let persist side_effects =
+        db_t >>= fun db ->
+        Lwt_list.iter_s (function
+        | Store.Write(path, perm, value) ->
+                        Printf.fprintf stderr "+ %s\n%!" (Protocol.Path.to_string path);
+                DB.update db (Protocol.Path.to_string_list path) value
+        | Store.Rm path ->
+                        Printf.fprintf stderr "- %s\n%!" (Protocol.Path.to_string path);
+                DB.remove db (Protocol.Path.to_string_list path)
+        ) side_effects.Transaction.updates
 
 let store =
 	let store = Store.create () in
@@ -34,7 +47,9 @@ let store =
 			then Transaction.mkdir t 0 (Perms.of_domain 0) path
 		) [ "/local"; "/local/domain"; "/tool"; "/tool/xenstored"; "/tool/xenstored/quota"; "/tool/xenstored/connection"; "/tool/xenstored/log"; "/tool/xenstored/memory" ];
         assert (Transaction.commit t);
-        persist store (Transaction.get_side_effects t);
+        (*
+        persist (Transaction.get_side_effects t);
+        *)
         store
 
 module Make_namespace(T: S.TRANSPORT) = struct
@@ -100,7 +115,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
 				let events = take_watch_events () in
 				let reply, side_effects = Call.reply store c request in
                                 Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
-                                persist store side_effects;
+                                persist side_effects >>= fun () ->
 				Lwt_mutex.with_lock m
 					(fun () ->
 						lwt () = flush_watch_events events in	

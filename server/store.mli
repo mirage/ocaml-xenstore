@@ -23,6 +23,10 @@ type t =
 	mutable quota: Quota.t;
 }
 
+type update =
+| Write of Protocol.Path.t * Protocol.ACL.t * string
+| Rm of Protocol.Path.t
+
 val dump_stdout: t -> unit
 
 val getdomainpath: int -> Protocol.Name.t
@@ -37,13 +41,13 @@ val copy: t -> t
 
 val exists: t -> Protocol.Path.t -> bool
 
-val write: t -> int -> Perms.t -> Protocol.Path.t -> string -> unit
+val write: t -> int -> Perms.t -> Protocol.Path.t -> string -> update
 
-val mkdir: t -> int -> Perms.t -> Protocol.Path.t -> unit
+val mkdir: t -> int -> Perms.t -> Protocol.Path.t -> update
 
-val setperms: t -> Perms.t -> Protocol.Path.t -> Protocol.ACL.t -> unit
+val setperms: t -> Perms.t -> Protocol.Path.t -> Protocol.ACL.t -> update
 
-val rm: t -> Perms.t -> Protocol.Path.t -> unit
+val rm: t -> Perms.t -> Protocol.Path.t -> update list
 
 val ls: t -> Perms.t -> Protocol.Path.t -> string list
 
