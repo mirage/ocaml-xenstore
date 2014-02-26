@@ -165,7 +165,7 @@ let reply_exn store c (request: t) : Response.payload =
 					&& not(Transaction.commit ~con:c.Connection.domstr t)
 					&& not(transaction_replay store c t)
 				then raise Transaction_again;
-				Transaction.get_paths t |> List.rev |> List.iter Connection.fire;
+				Transaction.get_watches t |> List.rev |> List.iter Connection.fire;
 				Response.Transaction_end
 			end else begin
 				(* Don't log an explicit abort *)
@@ -228,7 +228,7 @@ let reply_exn store c (request: t) : Response.payload =
 			reply in
 
 	if tid = Transaction.none
-	then Transaction.get_paths t |> List.rev |> List.iter Connection.fire;
+	then Transaction.get_watches t |> List.rev |> List.iter Connection.fire;
 	response_payload
 
 let gc store =
