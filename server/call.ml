@@ -163,7 +163,7 @@ let reply_exn store c (request: t) : Response.payload * Transaction.side_effects
 				then begin
                                         Logging.conflict ~tid ~con:c.Connection.domstr;
                                         raise Transaction_again
-                                end
+                                end;
                                 Logging.commit ~tid ~con:c.Connection.domstr;
 				Response.Transaction_end, Transaction.get_side_effects t
 			end else begin
