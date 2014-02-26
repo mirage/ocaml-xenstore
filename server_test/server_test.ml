@@ -88,7 +88,9 @@ let check_result reply = function
 
 let rpc store c tid payload =
 	let request = Protocol.Request.print payload tid 0l in
-	Call.reply store c request
+        let response, side_effects = Call.reply store c request in
+        Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
+        response
 
 let run store (payloads: (Connection.t * int32 * Protocol.Request.payload * result) list) =
 	List.iter

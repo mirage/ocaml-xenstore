@@ -93,7 +93,8 @@ module Make = functor(T: S.TRANSPORT) -> struct
 					| Ok x -> return x
 					| Exception e -> raise_lwt e in
 				let events = take_watch_events () in
-				let reply = Call.reply store c request in
+				let reply, side_effects = Call.reply store c request in
+                                Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
 				Lwt_mutex.with_lock m
 					(fun () ->
 						lwt () = flush_watch_events events in	

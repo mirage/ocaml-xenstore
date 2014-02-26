@@ -42,8 +42,15 @@ let get_namespace_implementation path = match Protocol.Path.to_string_list path 
 
 (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
-let op_exn store c t (payload: Request.payload) : Response.payload =
+let op_exn store c t (payload: Request.payload) : Response.payload * Transaction.side_effects =
 	let open Request in
+        (* used when an operation has side-effects which should be visible
+           immediately (if not in a transaction context) or upon commit (if
+           in a transaction context) *)
+        let has_side_effects () =
+                if Transaction.get_id t = Transaction.none
+                then Transaction.get_side_effects t
+                else Transaction.no_side_effects () in
 	match payload with
 		| Transaction_start
 		| Transaction_end _
@@ -60,7 +67,7 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 		| Watchevent _ -> assert false
 		| Getdomainpath domid ->
 			let v = Store.getdomainpath domid |> Protocol.Name.to_string in
-			Response.Getdomainpath v
+			Response.Getdomainpath v, Transaction.no_side_effects ()
 		| PathOp(path, op) ->
 			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
 			let path, m = get_namespace_implementation path in
@@ -69,25 +76,25 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 			begin match op with
 			| Read ->
 				let v = Impl.read t c.Connection.perm path in
-				Response.Read v
+				Response.Read v, Transaction.no_side_effects ()
 			| Directory ->
 				let entries = Impl.ls t c.Connection.perm path in
-				Response.Directory entries
+				Response.Directory entries, Transaction.no_side_effects ()
 			| Getperms ->
 				let v = Impl.getperms t c.Connection.perm path in
-				Response.Getperms v
+				Response.Getperms v, Transaction.no_side_effects ()
 			| Write value ->
 				Impl.write t c.Connection.domid c.Connection.perm path value;
-				Response.Write
+				Response.Write, has_side_effects ()
 			| Mkdir ->
 				Impl.mkdir t c.Connection.domid c.Connection.perm path;
-				Response.Mkdir
+				Response.Mkdir, has_side_effects ()
 			| Rm ->
 				Impl.rm t c.Connection.perm path;
-				Response.Rm
+				Response.Rm, has_side_effects ()
 			| Setperms perms ->
 				Impl.setperms t c.Connection.perm path perms;
-				Response.Setperms
+				Response.Setperms, Transaction.no_side_effects ()
 			end
 
 (* Replay a stored transaction against a fresh store, check the responses are
@@ -101,7 +108,7 @@ let transaction_replay store c t =
 	let perform_exn (request, response) =
 		Logging.request ~tid ~con:("replay request:" ^ c.Connection.domstr) request;
 		Logging.response ~tid ~con:("replay reply1: " ^ c.Connection.domstr) response;
-		let response' = op_exn store c t request in
+		let response', side_effects = op_exn store c t request in
 		Logging.response ~tid ~con:("replay reply2: " ^ c.Connection.domstr) response';
 		Logging.response ~tid ~con response';
 		if response <> response' then begin
@@ -127,7 +134,7 @@ let hexify s =
         done;
         hs
 
-let reply_exn store c (request: t) : Response.payload =
+let reply_exn store c (request: t) : Response.payload * Transaction.side_effects =
 	let tid = get_tid request in
 	let t =
 		if tid = Transaction.none
@@ -141,11 +148,11 @@ let reply_exn store c (request: t) : Response.payload =
 
 	Logging.request ~tid ~con:c.Connection.domstr payload;
 
-	let response_payload = match payload with
+	match payload with
 		| Request.Transaction_start ->
 			if tid <> Transaction.none then raise Transaction_nested;
 			let tid = Connection.register_transaction c store in
-			Response.Transaction_start tid
+			Response.Transaction_start tid, Transaction.no_side_effects ()
 		| Request.Transaction_end commit ->
 			Connection.unregister_transaction c tid;
 			if commit then begin
@@ -154,19 +161,18 @@ let reply_exn store c (request: t) : Response.payload =
 					&& not(Transaction.commit ~con:c.Connection.domstr t)
 					&& not(transaction_replay store c t)
 				then raise Transaction_again;
-				Transaction.get_watches t |> List.rev |> List.iter Connection.fire;
-				Response.Transaction_end
+				Response.Transaction_end, Transaction.get_side_effects t
 			end else begin
 				(* Don't log an explicit abort *)
-				Response.Transaction_end
+				Response.Transaction_end, Transaction.no_side_effects ()
 			end
 		| Request.Watch(path, token) ->
 			let watch = Connection.add_watch c (Protocol.Name.of_string path) token in
 			Connection.fire_one None watch;
-			Response.Watch
+			Response.Watch, Transaction.no_side_effects ()
 		| Request.Unwatch(path, token) ->
 			Connection.del_watch c (Protocol.Name.of_string path) token;
-			Response.Unwatch
+			Response.Unwatch, Transaction.no_side_effects ()
 		| Request.Debug cmd ->
 			Perms.has c.Connection.perm Perms.DEBUG;
 			Response.Debug (
@@ -175,21 +181,21 @@ let reply_exn store c (request: t) : Response.payload =
 					Logging.debug_print ~tid:0l ~con:c.Connection.domstr msg;
 					[]
 				| _ -> []
-				with _ -> [])
+				with _ -> []), Transaction.no_side_effects ()
 		| Request.Introduce(domid, mfn, remote_port) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
 			Introduce.(introduce { domid = domid; mfn = mfn; remote_port = remote_port });
                         Connection.fire (Op.Write, Protocol.Name.(Predefined IntroduceDomain));
-			Response.Introduce
+			Response.Introduce, Transaction.no_side_effects ()
 		| Request.Resume(domid) ->
 			Perms.has c.Connection.perm Perms.RESUME;
 			(* register domain *)
-			Response.Resume
+			Response.Resume, Transaction.no_side_effects ()
 		| Request.Release(domid) ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
 			Connection.fire (Op.Write, Protocol.Name.(Predefined ReleaseDomain));
-			Response.Release
+			Response.Release, Transaction.no_side_effects ()
 		| Request.Set_target(mine, yours) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;
 			Hashtbl.iter
@@ -197,14 +203,14 @@ let reply_exn store c (request: t) : Response.payload =
 					if c.Connection.domid = mine
 					then c.Connection.perm <- Perms.set_target c.Connection.perm yours;
 				) Connection.by_address;
-			Response.Set_target
+			Response.Set_target, Transaction.no_side_effects ()
 		| Request.Restrict domid ->
 			Perms.has c.Connection.perm Perms.RESTRICT;
 			c.Connection.perm <- Perms.restrict c.Connection.perm domid;
-			Response.Restrict
+			Response.Restrict, Transaction.no_side_effects ()
 		| Request.Isintroduced domid ->
 			Perms.has c.Connection.perm Perms.ISINTRODUCED;
-			Response.Isintroduced false
+			Response.Isintroduced false, Transaction.no_side_effects ()
 		| Request.Error msg ->
 			error "client sent us an error: %s" (hexify msg);
 			raise Parse_failure
@@ -212,13 +218,9 @@ let reply_exn store c (request: t) : Response.payload =
 			error "client sent us a watch event: %s" (hexify msg);
 			raise Parse_failure
 		| op ->
-			let reply = op_exn store c t op in
+			let reply, side_effects = op_exn store c t op in
 			if tid <> Transaction.none then Transaction.add_operation t op reply;
-			reply in
-
-	if tid = Transaction.none
-	then Transaction.get_watches t |> List.rev |> List.iter Connection.fire;
-	response_payload
+			reply, side_effects
 
 let gc store =
 	if Symbol.created () > 1000 || Symbol.used () > 20000
@@ -235,12 +237,12 @@ let reply store c request =
 	c.Connection.stat_nb_ops <- c.Connection.stat_nb_ops + 1;
 	let tid = get_tid request in
 	let rid = get_rid request in
-	let response_payload, info =
+	let (response_payload, side_effects), info =
 		try
 			reply_exn store c request, None
 		with e ->
 			let default = Some (Printexc.to_string e) in
-			let reply code = Response.Error code in
+                        let reply code = Response.Error code, Transaction.no_side_effects () in
 			begin match e with
 				| Store.Already_exists p           -> reply "EEXIST", Some p
 				| Node.Doesnt_exist p              -> reply "ENOENT", Some (Protocol.Path.to_string p)
@@ -263,6 +265,4 @@ let reply store c request =
 			end in
 	Logging.response ~tid ~con:c.Connection.domstr ?info response_payload;
 
-	Response.print response_payload tid rid
-
-
+	Response.print response_payload tid rid, side_effects

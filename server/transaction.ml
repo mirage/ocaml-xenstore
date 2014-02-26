@@ -20,10 +20,7 @@ let test_eagain = ref false
 
 type ty = No | Full of (int32 * Node.t * Store.t)
 
-type t = {
-	ty: ty;
-	store: Store.t;
-	quota: Quota.t;
+type side_effects = {
         (* A log of all the store updates in this transaction. When the transaction
            is committed, these paths need to be committed to stable storage. *) 
         mutable writes: Protocol.Path.t list;
@@ -32,6 +29,20 @@ type t = {
            be derived directly from [writes] above because implicit directory
            creates don't generate watches (for no good reason) *)
 	mutable watches: (Protocol.Op.t * Protocol.Name.t) list;
+}
+
+let no_side_effects () = { writes = []; deletes = []; watches = [] }
+
+let get_watches side_effects = side_effects.watches
+let get_writes side_effects = side_effects.writes
+let get_deletes side_effects = side_effects.deletes
+
+type t = {
+	ty: ty;
+	store: Store.t;
+	quota: Quota.t;
+        (* Side-effects which should be generated when the transaction is committed. *)
+        side_effects: side_effects;
         (* A log of all the requests and responses during this transaction. When
            committing a transaction to a modified store, we replay the requests and
            abort the transaction if any of the responses would now be different. *)
@@ -44,19 +55,15 @@ let make id store =
 		ty = ty;
 		store = if id = none then store else Store.copy store;
 		quota = Quota.copy  store.Store.quota;
-		writes = [];
-                deletes = [];
-                watches = [];
+                side_effects = no_side_effects ();
 		operations = [];
 	}
 
 let get_id t = match t.ty with No -> none | Full (id, _, _) -> id
 let get_store t = t.store
-let get_watches t = t.watches
-let get_writes t = t.writes
-let get_deletes t = t.deletes
+let get_side_effects t = t.side_effects
 
-let add_watch t ty path = t.watches <- (ty, Protocol.Name.Absolute path) :: t.watches
+let add_watch t ty path = t.side_effects.watches <- (ty, Protocol.Name.Absolute path) :: t.side_effects.watches
 let add_operation t request response = t.operations <- (request, response) :: t.operations
 let get_operations t = List.rev t.operations
 
@@ -65,7 +72,7 @@ let mkdir t creator perm path =
                 Protocol.Path.iter (fun prefix ->
                         if not(Store.exists t.store prefix) then begin
                                 Store.mkdir t.store creator perm prefix;
-                                t.writes <- path :: t.writes;
+                                t.side_effects.writes <- path :: t.side_effects.writes;
                                 (* no watches for implicitly created directories *)
                         end
                 ) path;
@@ -75,17 +82,17 @@ let mkdir t creator perm path =
 let write t creator perm path value =
         mkdir t creator perm (Protocol.Path.dirname path);
 	Store.write t.store creator perm path value;
-        t.writes <- path :: t.writes;
+        t.side_effects.writes <- path :: t.side_effects.writes;
         add_watch t Protocol.Op.Write path
 
 let setperms t perm path perms =
 	Store.setperms t.store perm path perms;
-        t.writes <- path :: t.writes;
+        t.side_effects.writes <- path :: t.side_effects.writes;
 	add_watch t Protocol.Op.Setperms path
 
 let rm t perm path =
 	Store.rm t.store perm path;
-        t.writes <- path :: t.writes;
+        t.side_effects.writes <- path :: t.side_effects.writes;
 	add_watch t Protocol.Op.Rm path
 
 let exists t perms path = Store.exists t.store path
@@ -102,7 +109,7 @@ let commit ~con t =
 			if oldroot == cstore.Store.root then (
 				(* move the new root to the current store, if the oldroot
 				   has not been modified *)
-                                if t.writes <> [] || t.deletes <> [] then (
+                                if t.side_effects.writes <> [] || t.side_effects.deletes <> [] then (
 					Store.set_root cstore store.Store.root;
 					Store.set_quota cstore store.Store.quota
 				);
