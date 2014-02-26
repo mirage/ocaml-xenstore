@@ -61,16 +61,23 @@ let add_watch t ty path = t.watches <- (ty, Protocol.Name.Absolute path) :: t.wa
 let add_operation t request response = t.operations <- (request, response) :: t.operations
 let get_operations t = List.rev t.operations
 
+let mkdir t creator perm path =
+        if not (Store.exists t.store path) then (
+                Protocol.Path.iter (fun prefix ->
+                        if not(Store.exists t.store prefix) then begin
+                                Store.mkdir t.store creator perm prefix;
+                                t.writes <- path :: t.writes;
+                                (* no watches for implicitly created directories *)
+                        end
+                ) path;
+                add_watch t Protocol.Op.Mkdir path
+        )
+
 let write t creator perm path value =
+        mkdir t creator perm (Protocol.Path.dirname path);
 	Store.write t.store creator perm path value;
         t.writes <- path :: t.writes;
         add_watch t Protocol.Op.Write path
-
-let mkdir ?(with_watch=true) t creator perm path =
-	Store.mkdir t.store creator perm path;
-        t.writes <- path :: t.writes;
-	if with_watch then
-		add_watch t Protocol.Op.Mkdir path
 
 let setperms t perm path perms =
 	Store.setperms t.store perm path perms;

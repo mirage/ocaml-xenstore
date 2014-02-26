@@ -66,15 +66,6 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 			let path, m = get_namespace_implementation path in
 			let module Impl = (val m: Namespace.IO) in
 
-                        (* creating /a/b/c will implicitly create /a and /a/b without watches *)
-			let mkdir_p t creator perm path =
-				let dirname = Protocol.Path.dirname path in
-				if not (Impl.exists t perm dirname) then (
-                                        Protocol.Path.iter (fun prefix ->
-                                                if not(Impl.exists t perm prefix)
-                                                then Impl.mkdir ~with_watch:false t creator perm prefix
-                                        ) dirname
-				) in
 			begin match op with
 			| Read ->
 				let v = Impl.read t c.Connection.perm path in
@@ -86,11 +77,9 @@ let op_exn store c t (payload: Request.payload) : Response.payload =
 				let v = Impl.getperms t c.Connection.perm path in
 				Response.Getperms v
 			| Write value ->
-				mkdir_p t c.Connection.domid c.Connection.perm path;
 				Impl.write t c.Connection.domid c.Connection.perm path value;
 				Response.Write
 			| Mkdir ->
-				mkdir_p t c.Connection.domid c.Connection.perm path;
 				Impl.mkdir t c.Connection.domid c.Connection.perm path;
 				Response.Mkdir
 			| Rm ->

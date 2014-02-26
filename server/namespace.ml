@@ -2,7 +2,7 @@ open Xenstore
 
 module type IO = sig
 	val exists: Transaction.t -> Perms.t -> Protocol.Path.t -> bool
-	val mkdir: ?with_watch:bool -> Transaction.t -> int -> Perms.t -> Protocol.Path.t -> unit
+	val mkdir: Transaction.t -> int -> Perms.t -> Protocol.Path.t -> unit
 	val read: Transaction.t -> Perms.t -> Protocol.Path.t -> string
 	val write: Transaction.t -> int -> Perms.t -> Protocol.Path.t -> string -> unit
 	val ls: Transaction.t -> Perms.t -> Protocol.Path.t -> string list
@@ -15,7 +15,7 @@ exception Unsupported
 
 module Unsupported = struct
 	let exists _ _ _ = raise Unsupported
-	let mkdir ?with_watch _ _ _ _ = raise Unsupported
+	let mkdir _ _ _ _ = raise Unsupported
 	let read _ _ _ = raise Unsupported
 	let write _ _ _ _ _ = raise Unsupported
 	let ls _ _ _ = raise Unsupported
