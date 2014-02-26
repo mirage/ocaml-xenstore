@@ -119,7 +119,7 @@ let transaction_replay store c t =
 		List.iter perform_exn ops;
 		Logging.end_transaction ~tid ~con;
 
-		Transaction.commit ~con t
+		Transaction.commit t
 	with e ->
 		error "transaction_replay caught: %s" (Printexc.to_string e);
 		false
@@ -158,9 +158,13 @@ let reply_exn store c (request: t) : Response.payload * Transaction.side_effects
 			if commit then begin
 				Logging.end_transaction ~tid ~con:c.Connection.domstr;
 				if true
-					&& not(Transaction.commit ~con:c.Connection.domstr t)
+					&& not(Transaction.commit t)
 					&& not(transaction_replay store c t)
-				then raise Transaction_again;
+				then begin
+                                        Logging.conflict ~tid ~con:c.Connection.domstr;
+                                        raise Transaction_again
+                                end
+                                Logging.commit ~tid ~con:c.Connection.domstr;
 				Response.Transaction_end, Transaction.get_side_effects t
 			end else begin
 				(* Don't log an explicit abort *)

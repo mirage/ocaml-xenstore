@@ -22,15 +22,20 @@ let ( ++ ) f g x = f (g x)
 let debug fmt = Logging.debug "server" fmt
 let error fmt = Logging.error "server" fmt
 
+let persist store side_effects = ()
+
 let store =
 	let store = Store.create () in
+        let t = Transaction.make 1l store in
 	List.iter
 		(fun path ->
                         let path = Protocol.Path.of_string path in
-			if not (Store.exists store path)
-			then Store.mkdir store 0 (Perms.of_domain 0) path
+			if not (Transaction.exists t (Perms.of_domain 0) path)
+			then Transaction.mkdir t 0 (Perms.of_domain 0) path
 		) [ "/local"; "/local/domain"; "/tool"; "/tool/xenstored"; "/tool/xenstored/quota"; "/tool/xenstored/connection"; "/tool/xenstored/log"; "/tool/xenstored/memory" ];
-	store
+        assert (Transaction.commit t);
+        persist store (Transaction.get_side_effects t);
+        store
 
 module Make_namespace(T: S.TRANSPORT) = struct
   let namespace_of channel =
@@ -95,6 +100,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
 				let events = take_watch_events () in
 				let reply, side_effects = Call.reply store c request in
                                 Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
+                                persist store side_effects;
 				Lwt_mutex.with_lock m
 					(fun () ->
 						lwt () = flush_watch_events events in	

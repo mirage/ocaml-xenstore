@@ -100,8 +100,7 @@ let ls t perm path = Store.ls t.store perm path
 let read t perm path = Store.read t.store perm path
 let getperms t perm path = Store.getperms t.store perm path
 
-let commit ~con t =
-	let has_commited =
+let commit t =
 	match t.ty with
 	| No                         -> true
 	| Full (id, oldroot, cstore) ->
@@ -121,8 +120,3 @@ let commit ~con t =
 			false
 		else
 			try_commit oldroot cstore t.store
-	in
-	if not has_commited 
-	then Logging.conflict ~tid:(get_id t) ~con
-	else Logging.commit ~tid:(get_id t) ~con;
-	has_commited
