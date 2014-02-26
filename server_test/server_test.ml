@@ -221,11 +221,9 @@ let test_restrict () =
 		dom0, none, PathOp("/foo", Write "bar"), OK;
 		dom0, none, PathOp("/foo", Setperms example_acl), OK;
 		dom3, none, PathOp("/foo", Write "bar"), OK;
-                (*
 		dom7, none, PathOp("/foo", Write "bar"), Err "EACCES";
 		dom0, none, Restrict 7, OK;
 		dom0, none, PathOp("/foo", Write "bar"), Err "EACCES";
-                *)
 	]
 
 let test_set_target () =
