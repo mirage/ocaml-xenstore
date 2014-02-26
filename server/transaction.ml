@@ -25,8 +25,7 @@ type t = {
 	store: Store.t;
 	quota: Quota.t;
         (* A log of all the store updates in this transaction. When the transaction
-           is committed, watches on these paths are fired. If the store is being
-           persisted to disk then these are the changes needed. *)
+           is committed, these paths need to be committed to stable storage. *) 
         mutable writes: Protocol.Path.t list;
         mutable deletes: Protocol.Path.t list;
         (* A log of updates which should generate a watch events. Note this can't
