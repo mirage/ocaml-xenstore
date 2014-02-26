@@ -31,10 +31,14 @@ let persist side_effects =
         Lwt_list.iter_s (function
         | Store.Write(path, perm, value) ->
                         Printf.fprintf stderr "+ %s\n%!" (Protocol.Path.to_string path);
+                        (try_lwt
                 DB.update db (Protocol.Path.to_string_list path) value
+                with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e); fail e))
         | Store.Rm path ->
                         Printf.fprintf stderr "- %s\n%!" (Protocol.Path.to_string path);
+                        (try_lwt
                 DB.remove db (Protocol.Path.to_string_list path)
+                with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e); fail e))
         ) side_effects.Transaction.updates
 
 let store =
