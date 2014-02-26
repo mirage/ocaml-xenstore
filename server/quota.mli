@@ -92,7 +92,7 @@ val check: t -> int -> int -> unit
 val get: t -> int -> int
 (** [get domid] returns the number of entries associated with [domid] *)
 
-val list: t -> (int * int) list
+val ls: t -> (int * int) list
 (** [list t] returns all (domid, entry count) pairs *)
 
 val incr: t -> int -> unit

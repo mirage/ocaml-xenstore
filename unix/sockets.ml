@@ -108,7 +108,7 @@ module Introspect = struct
     | [ "writable" ] -> Some (string_of_bool (Lwt_unix.writable fd))
     | _ -> None
 
-  let list t = function
+  let ls t = function
     | [] -> [ "readable"; "writable" ]
     | _ -> []
 

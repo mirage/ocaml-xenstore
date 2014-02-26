@@ -26,9 +26,9 @@ let store =
 	let store = Store.create () in
 	List.iter
 		(fun path ->
-			let p = Store.Path.create path (Store.Path.getdomainpath 0) in
-			if not (Store.exists store p)
-			then Store.mkdir store 0 (Perms.of_domain 0) p
+                        let path = Protocol.Path.of_string path in
+			if not (Store.exists store path)
+			then Store.mkdir store 0 (Perms.of_domain 0) path
 		) [ "/local"; "/local/domain"; "/tool"; "/tool/xenstored"; "/tool/xenstored/quota"; "/tool/xenstored/connection"; "/tool/xenstored/log"; "/tool/xenstored/memory" ];
 	store
 
@@ -36,18 +36,18 @@ module Make_namespace(T: S.TRANSPORT) = struct
   let namespace_of channel =
     let module Interface = struct
       include Namespace.Unsupported
-      let read t (perms: Perms.t) (path: Store.Path.t) =
+      let read t (perms: Perms.t) (path: Protocol.Path.t) =
         Perms.has perms Perms.CONFIGURE;
-        match T.Introspect.read channel (Store.Path.to_string_list path) with
+        match T.Introspect.read channel (Protocol.Path.to_string_list path) with
         | Some x -> x
-        | None -> raise (Store.Path.Doesnt_exist (Store.Path.to_string path))
-      let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
-      let list t perms path =
+        | None -> raise (Node.Doesnt_exist path)
+      let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
+      let ls t perms path =
         Perms.has perms Perms.CONFIGURE;
-        T.Introspect.list channel (Store.Path.to_string_list path)
+        T.Introspect.ls channel (Protocol.Path.to_string_list path)
       let write t _ perms path v =
         Perms.has perms Perms.CONFIGURE;
-        if not(T.Introspect.write channel (Store.Path.to_string_list path) v)
+        if not(T.Introspect.write channel (Protocol.Path.to_string_list path) v)
         then raise Perms.Permission_denied
     end in
     Some (module Interface: Namespace.IO)
@@ -93,7 +93,8 @@ module Make = functor(T: S.TRANSPORT) -> struct
 					| Ok x -> return x
 					| Exception e -> raise_lwt e in
 				let events = take_watch_events () in
-				let reply = Call.reply store c request in
+				let reply, side_effects = Call.reply store c request in
+                                Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
 				Lwt_mutex.with_lock m
 					(fun () ->
 						lwt () = flush_watch_events events in	

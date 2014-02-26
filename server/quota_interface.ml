@@ -1,10 +1,11 @@
+open Xenstore
 include Namespace.Unsupported
 
 let ( |> ) a b = b a
 
-let read t (perms: Perms.t) (path: Store.Path.t) =
+let read t (perms: Perms.t) (path: Protocol.Path.t) =
 	Perms.has perms Perms.CONFIGURE;
-	match Store.Path.to_string_list path with
+	match Protocol.Path.to_string_list path with
 		| [] -> ""
 		| "default" :: [] -> ""
 		| "entries-per-domain" :: [] -> ""
@@ -30,30 +31,30 @@ let read t (perms: Perms.t) (path: Store.Path.t) =
 		| "number-of-entries" :: domid :: [] ->
 			begin match Quota.get_override Quota.maxent_overrides (int_of_string domid) with
 				| Some x -> string_of_int x
-				| None -> Store.Path.doesnt_exist path
+				| None -> raise (Node.Doesnt_exist path)
 			end
 		| "number-of-registered-watches" :: domid :: [] ->
 			begin match Quota.get_override Quota.maxwatch_overrides (int_of_string domid) with
 				| Some x -> string_of_int x
-				| None -> Store.Path.doesnt_exist path
+				| None -> raise (Node.Doesnt_exist path)
 			end
 		| "number-of-active-transactions" :: domid :: [] ->
 			begin match Quota.get_override Quota.maxtransaction_overrides (int_of_string domid) with
 				| Some x -> string_of_int x
-				| None -> Store.Path.doesnt_exist path
+				| None -> raise (Node.Doesnt_exist path)
 			end
 		| "number-of-queued-watch-events" :: domid :: [] ->
 			begin match Quota.get_override Quota.maxwatchevent_overrides (int_of_string domid) with
 				| Some x -> string_of_int x
-				| None -> Store.Path.doesnt_exist path
+				| None -> raise (Node.Doesnt_exist path)
 			end
-		| _ -> Store.Path.doesnt_exist path
+		| _ -> raise (Node.Doesnt_exist path)
 
-let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
+let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
 
 let write t creator perms path value =
 	Perms.has perms Perms.CONFIGURE;
-	match Store.Path.to_string_list path with
+	match Protocol.Path.to_string_list path with
 		| "default" :: "number-of-entries" :: [] ->
 			Quota.maxent := int_of_string value
 		| "default" :: "entry-length" :: [] ->
@@ -72,16 +73,16 @@ let write t creator perms path value =
 			Quota.set_override Quota.maxtransaction_overrides (int_of_string domid) (Some (int_of_string value))
 		| "number-of-queued-watch-events" :: domid :: [] ->
 			Quota.set_override Quota.maxwatchevent_overrides (int_of_string domid) (Some (int_of_string value))
-		| _ -> Store.Path.doesnt_exist path
+		| _ -> raise (Node.Doesnt_exist path)
 
 let list t perms path =
 	Perms.has perms Perms.CONFIGURE;
-	match Store.Path.to_string_list path with
+	match Protocol.Path.to_string_list path with
 	| [] -> [ "default"; "entries-per-domain"; "number-of-entries"; "number-of-registered-watches"; "number-of-active-transactions"; "number-of-queued-watch-events" ]
 	| [ "default" ] -> [ "number-of-entries"; "entry-length"; "number-of-registered-watches"; "number-of-active-transactions"; "number-of-queued-watch-events" ]
 	| [ "entries-per-domain" ] ->
 		let q = t.Transaction.store.Store.quota in
-		Quota.list q |> List.map fst |> List.map string_of_int
+		Quota.ls q |> List.map fst |> List.map string_of_int
 	| [ "number-of-entries" ] ->
 		Quota.list_overrides Quota.maxent_overrides |> List.map fst |> List.map string_of_int
 	| [ "number-of-registered-watches" ] ->
@@ -95,7 +96,7 @@ let list t perms path =
 
 let rm t perms path =
 	Perms.has perms Perms.CONFIGURE;
-	match Store.Path.to_string_list path with
+	match Protocol.Path.to_string_list path with
 	| "number-of-entries" :: domid :: [] ->
 		Quota.set_override Quota.maxent_overrides (int_of_string domid) None
 	| "number-of-registered-watches" :: domid :: [] ->

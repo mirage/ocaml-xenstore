@@ -28,11 +28,21 @@ let success f reply =
 			failwith (Printf.sprintf "Error: %s" (Protocol.get_data reply))
 		| _ -> f reply
 
+let hexify s =
+        let hexseq_of_char c = Printf.sprintf "%02x" (Char.code c) in
+        let hs = String.create (String.length s * 2) in
+        for i = 0 to String.length s - 1 do
+                let seq = hexseq_of_char s.[i] in
+                hs.[i * 2] <- seq.[0];
+                hs.[i * 2 + 1] <- seq.[1];
+        done;
+        hs
+
 let failure f reply =
 	match Protocol.get_ty reply with
 		| Protocol.Op.Error -> f reply
 		| _ ->
-			failwith (Printf.sprintf "Expected failure, got success: %s" (Junk.hexify(Protocol.to_string reply)))
+			failwith (Printf.sprintf "Expected failure, got success: %s" (hexify(Protocol.to_string reply)))
 
 let list f reply = match Protocol.Unmarshal.list reply with
 	| Some x -> f x
@@ -78,12 +88,16 @@ let check_result reply = function
 
 let rpc store c tid payload =
 	let request = Protocol.Request.print payload tid 0l in
-	Call.reply store c request
+        let response, side_effects = Call.reply store c request in
+        Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
+        response
 
 let run store (payloads: (Connection.t * int32 * Protocol.Request.payload * result) list) =
 	List.iter
 		(fun (c, tid, payload, expected_result) ->
-			check_result (rpc store c tid payload) expected_result
+                        let actual = rpc store c tid payload in
+                        (* Store.dump_stdout store; *)
+			check_result actual expected_result
 		) payloads
 
 let interdomain domid = Uri.make ~scheme:"domain" ~path:(string_of_int domid) (), domid
@@ -488,6 +502,17 @@ let test_bounded_watch_events () =
 	(* Check that the per-connection watch event queue is bounded *)
 	()
 
+let test_rm_root () =
+        (* Check that deleting / fails *)
+	let dom0 = Connection.create (interdomain 0) None in
+	let store = empty_store () in
+	let open Protocol.Request in
+	run store [
+		(* Removing the root node is forbidden *)
+		dom0, none, PathOp("/", Rm), Err "EINVAL";
+	]
+
+
 let test_quota () =
 	(* Check that node creation and destruction changes a quota *)
 	let dom0 = Connection.create (interdomain 0) None in
@@ -625,7 +650,6 @@ let _ =
 
   let suite = "xenstore" >:::
     [
-
 		"test_implicit_create" >:: test_implicit_create;
 		"test_directory_order" >:: test_directory_order;
 		"getperms(setperms)" >:: test_setperms_getperms;
@@ -644,6 +668,7 @@ let _ =
 (*		"test_watches_read_perm" >:: test_watches_read_perm; *)
 		"test_transaction_watches" >:: test_transaction_watches;
 		"test_introduce_watches" >:: test_introduce_watches;
+                "test_rm_root" >:: test_rm_root;
 		"test_quota" >:: test_quota;
 		"test_quota_transaction" >:: test_quota_transaction;
 		"test_quota_setperms" >:: test_quota_setperms;

@@ -347,6 +347,138 @@ let set_data pkt (data: string) =
   Buffer.add_string b data;
   { pkt with len = len; data = b }
 
+
+module Path = struct
+  module Element = struct
+    type t = string
+
+    let char_is_valid c =
+      (c >= 'a' && c <= 'z') ||
+      (c >= 'A' && c <= 'Z') ||
+      (c >= '0' && c <= '9') ||
+      c = '_' || c = '-' || c = '@'
+
+    exception Invalid_char of char
+
+    let assert_valid x =
+      for i = 0 to String.length x - 1 do
+        if not(char_is_valid x.[i])
+        then raise (Invalid_char x.[i])
+      done
+
+    let of_string x = assert_valid x; x
+    let to_string x = x
+
+  end
+
+  type t = Element.t list
+
+  let empty = []
+
+  exception Invalid_path of string * string
+
+  let of_string path =
+    if path = ""
+    then raise (Invalid_path (path, "paths may not be empty"));
+    if String.length path > 1024
+    then raise (Invalid_path (path, "paths may not be larger than 1024 bytes"));
+    let absolute, fragments = match split_string '/' path with
+    | "" :: "" :: [] -> true, []
+    | "" :: path -> true, path (* preceeding '/' *)
+    | path -> false, path in
+    List.map (fun fragment ->
+      try Element.of_string fragment
+      with Element.Invalid_char c -> raise (Invalid_path(path, Printf.sprintf "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+ but this contained '%c'" c))
+    ) fragments
+
+  let to_list t = t
+
+  let to_string_list t = t
+
+  let of_string_list xs = List.map Element.of_string xs
+
+  let to_string t = String.concat "/" (List.map Element.to_string t)
+
+  let dirname = function
+  | [] -> []
+  | x -> List.(rev (tl (rev x)))
+
+  let basename x = List.(hd (rev x))
+
+  let walk f path initial = List.fold_left (fun x y -> f y x) initial path
+
+  let fold f path initial =
+    let rec loop acc prefix = function
+    | [] -> acc
+    | x :: xs ->
+      let prefix = prefix @ [x] in
+      loop (f prefix acc) prefix xs in
+    loop initial [] path
+
+  let iter f path = fold (fun prefix () -> f prefix) path ()
+
+  let common_prefix (p1: t) (p2: t) =
+    let rec compare l1 l2 = match l1, l2 with
+    | h1 :: tl1, h2 :: tl2 ->
+      if h1 = h2 then h1 :: (compare tl1 tl2) else []
+    | _, [] | [], _ ->
+      (* if l1 or l2 is empty, we found the equal part already *)
+      [] in
+    compare p1 p2
+
+  (* OLD:
+  let get_hierarchy path = [] :: (List.rev (fold (fun path acc -> path :: acc) path []))
+  get_hierarchy [1;2;3] == [ []; [1]; [1;2]; [1;2;3] ]
+  *)
+end
+
+module Name = struct
+  type predefined =
+  | IntroduceDomain
+  | ReleaseDomain
+
+  type t =
+  | Predefined of predefined
+  | Absolute of Path.t
+  | Relative of Path.t
+
+
+  let of_string = function
+  | "@introduceDomain" -> Predefined IntroduceDomain
+  | "@releaseDomain" -> Predefined ReleaseDomain
+  | path when path <> "" && path.[0] = '/' -> Absolute (Path.of_string path)
+  | path -> Relative (Path.of_string path)
+
+  let to_string = function
+  | Predefined IntroduceDomain -> "@introduceDomain"
+  | Predefined ReleaseDomain -> "@releaseDomain"
+  | Absolute path -> "/" ^ (Path.to_string path)
+  | Relative path ->        Path.to_string path
+
+  let is_relative = function
+  | Relative _ -> true
+  | _ -> false
+
+  let resolve t relative_to = match t, relative_to with
+  | Relative path, Absolute dir -> Absolute (dir @ path)
+  | t, _ -> t
+
+  let relative t base = match t, base with
+  | Absolute t, Absolute base ->
+    (* If [base] is a prefix of [t], strip it off *)
+    let rec f x y = match x, y with
+    | x :: xs, y :: ys when x = y -> f xs ys
+    | [], y -> Relative y
+    | _, _ -> Absolute t in
+    f base t
+  | _, _ -> t
+
+  let to_path x = match x with
+  | Predefined _ -> raise (Path.Invalid_path(to_string x, "not a valid path"))
+  | Absolute p -> p
+  | Relative p -> p
+end
+
 module Response = struct
 
   type payload =

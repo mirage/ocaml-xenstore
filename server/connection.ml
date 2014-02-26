@@ -22,7 +22,7 @@ exception End_of_file
 type watch = {
 	con: t;
 	token: string;
-	name: Store.Name.t;
+	name: Protocol.Name.t;
 	mutable count: int;
 }
 
@@ -34,14 +34,14 @@ and t = {
 	idx: int; (* unique counter *)
 	transactions: (int32, Transaction.t) Hashtbl.t;
 	mutable next_tid: int32;
-	watches: (Store.Name.t, watch list) Hashtbl.t;
+	watches: (Protocol.Name.t, watch list) Hashtbl.t;
 	mutable nb_watches: int;
 	mutable nb_dropped_watches: int;
 	mutable stat_nb_ops: int;
 	mutable perm: Perms.t;
 	watch_events: (string * string) Queue.t;
 	cvar: unit Lwt_condition.t;
-	domainpath: Store.Path.t;
+	domainpath: Protocol.Name.t;
 }
 
 let by_address : (Uri.t, t) Hashtbl.t = Hashtbl.create 128
@@ -108,7 +108,7 @@ let create (address, dom) interface =
 		perm = Perms.of_domain dom;
 		watch_events = Queue.create ();
 		cvar = Lwt_condition.create ();
-		domainpath = Store.Path.getdomainpath dom;
+		domainpath = Store.getdomainpath dom;
 	}
 	in
 	incr counter;
@@ -125,19 +125,26 @@ let get_watches (con: t) name =
 	then Hashtbl.find con.watches name
 	else []
 
+let key_of_name x =
+  let open Protocol.Name in match x with
+  | Predefined IntroduceDomain -> [ "@introduceDomain" ]
+  | Predefined ReleaseDomain   -> [ "@releaseDomain" ]
+  | Absolute p -> "" :: (List.map Protocol.Path.Element.to_string (Protocol.Path.to_list p))
+  | Relative p -> "" :: (List.map Protocol.Path.Element.to_string (Protocol.Path.to_list p))
+
 let add_watch con name token =
 	if con.nb_watches >= (Quota.maxwatch_of_domain con.domid)
 	then raise Quota.Limit_reached;
 
 	let l = get_watches con name in
 	if List.exists (fun w -> w.token = token) l
-	then raise (Store.Already_exists (Printf.sprintf "%s:%s" (Store.Name.to_string name) token));
+	then raise (Store.Already_exists (Printf.sprintf "%s:%s" (Protocol.Name.to_string name) token));
 	let watch = watch_create ~con ~token ~name in
 	Hashtbl.replace con.watches name (watch :: l);
 	con.nb_watches <- con.nb_watches + 1;
 
 	watches :=
-		(let key = Store.Name.(to_key (make_absolute name (Store.Path.to_string con.domainpath))) in
+		(let key = key_of_name (Protocol.Name.(resolve name con.domainpath)) in
 		let ws =
             if Trie.mem !watches key
             then Trie.find !watches key
@@ -157,7 +164,7 @@ let del_watch con name token =
 	con.nb_watches <- con.nb_watches - 1;
 
 	watches :=
-		(let key = Store.Name.(to_key (make_absolute name (Store.Path.to_string con.domainpath))) in
+		(let key = key_of_name (Protocol.Name.(resolve name con.domainpath)) in
 		let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
         if ws = [] then
                 Trie.unset !watches key
@@ -173,10 +180,10 @@ let fire_one name watch =
 		| Some name ->
 			(* If the watch was registered as a relative path, then we make
 			   all the watch events relative too *)
-			if Store.Name.is_relative watch.name
-			then Store.Path.make_relative watch.con.domainpath name
+			if Protocol.Name.is_relative watch.name
+			then Protocol.Name.(relative name watch.con.domainpath)
 			else name in
-	let name = Store.Name.to_string name in
+	let name = Protocol.Name.to_string name in
 	let open Xenstore.Protocol in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
 	watch.count <- watch.count + 1;
@@ -189,7 +196,7 @@ let fire_one name watch =
 	end
 
 let fire (op, name) =
-	let key = Store.Name.to_key name in
+	let key = key_of_name name in
 	Trie.iter_path
 		(fun _ w -> match w with
 		| None -> ()
@@ -239,7 +246,7 @@ let debug con =
 			con.watches [] in
 		List.concat ll in
 
-	let watches = List.map (fun (name, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Store.Name.to_string name) token) (list_watches con) in
+	let watches = List.map (fun (name, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Protocol.Name.to_string name) token) (list_watches con) in
 	String.concat "" watches
 
 module Interface = struct
@@ -263,73 +270,73 @@ module Interface = struct
 		| "watch" :: n :: [] ->
 			let n = int_of_string n in
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
-			if n > (List.length all) then Store.Path.doesnt_exist path;
+			if n > (List.length all) then raise (Node.Doesnt_exist path);
 			""
 		| "watch" :: n :: "name" :: [] ->
 			let n = int_of_string n in
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
-			if n > (List.length all) then Store.Path.doesnt_exist path;
-			Store.Name.to_string (List.nth all n).name
+			if n > (List.length all) then raise (Node.Doesnt_exist path);
+			Protocol.Name.to_string (List.nth all n).name
 		| "watch" :: n :: "token" :: [] ->
 			let n = int_of_string n in
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
-			if n > (List.length all) then Store.Path.doesnt_exist path;
+			if n > (List.length all) then raise (Node.Doesnt_exist path);
 			(List.nth all n).token
 		| "watch" :: n :: "total-events" :: [] ->
 			let n = int_of_string n in
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
-			if n > (List.length all) then Store.Path.doesnt_exist path;
+			if n > (List.length all) then raise (Node.Doesnt_exist path);
 			string_of_int (List.nth all n).count
 		| "backend" :: rest ->
 			begin match c.interface with
-			| None -> Store.Path.doesnt_exist path
+			| None -> raise (Node.Doesnt_exist path)
 			| Some i ->
 				let module I = (val i: Namespace.IO) in
-				I.read t perms (Store.Path.of_string_list rest)
+				I.read t perms (Protocol.Path.of_string_list rest)
 			end
-		| _ -> Store.Path.doesnt_exist path
+		| _ -> raise (Node.Doesnt_exist path)
 
-	let read t (perms: Perms.t) (path: Store.Path.t) =
+	let read t (perms: Perms.t) (path: Protocol.Path.t) =
 		Perms.has perms Perms.CONFIGURE;
-		match Store.Path.to_string_list path with
+		match Protocol.Path.to_string_list path with
 		| [] -> ""
 		| "socket" :: [] -> ""
 		| "socket" :: idx :: rest ->
 			let idx = int_of_string idx in
-			if not(Hashtbl.mem by_index idx) then Store.Path.doesnt_exist path;
+			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in
 			read_connection t perms path c rest
 		| "domain" :: [] -> ""
 		| "domain" :: domid :: rest ->
 			let address = Uri.make ~scheme:"domain" ~path:domid () in
-			if not(Hashtbl.mem by_address address) then Store.Path.doesnt_exist path;
+			if not(Hashtbl.mem by_address address) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_address address in
 			read_connection t perms path c rest
-		| _ -> Store.Path.doesnt_exist path
+		| _ -> raise (Node.Doesnt_exist path)
 
-	let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
+	let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
 
 	let write_connection t creator perms path c v = function
 		| "backend" :: rest ->
 			begin match c.interface with
-			| None -> Store.Path.doesnt_exist path
+			| None -> raise (Node.Doesnt_exist path)
 			| Some i ->
 				let module I = (val i: Namespace.IO) in
-				I.write t creator perms (Store.Path.of_string_list rest) v
+				I.write t creator perms (Protocol.Path.of_string_list rest) v
 			end
 		| _ -> raise Perms.Permission_denied
 
-	let write t creator (perms: Perms.t) (path: Store.Path.t) v =
+	let write t creator (perms: Perms.t) (path: Protocol.Path.t) v =
 		Perms.has perms Perms.CONFIGURE;
-		match Store.Path.to_string_list path with
+		match Protocol.Path.to_string_list path with
 		| "socket" :: idx :: rest ->
 			let idx = int_of_string idx in
-			if not(Hashtbl.mem by_index idx) then Store.Path.doesnt_exist path;
+			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in
 			write_connection t creator perms path c v rest
 		| "domain" :: domid :: rest ->
 			let address = Uri.make ~scheme:"domain" ~path:domid () in
-			if not(Hashtbl.mem by_address address) then Store.Path.doesnt_exist path;
+			if not(Hashtbl.mem by_address address) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_address address in
 			write_connection t creator perms path c v rest
 		| _ -> raise Perms.Permission_denied
@@ -348,13 +355,13 @@ module Interface = struct
 			| None -> []
 			| Some i ->
 				let module I = (val i: Namespace.IO) in
-				I.list t perms (Store.Path.of_string_list rest)
+				I.ls t perms (Protocol.Path.of_string_list rest)
 			end
 		| _ -> []
 
-	let list t perms path =
+	let ls t perms path =
 		Perms.has perms Perms.CONFIGURE;
-		match Store.Path.to_string_list path with
+		match Protocol.Path.to_string_list path with
 		| [] -> [ "socket"; "domain" ]
 		| [ "socket" ] ->
 			Hashtbl.fold (fun x c acc -> match Uri.scheme x with
@@ -366,12 +373,12 @@ module Interface = struct
 			| _ -> acc) by_address []
 		| "domain" :: domid :: rest ->
 			let address = Uri.make ~scheme:"domain" ~path:domid () in
-			if not(Hashtbl.mem by_address address) then Store.Path.doesnt_exist path;
+			if not(Hashtbl.mem by_address address) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_address address in
 			list_connection t perms c rest
 		| "socket" :: idx :: rest ->
 			let idx = int_of_string idx in
-			if not(Hashtbl.mem by_index idx) then Store.Path.doesnt_exist path;
+			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in
 			list_connection t perms c rest
 		| _ -> []

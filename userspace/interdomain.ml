@@ -103,7 +103,7 @@ let virq_thread () =
           Lwt_condition.broadcast t.c ()
         ) to_close;
       if release_domain
-      then Connection.fire (Protocol.Op.Write, Store.Name.releaseDomain);
+      then Connection.fire (Protocol.Op.Write, Protocol.Name.(Predefined ReleaseDomain));
     lwt after = Unix_activations.after virq_port from in
     loop after in
   loop Unix_activations.program_start
@@ -236,7 +236,7 @@ module Introspect = struct
     | [ "wakeup" ] -> Lwt_condition.broadcast t.c (); true
     | _ -> false
 
-  let list t = function
+  let ls t = function
     | [] -> [ "mfn"; "local-port"; "remote-port"; "shutdown"; "wakeup"; "request"; "response" ]
     | [ "request" ]
     | [ "response" ] -> [ "cons"; "prod"; "data" ]
