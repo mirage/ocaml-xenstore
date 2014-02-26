@@ -14,7 +14,6 @@
 
 let info fmt = Logging.info "perms" fmt
 open Xenstore
-open Junk
 
 exception Permission_denied
 
@@ -60,10 +59,13 @@ let restrict (connection:t) domid =
 	| _                -> raise Permission_denied
 
 let elt_to_string (i,p) =
-	Printf.sprintf "%i%S" i (String.concat "" (List.map String.of_char (List.map char_of_perm p)))
+	Printf.sprintf "%i%S" i (String.concat "" (List.map (String.make 1) (List.map char_of_perm p)))
 
 let to_string connection =
-	Printf.sprintf "%s%s" (elt_to_string connection.main) (default "" (may elt_to_string connection.target))
+	Printf.sprintf "%s%s" (elt_to_string connection.main)
+                (match connection.target with
+                | None -> ""
+                | Some x -> elt_to_string x)
 
 type permission =
 	| READ

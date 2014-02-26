@@ -14,7 +14,6 @@
 
 let debug fmt = Logging.debug "transaction" fmt
 open Xenstore
-open Junk
 
 let none = 0l
 let test_eagain = ref false
@@ -154,17 +153,21 @@ let commit ~con t =
 				| None -> true (* no writes recorded *)
 				| Some path -> can_coalesce oldroot cstore.Store.root path in
 			if readpath_ok && writepath_ok then (
-				maybe (fun p ->
+                                (match t.write_lowpath with
+                                | Some p ->
 					let n = Node.lookup store.Store.root p in
 
 					(* it has to be in the store, otherwise it means bugs
 					   in the lowpath registration. we don't need to handle none. *)
-					maybe (fun n -> Store.replace cstore p n t.quota store.Store.quota) n;
+                                        (match n with
+                                        | Some n -> Store.replace cstore p n t.quota store.Store.quota
+                                        | None -> ());
 					Logging.write_coalesce ~tid:(get_id t) ~con (Protocol.Path.to_string p);
-				) t.write_lowpath;
-				maybe (fun p ->
+                                | None -> ());
+                                (match t.read_lowpath with
+                                | Some p ->
 					Logging.read_coalesce ~tid:(get_id t) ~con (Protocol.Path.to_string p)
-					) t.read_lowpath;
+                                | None -> ());
 				has_coalesced := true;
 				cstore.Store.stat_transaction_coalesce <- cstore.Store.stat_transaction_coalesce + 1;
 				true

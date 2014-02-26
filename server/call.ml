@@ -15,7 +15,6 @@
 open Lwt
 open Xenstore
 open Protocol
-open Junk
 
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
@@ -128,6 +127,16 @@ let transaction_replay store c t =
 	with e ->
 		error "transaction_replay caught: %s" (Printexc.to_string e);
 		false
+
+let hexify s =
+        let hexseq_of_char c = Printf.sprintf "%02x" (Char.code c) in
+        let hs = String.create (String.length s * 2) in
+        for i = 0 to String.length s - 1 do
+                let seq = hexseq_of_char s.[i] in
+                hs.[i * 2] <- seq.[0];
+                hs.[i * 2 + 1] <- seq.[1];
+        done;
+        hs
 
 let reply_exn store c (request: t) : Response.payload =
 	let tid = get_tid request in

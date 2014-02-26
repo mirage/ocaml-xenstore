@@ -28,11 +28,21 @@ let success f reply =
 			failwith (Printf.sprintf "Error: %s" (Protocol.get_data reply))
 		| _ -> f reply
 
+let hexify s =
+        let hexseq_of_char c = Printf.sprintf "%02x" (Char.code c) in
+        let hs = String.create (String.length s * 2) in
+        for i = 0 to String.length s - 1 do
+                let seq = hexseq_of_char s.[i] in
+                hs.[i * 2] <- seq.[0];
+                hs.[i * 2 + 1] <- seq.[1];
+        done;
+        hs
+
 let failure f reply =
 	match Protocol.get_ty reply with
 		| Protocol.Op.Error -> f reply
 		| _ ->
-			failwith (Printf.sprintf "Expected failure, got success: %s" (Junk.hexify(Protocol.to_string reply)))
+			failwith (Printf.sprintf "Expected failure, got success: %s" (hexify(Protocol.to_string reply)))
 
 let list f reply = match Protocol.Unmarshal.list reply with
 	| Some x -> f x

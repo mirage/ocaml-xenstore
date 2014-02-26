@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 62363c66533891ee27ae1db43a8735dc)
+# DO NOT EDIT (digest: c35cb03739fb4a06456118c282ccd383)
 Logging
 Logging_interface
 Connection
@@ -14,7 +14,6 @@ Node
 Store
 Transaction
 Server
-Junk
 Introduce
 Heap_debug_interface
 # OASIS_STOP
