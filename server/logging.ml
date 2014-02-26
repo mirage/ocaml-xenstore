@@ -92,7 +92,6 @@ let error key = log Error key
 (* Access logger *)
 
 type access_type =
-	| Coalesce
 	| Conflict
 	| Commit
 	| Newconn
@@ -109,7 +108,6 @@ let string_of_tid ~con tid =
 	else sprintf "%-12s" (sprintf "%s.%li" con tid)
 
 let string_of_access_type = function
-	| Coalesce                -> "coalesce "
 	| Conflict                -> "conflict "
 	| Commit                  -> "commit   "
 	| Newconn                 -> "newconn  "
@@ -120,7 +118,6 @@ let string_of_access_type = function
 	| Request r               -> " <- in   " ^ (Protocol.Request.prettyprint_payload r)
 	| Response (r, info_opt)  -> " -> out  " ^ (Protocol.Response.prettyprint_payload r) ^ (match info_opt with Some x -> " (" ^ x ^ ")" | None -> "")
 
-let disable_coalesce = ref false
 let disable_conflict = ref false
 let disable_commit = ref false
 let disable_newconn = ref false
@@ -136,7 +133,6 @@ let disable_reply_ok = ref [
 let disable_reply_err = ref [ "read" ]
 
 let access_type_disabled = function
-	| Coalesce -> !disable_coalesce
 	| Conflict -> !disable_conflict
 	| Commit   -> !disable_commit
 	| Newconn  -> !disable_newconn
@@ -175,8 +171,6 @@ let access_logging ~con ~tid ?(data="") access_type =
 
 let new_connection = access_logging Newconn
 let end_connection = access_logging Endconn
-let read_coalesce ~tid ~con data = access_logging Coalesce ~tid ~con ~data:("read "^data)
-let write_coalesce data = access_logging Coalesce ~data:("write "^data)
 let conflict = access_logging Conflict
 let commit = access_logging Commit
 

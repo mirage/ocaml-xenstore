@@ -18,49 +18,6 @@ open Xenstore
 let none = 0l
 let test_eagain = ref false
 
-let check_parents_perms_identical root1 root2 path =
-        let hierarch = Protocol.Path.empty :: (List.rev (Protocol.Path.fold (fun path acc -> path :: acc) path [])) in
-	let permdiff = List.fold_left (fun acc path ->
-		let n1 = Node.lookup root1 path
-		and n2 = Node.lookup root2 path in
-		match n1, n2 with
-		| Some n1, Some n2 ->
-			(Node.get_perms n1) <> (Node.get_perms n2) || acc
-		| _ ->
-			true || acc
-	) false hierarch in
-	(not permdiff)
-
-let get_lowest path1 path2 =
-	match path2 with
-	| None       -> Some path1
-	| Some path2 -> Some (Protocol.Path.common_prefix path1 path2)
-
-let test_coalesce oldroot currentroot path =
-	let oldnode = Node.lookup oldroot path
-	and currentnode = Node.lookup currentroot path in
-
-	match oldnode, currentnode with
-		| (Some oldnode), (Some currentnode) ->
-			if oldnode == currentnode then (
-				check_parents_perms_identical oldroot currentroot path
-			) else (
-				false
-			)
-		| None, None -> (
-			(* ok then it doesn't exists in the old version and the current version,
-			   just sneak it in as a child of the parent node if it exists, or else fail *)
-			let pnode = Node.lookup currentroot (Protocol.Path.dirname path) in
-			match pnode with
-			| None       -> false (* ok it doesn't exists, just bail out. *)
-			| Some pnode -> true
-			)
-		| _ ->
-			false
-
-let can_coalesce oldroot currentroot path =
-	try test_coalesce oldroot currentroot path with _ -> false
-
 type ty = No | Full of (int32 * Node.t * Store.t)
 
 type t = {
@@ -69,8 +26,6 @@ type t = {
 	quota: Quota.t;
 	mutable paths: (Protocol.Op.t * Protocol.Name.t) list;
 	mutable operations: (Protocol.Request.payload * Protocol.Response.payload) list;
-	mutable read_lowpath: Protocol.Path.t option;
-	mutable write_lowpath: Protocol.Path.t option;
 }
 
 let make id store =
@@ -81,8 +36,6 @@ let make id store =
 		quota = Quota.copy  store.Store.quota;
 		paths = [];
 		operations = [];
-		read_lowpath = None;
-		write_lowpath = None;
 	}
 
 let get_id t = match t.ty with No -> none | Full (id, _, _) -> id
@@ -92,93 +45,36 @@ let get_paths t = t.paths
 let add_wop t ty path = t.paths <- (ty, Protocol.Name.Absolute path) :: t.paths
 let add_operation t request response = t.operations <- (request, response) :: t.operations
 let get_operations t = List.rev t.operations
-let set_read_lowpath t path = t.read_lowpath <- get_lowest path t.read_lowpath
-let set_write_lowpath t path = t.write_lowpath <- get_lowest path t.write_lowpath
-
-let exists t perms path = Store.exists t.store path
 
 let write t creator perm path value =
-	let path_existed = exists t perm path in
 	Store.write t.store creator perm path value;
-	if path_existed
-	then set_write_lowpath t path
-	else set_write_lowpath t (Protocol.Path.dirname path);
 	add_wop t Protocol.Op.Write path
 
 let mkdir ?(with_watch=true) t creator perm path =
 	Store.mkdir t.store creator perm path;
-	set_write_lowpath t path;
 	if with_watch then
 		add_wop t Protocol.Op.Mkdir path
 
 let setperms t perm path perms =
 	Store.setperms t.store perm path perms;
-	set_write_lowpath t path;
 	add_wop t Protocol.Op.Setperms path
 
 let rm t perm path =
 	Store.rm t.store perm path;
-	set_write_lowpath t (Protocol.Path.dirname path);
 	add_wop t Protocol.Op.Rm path
 
-let ls t perm path =	
-	let r = Store.ls t.store perm path in
-	set_read_lowpath t path;
-	r
-
-let read t perm path =
-	let r = Store.read t.store perm path in
-	set_read_lowpath t path;
-	r
-
-let getperms t perm path =
-	let r = Store.getperms t.store perm path in
-	set_read_lowpath t path;
-	r
+let exists t perms path = Store.exists t.store path
+let ls t perm path = Store.ls t.store perm path
+let read t perm path = Store.read t.store perm path
+let getperms t perm path = Store.getperms t.store perm path
 
 let commit ~con t =
 	let has_write_ops = List.length t.paths > 0 in
-	let has_coalesced = ref false in
 	let has_commited =
 	match t.ty with
 	| No                         -> true
 	| Full (id, oldroot, cstore) ->
-		let commit_partial oldroot cstore store =
-			(* get the lowest path of the query and verify that it hasn't
-			   been modified by others transactions. *)
-			let readpath_ok = match t.read_lowpath with
-				| None -> true (* no reads recorded *)
-				| Some path -> can_coalesce oldroot cstore.Store.root path in
-			let writepath_ok = match t.write_lowpath with
-				| None -> true (* no writes recorded *)
-				| Some path -> can_coalesce oldroot cstore.Store.root path in
-			if readpath_ok && writepath_ok then (
-                                (match t.write_lowpath with
-                                | Some p ->
-					let n = Node.lookup store.Store.root p in
-
-					(* it has to be in the store, otherwise it means bugs
-					   in the lowpath registration. we don't need to handle none. *)
-                                        (match n with
-                                        | Some n -> Store.replace cstore p n t.quota store.Store.quota
-                                        | None -> ());
-					Logging.write_coalesce ~tid:(get_id t) ~con (Protocol.Path.to_string p);
-                                | None -> ());
-                                (match t.read_lowpath with
-                                | Some p ->
-					Logging.read_coalesce ~tid:(get_id t) ~con (Protocol.Path.to_string p)
-                                | None -> ());
-				has_coalesced := true;
-				cstore.Store.stat_transaction_coalesce <- cstore.Store.stat_transaction_coalesce + 1;
-				true
-			) else (
-				(* cannot do anything simple, just discard the queries,
-				   and the client need to redo it later *)
-				cstore.Store.stat_transaction_abort <- cstore.Store.stat_transaction_abort + 1;
-				false
-			)
-			in
-		let try_commit oldroot cstore store =
+                let try_commit oldroot cstore store =
 			if oldroot == cstore.Store.root then (
 				(* move the new root to the current store, if the oldroot
 				   has not been modified *)
@@ -188,9 +84,8 @@ let commit ~con t =
 				);
 				true
 			) else
-				(* we try a partial commit if possible *)
-				commit_partial oldroot cstore store
-			in
+                                false
+                        in
 		if !test_eagain && Random.int 3 = 0 then
 			false
 		else
@@ -202,6 +97,5 @@ let commit ~con t =
 *)
 	if not has_commited 
 	then Logging.conflict ~tid:(get_id t) ~con
-	else if not !has_coalesced 
-	then Logging.commit ~tid:(get_id t) ~con;
+	else Logging.commit ~tid:(get_id t) ~con;
 	has_commited

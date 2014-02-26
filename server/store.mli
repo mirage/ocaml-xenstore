@@ -18,7 +18,6 @@ exception Already_exists of string
 
 type t =
 {
-	mutable stat_transaction_coalesce: int;
 	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
 	mutable quota: Quota.t;

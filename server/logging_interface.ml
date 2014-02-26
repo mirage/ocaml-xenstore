@@ -6,7 +6,6 @@ include Namespace.Unsupported
 let ( |> ) a b = b a
 
 let general_params = [
-	"coalesce", disable_coalesce;
 	"conflict", disable_conflict;
 	"commit", disable_conflict;
 	"newconn", disable_newconn;

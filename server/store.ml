@@ -22,7 +22,6 @@ let getdomainpath domid =
 
 type t =
 {
-	mutable stat_transaction_coalesce: int;
 	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
 	mutable quota: Quota.t;
@@ -169,13 +168,11 @@ let replace store path node orig_quota mod_quota =
 
 
 let create () = {
-	stat_transaction_coalesce = 0;
 	stat_transaction_abort = 0;
 	root = Node.create "" 0 (Protocol.ACL.({ owner = 0; other = NONE; acl = [] })) "";
 	quota = Quota.create ();
 }
 let copy store = {
-	stat_transaction_coalesce = store.stat_transaction_coalesce;
 	stat_transaction_abort = store.stat_transaction_abort;
 	root = store.root;
 	quota = Quota.copy store.quota;
@@ -184,8 +181,6 @@ let copy store = {
 let mark_symbols store =
 	Node.fold (fun () node -> Symbol.mark_as_used (Node.get_symbol node)) store.root ()
 
-let incr_transaction_coalesce store =
-	store.stat_transaction_coalesce <- store.stat_transaction_coalesce + 1
 let incr_transaction_abort store =
 	store.stat_transaction_abort <- store.stat_transaction_abort + 1
 
@@ -194,4 +189,4 @@ let stats store =
 	traversal store.root (fun path node ->
 		incr nb_nodes
 	);
-	!nb_nodes, store.stat_transaction_abort, store.stat_transaction_coalesce
+	!nb_nodes, store.stat_transaction_abort
