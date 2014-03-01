@@ -298,7 +298,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let rpc hint h payload unmarshal =
     let open Handle in
     let rid = make_rid () in
-    let request = Request.print payload (get_tid h) rid in
+    let request = Request.marshal payload (get_tid h) rid in
     let t = Task.make () in
     let c = get_client h in
     if c.dispatcher_shutting_down

@@ -121,11 +121,11 @@ module ACL = struct
     acl: (domid * perm) list; (** ... unless overridden in the ACL *)
   } with sexp
 
-  let to_string perms =
+  let marshal perms =
     let string_of_perm (id, perm) = Printf.sprintf "%c%u" (char_of_perm perm) id in
     String.concat "\000" (List.map string_of_perm ((perms.owner,perms.other) :: perms.acl))
 
-  let of_string s =
+  let unmarshal s =
       (* A perm is stored as '<c>domid' *)
     let perm_of_char_exn x = match (perm_of_char x) with Some y -> y | None -> raise Not_found in
     try
@@ -156,7 +156,7 @@ cstruct header {
   uint32_t len
 } as little_endian
 
-let to_string pkt =
+let marshal pkt =
   let header = Cstruct.create sizeof_header in
   let len = Int32.of_int (Buffer.length pkt.data) in
   let ty = Op.to_int32 pkt.ty in
@@ -306,7 +306,7 @@ module PacketStream = functor(IO: IO) -> struct
 
   (* [send client pkt] sends [pkt] and returns (), or fails *)
   let send t request =
-    let req = to_string request in
+    let req = marshal request in
 	IO.write t.channel req 0 (String.length req)
 end
 
@@ -336,8 +336,8 @@ module Token = struct
 
   let to_debug_string x = x
 
-  let of_string x = x
-  let to_string x = x
+  let unmarshal x = x
+  let marshal x = x
 end
 
 let data_concat ls = (String.concat "\000" ls) ^ "\000"
@@ -547,7 +547,7 @@ module Response = struct
   let data_of_payload = function
     | Read x                   -> x
     | Directory ls             -> if ls = [] then "" else data_concat ls
-    | Getperms perms           -> data_concat [ ACL.to_string perms ]
+    | Getperms perms           -> data_concat [ ACL.marshal perms ]
     | Getdomainpath x          -> data_concat [ x ]
     | Transaction_start tid    -> data_concat [ Int32.to_string tid ]
     | Debug items              -> data_concat items
@@ -556,7 +556,7 @@ module Response = struct
     | Error x                  -> data_concat [ x ]
     | _                        -> ok
 
-  let print x tid rid =
+  let marshal x tid rid =
     create tid rid (ty_of_payload x) (data_of_payload x)
 end
 
@@ -614,7 +614,7 @@ module Request = struct
 		| _            ->
 			raise Parse_failure
 
-	let acl x = match ACL.of_string x with
+	let acl x = match ACL.unmarshal x with
 		| Some x -> x
 		| None ->
 			raise Parse_failure
@@ -726,7 +726,7 @@ module Request = struct
 		| PathOp(path, Write value) ->
 			path ^ "\000" ^ value (* no NULL at the end *)
 		| PathOp(path, Setperms perms) ->
-			data_concat [ path; ACL.to_string perms ]
+			data_concat [ path; ACL.marshal perms ]
 		| PathOp(path, _) -> data_concat [ path ]
 		| Debug commands -> data_concat commands
 		| Watch (path, token)
@@ -754,7 +754,7 @@ module Request = struct
                            is never reached. *)
                         failwith "it's illegal to create a request with a Watchevent or an Error"
 
-	let print x tid rid =
+	let marshal x tid rid =
 		create
 			(if transactional_of_payload x then tid else 0l)
 			rid
@@ -771,7 +771,7 @@ module Unmarshal = struct
 
   let string = some ++ get_data
   let list = some ++ split_string '\000' ++ get_data
-  let acl = ACL.of_string ++ get_data
+  let acl = ACL.unmarshal ++ get_data
   let int = int_of_string_opt ++ get_data
   let int32 = int32_of_string_opt ++ get_data
   let unit = unit_of_string_opt ++ get_data

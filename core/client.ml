@@ -132,7 +132,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
       | Op.Watchevent  ->
         lwt () = begin match Unmarshal.list pkt with
           | Some [path; token] ->
-            let token = Token.of_string token in
+            let token = Token.unmarshal token in
             (* We may get old watches: silently drop these *)
             if Hashtbl.mem t.watchevents token
             then Watcher.put (Hashtbl.find t.watchevents token) path >> dispatcher t
@@ -221,7 +221,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
   let rpc hint h payload unmarshal =
     let open Handle in
     let rid = make_rid () in
-    let request = Request.print payload (get_tid h) rid in
+    let request = Request.marshal payload (get_tid h) rid in
     let t, u = wait () in
     let c = get_client h in
     if c.dispatcher_shutting_down
@@ -253,8 +253,8 @@ module Make = functor(IO: S.TRANSPORT) -> struct
   let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
   let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
   let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
-  let watch h path token = rpc "watch" (Handle.watch h path) (Request.Watch(path, Token.to_string token)) Unmarshal.ok
-  let unwatch h path token = rpc "unwatch" (Handle.watch h path) (Request.Unwatch(path, Token.to_string token)) Unmarshal.ok
+  let watch h path token = rpc "watch" (Handle.watch h path) (Request.Watch(path, Token.marshal token)) Unmarshal.ok
+  let unwatch h path token = rpc "unwatch" (Handle.watch h path) (Request.Unwatch(path, Token.marshal token)) Unmarshal.ok
   let introduce h domid store_mfn store_port = rpc "introduce" h (Request.Introduce(domid, store_mfn, store_port)) Unmarshal.ok
   let set_target h stubdom_domid domid = rpc "set_target" h (Request.Set_target(stubdom_domid, domid)) Unmarshal.ok
   let immediate client f = f (Handle.no_transaction client)
@@ -264,7 +264,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
   let wait client f =
     let open StringSet in
     counter := Int32.succ !counter;
-    let token = Token.of_string (Printf.sprintf "%ld:xs_client.wait" !counter) in
+    let token = Token.unmarshal (Printf.sprintf "%ld:xs_client.wait" !counter) in
     (* When we register the 'watcher', the dispatcher thread will signal us when
        watches arrive. *)
     let watcher = Watcher.make () in

@@ -142,7 +142,7 @@ let reply_exn store c (request: t) : Response.payload * Transaction.side_effects
 		else Connection.get_transaction c tid in
 	let payload : Request.payload = match Request.parse (request: t) with
 		| None ->
- 			error "Failed to parse request: got %s" (hexify (to_string request));
+ 			error "Failed to parse request: got %s" (hexify (marshal request));
 			raise Parse_failure
 		| Some x -> x in
 
@@ -269,4 +269,4 @@ let reply store c request =
 			end in
 	Logging.response ~tid ~con:c.Connection.domstr ?info response_payload;
 
-	Response.print response_payload tid rid, side_effects
+	Response.marshal response_payload tid rid, side_effects

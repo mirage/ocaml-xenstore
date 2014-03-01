@@ -40,11 +40,11 @@ let acl_parser _ =
     { owner = 5; other = READ; acl = [ 2, WRITE; 3, RDWR ] };
     { owner = 1; other = WRITE; acl = [] };
   ] in
-  let ss = List.map to_string ts in
-  let ts' = List.map of_string ss in
+  let ss = List.map marshal ts in
+  let ts' = List.map unmarshal ss in
   let printer = function
     | None -> "None"
-    | Some x -> "Some " ^ to_string x in
+    | Some x -> "Some " ^ marshal x in
   List.iter
     (fun (x, y) -> assert_equal ~msg:"acl" ~printer x y)
     (List.combine (List.map (fun x -> Some x) ts) ts')
@@ -52,7 +52,7 @@ let acl_parser _ =
 let test_packet_parser choose pkt () =
     let open Protocol in
     let p = ref (Parser.start ()) in
-    let s = to_string pkt in
+    let s = marshal pkt in
     let i = ref 0 in
     let finished = ref false in
     while not !finished do
@@ -87,7 +87,7 @@ type example_packet = {
 
 let make_example_request op payload tid wire_fmt = {
 	op = op;
-	packet = Protocol.Request.print payload tid 0l;
+	packet = Protocol.Request.marshal payload tid 0l;
 	wire_fmt = wire_fmt;
 }
 
@@ -131,9 +131,9 @@ let example_request_packets =
 			"\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x33\x00";
 		make_example_request Op.Getdomainpath (Getdomainpath 3) 0l
 			"\x0a\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x33\x00";
-		make_example_request Op.Watch (Watch("/foo/bar", (Protocol.Token.(to_string(of_string "something"))))) 0l
+		make_example_request Op.Watch (Watch("/foo/bar", (Protocol.Token.(marshal(unmarshal "something"))))) 0l
 			"\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x13\x00\x00\x00\x2f\x66\x6f\x6f\x2f\x62\x61\x72\x00\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x00";
-		make_example_request Op.Unwatch (Unwatch("/foo/bar", (Protocol.Token.(to_string(of_string "somethinglse"))))) 0l
+		make_example_request Op.Unwatch (Unwatch("/foo/bar", (Protocol.Token.(marshal(unmarshal "somethinglse"))))) 0l
 			"\x05\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x16\x00\x00\x00\x2f\x66\x6f\x6f\x2f\x62\x61\x72\x00\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x6c\x73\x65\x00";
 		make_example_request Op.Debug (Debug [ "a"; "b"; "something" ]) 0l
 			"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x61\x00\x62\x00\x73\x6f\x6d\x65\x74\x68\x69\x6e\x67\x00"
@@ -144,7 +144,7 @@ let make_example_response op response wire_fmt =
 	let tid = Protocol.get_tid request.packet in
 	let rid = Protocol.get_rid request.packet in {
 		op = op;
-		packet = Protocol.Response.print response tid rid;
+		packet = Protocol.Response.marshal response tid rid;
 		wire_fmt = wire_fmt;
 	}
 
@@ -180,7 +180,7 @@ let example_response_packets =
 			"\x07\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
 		{
 			op = Op.Error;
-			packet = print (Error "whatyoutalkingabout") 2l 0x10l;
+			packet = marshal (Error "whatyoutalkingabout") 2l 0x10l;
 			wire_fmt =
 				"\x10\x00\x00\x00\x10\x00\x00\x00\x02\x00\x00\x00\x14\x00\x00\x00\x77\x68\x61\x74\x79\x6f\x75\x74\x61\x6c\x6b\x69\x6e\x67\x61\x62\x6f\x75\x74\x00"
 		}
@@ -218,7 +218,7 @@ let _ =
 	  "packet_printing" >:::
 		  (List.map (fun example ->
 			  let description = Sexp.to_string (Protocol.Op.sexp_of_t example.op) in
-			  description >:: (fun () -> assert_equal ~msg:description ~printer:hexstring example.wire_fmt (Protocol.to_string example.packet))
+			  description >:: (fun () -> assert_equal ~msg:description ~printer:hexstring example.wire_fmt (Protocol.marshal example.packet))
 		  ) example_packets) in
   let suite = "xenstore" >:::
     [

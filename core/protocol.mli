@@ -70,8 +70,8 @@ module ACL : sig
     acl: (domid * perm) list; (** ... unless overridden in the ACL *)
   } with sexp
 
-  val of_string: string -> t option
-  val to_string: t -> string
+  val unmarshal: string -> t option
+  val marshal: t -> string
 end
 (** Access control lists. *)
 
@@ -124,7 +124,7 @@ module PacketStream : functor(IO: IO) -> sig
   val send: stream -> t -> unit IO.t
 end
 
-val to_string : t -> string
+val marshal : t -> string
 val get_tid : t -> int32
 val get_ty : t -> Op.t
 val get_data : t -> string
@@ -143,11 +143,11 @@ module Token : sig
   val to_user_string: t -> string
   (** [to_user_string token] is the user-supplied part of [token]. *)
 
-  val of_string: string -> t
+  val unmarshal: string -> t
   (** [of_string str_rep] is the token resulting from the
       unmarshalling of [str_rep]. *)
 
-  val to_string: t -> string
+  val marshal: t -> string
   (** [to_string token] is the marshalled representation of [token]. *)
 end
 
@@ -280,7 +280,7 @@ module Response : sig
 
   val ty_of_payload: payload -> Op.t
 
-  val print: payload -> int32 -> int32 -> t
+  val marshal: payload -> int32 -> int32 -> t
 end
 
 module Request : sig
@@ -316,7 +316,7 @@ module Request : sig
   val ty_of_payload: payload -> Op.t
 
   val parse: t -> payload option
-  val print: payload -> int32 -> int32 -> t
+  val marshal: payload -> int32 -> int32 -> t
 end
 
 module Unmarshal : sig

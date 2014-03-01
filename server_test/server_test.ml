@@ -42,7 +42,7 @@ let failure f reply =
 	match Protocol.get_ty reply with
 		| Protocol.Op.Error -> f reply
 		| _ ->
-			failwith (Printf.sprintf "Expected failure, got success: %s" (hexify(Protocol.to_string reply)))
+			failwith (Printf.sprintf "Expected failure, got success: %s" (hexify(Protocol.marshal reply)))
 
 let list f reply = match Protocol.Unmarshal.list reply with
 	| Some x -> f x
@@ -87,7 +87,7 @@ let check_result reply = function
 		(success ++ int32) f reply
 
 let rpc store c tid payload =
-	let request = Protocol.Request.print payload tid 0l in
+	let request = Protocol.Request.marshal payload tid 0l in
         let response, side_effects = Call.reply store c request in
         Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
         response
@@ -146,7 +146,7 @@ let test_setperms_getperms () =
 	run store [
 		dom0, none, PathOp("/foo", Write ""), OK;
 		dom0, none, PathOp("/foo", Setperms example_acl), OK;
-		dom0, none, PathOp("/foo", Getperms), Perms (fun x -> assert_equal ~msg:"perms /foo" ~printer:Protocol.ACL.to_string x example_acl);
+		dom0, none, PathOp("/foo", Getperms), Perms (fun x -> assert_equal ~msg:"perms /foo" ~printer:Protocol.ACL.marshal x example_acl);
 	]
 
 let test_setperms_owner () =

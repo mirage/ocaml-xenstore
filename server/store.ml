@@ -152,7 +152,7 @@ let dump_store_buf root_node =
 	let dump_node path node =
 		let pathstr = String.concat "/" path in
 		Printf.bprintf buf "%s/%s{%s}" pathstr (Node.get_name node)
-		               (String.escaped (Protocol.ACL.to_string (Node.get_perms node)));
+		               (String.escaped (Protocol.ACL.marshal (Node.get_perms node)));
 		if String.length (Node.get_value node) > 0 then
 			Printf.bprintf buf " = %s\n" (String.escaped (Node.get_value node))
 		else
