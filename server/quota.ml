@@ -11,6 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib.Std
 
 let debug fmt = Logging.debug "quota" fmt
 let info  fmt = Logging.info  "quota" fmt
@@ -20,7 +21,7 @@ exception Limit_reached
 exception Data_too_big
 exception Transaction_opened
 
-type domid = int
+type domid = int with sexp
 
 (* Global defaults *)
 let maxent = ref (10000)
@@ -60,7 +61,7 @@ let maxwatchevent_of_domain = of_domain maxwatchevent_overrides maxwatchevent
 
 type t = {
 	cur: (domid, int) Hashtbl.t; (* current domains entry usage *)
-}
+} with sexp
 
 let create () =
 	{ cur = Hashtbl.create 100; }

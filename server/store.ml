@@ -11,9 +11,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib.Std
+open Xenstore
+
 let debug fmt = Logging.debug "store" fmt
 let error fmt = Logging.debug "error" fmt
-open Xenstore
 
 exception Already_exists of string
 
@@ -25,11 +27,12 @@ type t =
 	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
 	mutable quota: Quota.t;
-}
+} with sexp
 
 type update =
 | Write of Protocol.Path.t * Protocol.ACL.t * string
 | Rm of Protocol.Path.t
+with sexp
 
 let get_root store = store.root
 let set_root store root =
@@ -146,37 +149,11 @@ let traversal root_node f =
 		List.iter (_traversal (path @ [ Node.get_name node ])) (Node.get_children node)
 		in
 	_traversal [] root_node
-		
-let dump_store_buf root_node =
-	let buf = Buffer.create 8192 in
-	let dump_node path node =
-		let pathstr = String.concat "/" path in
-		Printf.bprintf buf "%s/%s{%s}" pathstr (Node.get_name node)
-		               (String.escaped (Protocol.ACL.marshal (Node.get_perms node)));
-		if String.length (Node.get_value node) > 0 then
-			Printf.bprintf buf " = %s\n" (String.escaped (Node.get_value node))
-		else
-			Printf.bprintf buf "\n";
-		in
-	traversal root_node dump_node;
-	buf
-
-let dump_store chan root_node =
-	let buf = dump_store_buf root_node in
-	output_string chan (Buffer.contents buf);
-	Buffer.reset buf
-
-let dump_fct store f = traversal store.root f
-let dump store out_chan = dump_store out_chan store.root
-let dump_stdout store = dump_store stdout store.root
-let dump_buffer store = dump_store_buf store.root
 
 (* Used in transaction merging *)
 let replace store path node orig_quota mod_quota =
   store.root <- Node.replace store.root path node;
   Quota.merge orig_quota mod_quota store.quota
-
-
 
 let create () = {
 	stat_transaction_abort = 0;

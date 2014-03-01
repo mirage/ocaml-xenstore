@@ -21,13 +21,12 @@ type t =
 	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
 	mutable quota: Quota.t;
-}
+} with sexp
 
 type update =
 | Write of Protocol.Path.t * Protocol.ACL.t * string
 | Rm of Protocol.Path.t
-
-val dump_stdout: t -> unit
+with sexp
 
 val getdomainpath: int -> Protocol.Name.t
 (** [getdomainpath domid] returns the default directory for [domid] *)

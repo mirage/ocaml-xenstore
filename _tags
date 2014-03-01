@@ -232,6 +232,14 @@ true: annot
 <core/client.ml>: pkg_lwt.syntax
 <core/protocol.ml>: pkg_sexplib.syntax
 <core/protocol.mli>: pkg_sexplib.syntax
+<server/node.ml>: pkg_sexplib.syntax
+<server/node.mli>: pkg_sexplib.syntax
+<server/quota.ml>: pkg_sexplib.syntax
+<server/quota.mli>: pkg_sexplib.syntax
+<server/store.ml>: pkg_sexplib.syntax
+<server/store.mli>: pkg_sexplib.syntax
+<server/symbol.ml>: pkg_sexplib.syntax
+<server/symbol.mli>: pkg_sexplib.syntax
 <cli/*.ml>: pkg_lwt.syntax
 <bench/*.ml>: pkg_lwt.syntax
 <core>: include

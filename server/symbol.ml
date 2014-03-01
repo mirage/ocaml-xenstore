@@ -11,8 +11,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib.Std
 
-type t = int
+type t = int with sexp
 
 type 'a record = { data: 'a; mutable garbage: bool }
 let int_string_tbl : (int,string record) Hashtbl.t = Hashtbl.create 1024
