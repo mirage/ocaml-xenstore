@@ -107,17 +107,11 @@ module Make = functor(IO: S.TRANSPORT) -> struct
 
   let recv_one t = match_lwt (PS.recv t.ps) with
     | `Ok x -> return x
-    | `Error e -> raise_lwt e
+    | `Error e -> fail (Failure e)
   let send_one t = PS.send t.ps
 
   let handle_exn t e =
     Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
-    lwt () = begin 
-      match e with
-      | Protocol.Response_parser_failed x ->
-      (* Lwt_io.hexdump Lwt_io.stderr x *)
-         return ()
-      | _ -> return () end in
     t.dispatcher_shutting_down <- true; (* no more hashtable entries after this *)
     (* all blocking threads are failed with our exception *)
     lwt () = Lwt_mutex.with_lock t.suspended_m (fun () ->

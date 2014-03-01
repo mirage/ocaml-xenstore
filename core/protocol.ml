@@ -48,7 +48,7 @@ let ( ++ ) f g x = f (g x)
 type ('a, 'b) result = [
 | `Ok of 'a
 | `Error of 'b
-]
+] with sexp
 
 module Op = struct
   type t =
@@ -192,25 +192,25 @@ module Parser = struct
 
   let xenstore_payload_max = 4096 (* xen/include/public/io/xs_wire.h *)
 
+  type packet = t with sexp
+
   type state =
-    | Unknown_operation of int32
-    | Parser_failed of string
-    | Need_more_data of int
-    | Packet of t
+    | Done of (packet, string) result
+    | Continue of int
   with sexp
 
-  type parse =
+  type t =
     | ReadingHeader of int * string
-    | ReadingBody of t
-    | Finished of state
+    | ReadingBody of packet
+    | Finished of (packet, string) result
   with sexp
 
-  let start () = ReadingHeader (0, String.make header_size '\000')
+  let create () = ReadingHeader (0, String.make header_size '\000')
 
   let state = function
-    | ReadingHeader(got_already, _) -> Need_more_data (header_size - got_already)
-    | ReadingBody pkt -> Need_more_data (pkt.len - (Buffer.length pkt.data))
-    | Finished r -> r
+    | ReadingHeader(got_already, _) -> Continue (header_size - got_already)
+    | ReadingBody pkt -> Continue (pkt.len - (Buffer.length pkt.data))
+    | Finished r -> Done r
 
   let parse_header str =
     let header = Cstruct.create sizeof_header in
@@ -237,9 +237,9 @@ module Parser = struct
         data = Buffer.create len;
         } in
       if len = 0
-      then Finished (Packet t)
+      then Finished (`Ok t)
       else ReadingBody t
-    | `Error _ -> Finished (Unknown_operation ty)
+    | `Error x -> Finished (`Error x)
     end
 
   let input state bytes =
@@ -255,7 +255,7 @@ module Parser = struct
   let needed = x.len - (Buffer.length x.data) in
   if needed > 0
   then ReadingBody x
-  else Finished (Packet x)
+  else Finished (`Ok x)
       | Finished f -> Finished f
 end
 
@@ -270,41 +270,36 @@ module type IO = sig
   val write: channel -> string -> int -> int -> unit t
 end
 
-exception Unknown_xenstore_operation of int32
-exception Response_parser_failed of string
-exception EOF
-
 module PacketStream = functor(IO: IO) -> struct
   let ( >>= ) = IO.( >>= )
   let return = IO.return
 
   type stream = {
     channel: IO.channel;
-    mutable incoming_pkt: Parser.parse; (* incrementally parses the next packet *)
+    mutable incoming_pkt: Parser.t; (* incrementally parses the next packet *)
   }
 
   let make t = {
     channel = t;
-    incoming_pkt = Parser.start ();
+    incoming_pkt = Parser.create ();
   }
 
   (* [recv client] returns a single Packet, or fails *)
   let rec recv t =
     let open Parser in match Parser.state t.incoming_pkt with
-    | Packet pkt ->
-      t.incoming_pkt <- start ();
+    | Done (`Ok pkt) ->
+      t.incoming_pkt <- create ();
       return (`Ok pkt)
-    | Need_more_data x ->
+    | Done (`Error x) -> return (`Error x)
+    | Continue x ->
       let buf = String.make x '\000' in
       IO.read t.channel buf 0 x
-      >>= (function
-      | 0 -> return (`Error EOF)
+      >>= function
+      | 0 -> return (`Error "The xenstore connection has closed")
       | n ->
         let fragment = String.sub buf 0 n in
 	    t.incoming_pkt <- input t.incoming_pkt fragment;
-	    recv t)
-    | Unknown_operation x -> return (`Error (Unknown_xenstore_operation x))
-    | Parser_failed x -> return (`Error (Response_parser_failed x))
+	    recv t
 
   (* [send client pkt] sends [pkt] and returns (), or fails *)
   let send t request =

@@ -181,17 +181,11 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
 
   let recv_one t = match (PS.recv t.ps) with
     | `Ok x -> x
-    | `Error e -> raise e
+    | `Error e -> raise (Failure e)
   let send_one t = PS.send t.ps
 
   let handle_exn t e =
     error "Caught: %s\n%!" (Printexc.to_string e);
-    begin match e with
-      | Protocol.Response_parser_failed x ->
-      (* Lwt_io.hexdump Lwt_io.stderr x *)
-         ()
-      | _ -> ()
-    end;
     t.dispatcher_shutting_down <- true;
     raise e
 

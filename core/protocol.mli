@@ -86,22 +86,20 @@ end
 module Parser : sig
 
   type state =
-    | Unknown_operation of int32 (** received an unexpected message type *)
-    | Parser_failed of string    (** we failed to parse a header *)
-    | Need_more_data of int      (** we still need 'n' bytes *)
-    | Packet of t                (** successfully decoded a packet *)
+    | Done of (t, string) result (** finished, either with a packet or an error *)
+    | Continue of int            (** we still need 'n' bytes *)
   with sexp
 
-  type parse with sexp
+  type t with sexp
   (** The internal state of the parser. *)
 
-  val start: unit -> parse
+  val create: unit -> t
   (** Create a parser set to the initial state. *)
 
-  val state: parse -> state
+  val state: t -> state
   (** Query the state of the parser. *)
 
-  val input: parse -> string -> parse
+  val input: t -> string -> t
   (** Input some bytes into the parser. Must be no more than needed
       (see Need_more_data above). *)
 end
@@ -117,13 +115,10 @@ module type IO = sig
   val write: channel -> string -> int -> int -> unit t
 end
 
-exception Unknown_xenstore_operation of int32
-exception Response_parser_failed of string
-
 module PacketStream : functor(IO: IO) -> sig
   type stream
   val make: IO.channel -> stream
-  val recv: stream -> (t, exn) result IO.t
+  val recv: stream -> (t, string) result IO.t
   val send: stream -> t -> unit IO.t
 end
 

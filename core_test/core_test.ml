@@ -51,17 +51,17 @@ let acl_parser _ =
 
 let test_packet_parser choose pkt () =
     let open Protocol in
-    let p = ref (Parser.start ()) in
+    let p = ref (Parser.create ()) in
     let s = marshal pkt in
     let i = ref 0 in
     let finished = ref false in
     while not !finished do
       match Parser.state !p with
-	| Parser.Need_more_data x ->
+	| Parser.Continue x ->
 	  let n = choose x in
 	  p := Parser.input !p (String.sub s !i n);
 	  i := !i + n
-	| Parser.Packet pkt' ->
+	| Parser.Done (`Ok pkt') ->
 	  assert(get_tid pkt = (get_tid pkt'));
 	  assert(get_ty pkt = (get_ty pkt'));
 	  assert(get_data pkt = (get_data pkt'));
