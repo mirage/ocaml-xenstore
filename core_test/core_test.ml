@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-
+open Sexplib
 open OUnit
 
 let ( |> ) a b = b a
@@ -68,7 +68,7 @@ let test_packet_parser choose pkt () =
 	  assert(get_rid pkt = (get_rid pkt'));
 	  finished := true
 	| _ ->
-	  failwith (Printf.sprintf "parser failed for %s" (pkt |> get_ty |> Op.to_string))
+	  failwith (Printf.sprintf "parser failed for %s" (pkt |> get_ty |> Op.sexp_of_t |> Sexp.to_string_hum))
     done
 
 
@@ -211,13 +211,13 @@ let _ =
     let f = test_packet_parser choose in
     "packet_parsing" >:::
 		(List.map (fun example ->
-			let description = Protocol.Op.to_string example.op in
+			let description = Sexp.to_string (Protocol.Op.sexp_of_t example.op) in
 			description >:: f example.packet
 		) (unexpected_request_packets @ example_packets)) in
   let packet_printing =
 	  "packet_printing" >:::
 		  (List.map (fun example ->
-			  let description = Protocol.Op.to_string example.op in
+			  let description = Sexp.to_string (Protocol.Op.sexp_of_t example.op) in
 			  description >:: (fun () -> assert_equal ~msg:description ~printer:hexstring example.wire_fmt (Protocol.to_string example.packet))
 		  ) example_packets) in
   let suite = "xenstore" >:::

@@ -12,6 +12,35 @@
  * GNU Lesser General Public License for more details.
  *)
 open Pervasives
+open Sexplib
+open Sexplib.Std
+
+(* One of the records below contains a Buffer.t *)
+module Buffer = struct
+  include Buffer
+  type _t = string with sexp
+  let t_of_sexp s =
+    let _t = _t_of_sexp s in
+    let b = Buffer.create (String.length _t) in
+    Buffer.add_string b _t;
+    b
+  let sexp_of_t t =
+    let _t = Buffer.contents t in
+    sexp_of__t _t
+end
+
+(* The IntroduceDomain message includes a Nativeint.t *)
+module Nativeint = struct
+  include Nativeint
+
+  type _t = string with sexp
+  let t_of_sexp s =
+    let _t = _t_of_sexp s in
+    Nativeint.of_string _t
+  let sexp_of_t t =
+    let _t = Nativeint.to_string t in
+    sexp_of__t _t
+end
 
 let ( |> ) f g = g f
 let ( ++ ) f g x = f (g x)
@@ -25,6 +54,7 @@ module Op = struct
     | Setperms | Watchevent | Error | Isintroduced
     | Resume | Set_target
   | Restrict
+  with sexp
 
 (* The index of the value in the array is the integer representation used
    by the wire protocol. Every element of t exists exactly once in the array. *)
@@ -49,28 +79,7 @@ let to_int32 x =
     | None -> assert false (* impossible since on_the_wire contains each element *)
     | Some i -> Int32.of_int i
 
-let to_string = function
-  | Debug             -> "debug"
-  | Directory         -> "directory"
-  | Read              -> "read"
-  | Getperms          -> "getperms"
-  | Watch             -> "watch"
-  | Unwatch           -> "unwatch"
-  | Transaction_start -> "transaction_start"
-  | Transaction_end   -> "transaction_end"
-  | Introduce         -> "introduce"
-  | Release           -> "release"
-  | Getdomainpath     -> "getdomainpath"
-  | Write             -> "write"
-  | Mkdir             -> "mkdir"
-  | Rm                -> "rm"
-  | Setperms          -> "setperms"
-  | Watchevent        -> "watchevent"
-  | Error             -> "error"
-  | Isintroduced      -> "isintroduced"
-  | Resume            -> "resume"
-  | Set_target        -> "set_target"
-  | Restrict          -> "restrict"
+let all = Array.to_list on_the_wire
 end
 
 let rec split_string ?limit:(limit=(-1)) c s =
@@ -89,6 +98,7 @@ module ACL = struct
     | READ
     | WRITE
     | RDWR
+  with sexp
 
   let char_of_perm = function
     | READ -> 'r'
@@ -103,13 +113,13 @@ module ACL = struct
     | 'n' -> Some NONE
     | _ -> None
 
-  type domid = int
+  type domid = int with sexp
 
   type t = {
     owner: domid;             (** domain which "owns", has full access *)
     other: perm;              (** default permissions for all others... *)
     acl: (domid * perm) list; (** ... unless overridden in the ACL *)
-  }
+  } with sexp
 
   let to_string perms =
     let string_of_perm (id, perm) = Printf.sprintf "%c%u" (char_of_perm perm) id in
@@ -137,7 +147,7 @@ type t = {
   ty: Op.t;
   len: int;
   data: Buffer.t;
-}
+} with sexp
 
 cstruct header {
   uint32_t ty;
@@ -180,11 +190,13 @@ module Parser = struct
     | Parser_failed of string
     | Need_more_data of int
     | Packet of t
+  with sexp
 
   type parse =
     | ReadingHeader of int * string
     | ReadingBody of t
     | Finished of state
+  with sexp
 
   let start () = ReadingHeader (0, String.make header_size '\000')
 
@@ -316,7 +328,7 @@ let is_valid_watch_path path =
   (path <> "" && path.[0] = '@') || (is_valid_path path)
 
 module Token = struct
-  type t = string
+  type t = string with sexp
 
   (** [to_user_string x] returns the user-supplied part of the watch token *)
   let to_user_string x = Scanf.sscanf x "%d:%s" (fun _ x -> x)
@@ -350,7 +362,7 @@ let set_data pkt (data: string) =
 
 module Path = struct
   module Element = struct
-    type t = string
+    type t = string with sexp
 
     let char_is_valid c =
       (c >= 'a' && c <= 'z') ||
@@ -371,7 +383,7 @@ module Path = struct
 
   end
 
-  type t = Element.t list
+  type t = Element.t list with sexp
 
   let empty = []
 
@@ -436,12 +448,13 @@ module Name = struct
   type predefined =
   | IntroduceDomain
   | ReleaseDomain
+  with sexp
 
   type t =
   | Predefined of predefined
   | Absolute of Path.t
   | Relative of Path.t
-
+  with sexp
 
   let of_string = function
   | "@introduceDomain" -> Predefined IntroduceDomain
@@ -503,30 +516,7 @@ module Response = struct
   | Isintroduced of bool
   | Error of string
   | Watchevent of string * string
-
-  let prettyprint_payload =
-    let open Printf in function
-      | Read x -> sprintf "Read %s" x
-      | Directory xs -> sprintf "Directory [ %s ]" (String.concat "; " xs)
-      | Getperms acl -> sprintf "Getperms %s" (ACL.to_string acl)
-      | Getdomainpath p -> sprintf "Getdomainpath %s" p
-      | Transaction_start x -> sprintf "Transaction_start %ld" x
-      | Write -> "Write"
-      | Mkdir -> "Mkdir"
-      | Rm -> "Rm"
-      | Setperms -> "Setperms"
-      | Watch -> "Watch"
-      | Unwatch -> "Unwatch"
-      | Transaction_end -> "Transaction_end"
-      | Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
-      | Introduce -> "Introduce"
-      | Resume -> "Resume"
-      | Release -> "Release"
-      | Set_target -> "Set_target"
-      | Restrict -> "Restrict"
-      | Isintroduced x -> sprintf "Isintroduced %b" x
-      | Error x -> sprintf "Error %s" x
-      | Watchevent (x, y) -> sprintf "Watchevent %s %s" x y
+  with sexp
 
   let ty_of_payload = function
     | Read _ -> Op.Read
@@ -579,6 +569,7 @@ module Request = struct
 	| Mkdir
 	| Rm
 	| Setperms of ACL.t
+        with sexp
 
 	type payload =
 	| PathOp of string * path_op
@@ -596,35 +587,9 @@ module Request = struct
 	| Isintroduced of int
 	| Error of string
 	| Watchevent of string
+        with sexp
 
 	open Printf
-
-	let prettyprint_pathop x = function
-		| Read -> sprintf "Read %s" x
-		| Directory -> sprintf "Directory %s" x
-		| Getperms -> sprintf "Getperms %s" x
-		| Write v -> sprintf "Write %s %s" x v
-		| Mkdir -> sprintf "Mkdir %s" x
-		| Rm -> sprintf "Rm %s" x
-		| Setperms acl -> sprintf "Setperms %s %s" x (ACL.to_string acl)
-
-	let prettyprint_payload = function
-		| PathOp (path, op) -> prettyprint_pathop path op
-		| Getdomainpath x -> sprintf "Getdomainpath %d" x
-		| Transaction_start -> "Transaction_start"
-		| Watch (x, y) -> sprintf "Watch %s %s" x y
-		| Unwatch (x, y) -> sprintf "Unwatch %s %s" x y
-		| Transaction_end x -> sprintf "Transaction_end %b" x
-		| Debug xs -> sprintf "Debug [ %s ]" (String.concat "; " xs)
-		| Introduce (x, n, y) -> sprintf "Introduce %d %nu %d" x n y
-		| Resume x -> sprintf "Resume %d" x
-		| Release x -> sprintf "Release %d" x
-		| Set_target (x, y) -> sprintf "Set_target %d %d" x y
-		| Restrict x -> sprintf "Restrict %d" x
-		| Isintroduced x -> sprintf "Isintroduced %d" x
-		| Error x -> sprintf "Error %s" x
-		| Watchevent x -> sprintf "Watchevent %s" x
-
 	exception Parse_failure
 
 	let strings data = split_string '\000' data
@@ -728,14 +693,7 @@ module Request = struct
 			Some (parse_exn request)
 		with _ -> None
 
-	let prettyprint request =
-		Printf.sprintf "tid = %ld; rid = %ld; payload = %s"
-			(get_tid request) (get_rid request)
-			(match parse request with
-				| None -> "None"
-				| Some x -> "Some " ^ (prettyprint_payload x))
-
-	let ty_of_payload = function
+        let ty_of_payload = function
 		| PathOp(_, Directory) -> Op.Directory
 		| PathOp(_, Read) -> Op.Read
 		| PathOp(_, Getperms) -> Op.Getperms
@@ -838,4 +796,5 @@ let response hint sent received f = match get_ty sent, get_ty received with
       | Some z -> z
     end
   | x, y ->
-    raise (Error (Printf.sprintf "unexpected packet: expected %s; got %s" (Op.to_string x) (Op.to_string y)))
+    raise (Error (Printf.sprintf "unexpected packet: expected %s; got %s"
+      (Sexp.to_string_hum (Op.sexp_of_t x)) (Sexp.to_string_hum (Op.sexp_of_t y))))

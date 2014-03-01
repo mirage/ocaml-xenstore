@@ -14,7 +14,7 @@
 
 (** XenStore protocol. *)
 
-type t
+type t with sexp
 (** A valid packet. *)
 
 module Op : sig
@@ -40,9 +40,12 @@ module Op : sig
     | Resume
     | Set_target
     | Restrict
+  with sexp
   (** The type of xenstore operation. *)
 
-  val to_string: t -> string
+  val all: t list
+  (** All known operations *)
+
   val of_int32: int32 -> t option
   val to_int32: t -> int32
 end
@@ -54,17 +57,18 @@ module ACL : sig
     | READ
     | WRITE
     | RDWR
+  with sexp
 
   val char_of_perm: perm -> char
   val perm_of_char: char -> perm option
 
-  type domid = int
+  type domid = int with sexp
 
   type t = {
     owner: domid;             (** domain which "owns", has full access *)
     other: perm;              (** default permissions for all others... *)
     acl: (domid * perm) list; (** ... unless overridden in the ACL *)
-  }
+  } with sexp
 
   val of_string: string -> t option
   val to_string: t -> string
@@ -78,8 +82,9 @@ module Parser : sig
     | Parser_failed of string    (** we failed to parse a header *)
     | Need_more_data of int      (** we still need 'n' bytes *)
     | Packet of t                (** successfully decoded a packet *)
+  with sexp
 
-  type parse
+  type parse with sexp
   (** The internal state of the parser. *)
 
   val start: unit -> parse
@@ -147,7 +152,7 @@ end
 
 module Path : sig
   module Element : sig
-    type t
+    type t with sexp
     (** an element of a path *)
 
     exception Invalid_char of char
@@ -160,7 +165,7 @@ module Path : sig
     (** [to_string t] returns a string which corresponds to [t] *)
   end
 
-  type t
+  type t with sexp
   (** a sequence of elements representing a 'path' from one node
       in the store down to another *)
 
@@ -213,11 +218,13 @@ module Name : sig
   type predefined =
   | IntroduceDomain
   | ReleaseDomain
+  with sexp
 
   type t =
   | Predefined of predefined
   | Absolute of Path.t
   | Relative of Path.t
+  with sexp
   (** a Name.t refers to something which can be watched, read or
       written via the protocol. *)
 
@@ -268,10 +275,9 @@ module Response : sig
   | Isintroduced of bool
   | Error of string
   | Watchevent of string * string
+  with sexp
 
   val ty_of_payload: payload -> Op.t
-
-  val prettyprint_payload: payload -> string
 
   val print: payload -> int32 -> int32 -> t
 end
@@ -286,6 +292,7 @@ module Request : sig
   | Mkdir
   | Rm
   | Setperms of ACL.t
+  with sexp
 
   type payload =
   | PathOp of string * path_op
@@ -303,11 +310,9 @@ module Request : sig
   | Isintroduced of int
   | Error of string
   | Watchevent of string
+  with sexp
 
   val ty_of_payload: payload -> Op.t
-
-  val prettyprint_payload: payload -> string
-  val prettyprint: t -> string
 
   val parse: t -> payload option
   val print: payload -> int32 -> int32 -> t
