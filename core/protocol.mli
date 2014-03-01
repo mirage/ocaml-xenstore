@@ -17,6 +17,11 @@
 type t with sexp
 (** A valid packet. *)
 
+type ('a, 'b) result = [
+| `Ok of 'a
+| `Error of 'b
+]
+
 module Op : sig
   type t =
     | Debug
@@ -46,7 +51,10 @@ module Op : sig
   val all: t list
   (** All known operations *)
 
-  val of_int32: int32 -> t option
+  val of_int32: int32 -> (t, string) result
+  (** Map an int32 onto a [t]. If no mapping exists then the best we can do
+      is log the result string and close the connection. *)
+
   val to_int32: t -> int32
 end
 
@@ -111,11 +119,6 @@ end
 
 exception Unknown_xenstore_operation of int32
 exception Response_parser_failed of string
-
-type ('a, 'b) result = [
-| `Ok of 'a
-| `Error of 'b
-]
 
 module PacketStream : functor(IO: IO) -> sig
   type stream

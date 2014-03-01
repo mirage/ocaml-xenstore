@@ -45,6 +45,11 @@ end
 let ( |> ) f g = g f
 let ( ++ ) f g x = f (g x)
 
+type ('a, 'b) result = [
+| `Ok of 'a
+| `Error of 'b
+]
+
 module Op = struct
   type t =
     | Debug | Directory | Read | Getperms
@@ -70,7 +75,9 @@ let on_the_wire =
 
 let of_int32 i =
   let i = Int32.to_int i in
-  if i >= 0 && i < Array.length on_the_wire then Some (on_the_wire.(i)) else None
+  if i >= 0 && i < Array.length on_the_wire
+  then `Ok (on_the_wire.(i))
+  else `Error (Printf.sprintf "Unknown xenstore operation id: %d. Possible new protocol version? Or malfunctioning peer?" i)
 
 let to_int32 x =
   match snd (Array.fold_left
@@ -221,7 +228,7 @@ module Parser = struct
     let len = max 0 (min xenstore_payload_max len) in
 
     begin match Op.of_int32 ty with
-    | Some ty ->
+    | `Ok ty ->
       let t = {
         tid = tid;
         rid = rid;
@@ -232,7 +239,7 @@ module Parser = struct
       if len = 0
       then Finished (Packet t)
       else ReadingBody t
-    | None -> Finished (Unknown_operation ty)
+    | `Error _ -> Finished (Unknown_operation ty)
     end
 
   let input state bytes =
@@ -266,11 +273,6 @@ end
 exception Unknown_xenstore_operation of int32
 exception Response_parser_failed of string
 exception EOF
-
-type ('a, 'b) result = [
-| `Ok of 'a
-| `Error of 'b
-]
 
 module PacketStream = functor(IO: IO) -> struct
   let ( >>= ) = IO.( >>= )

@@ -26,8 +26,8 @@ let op_ids _ =
   for i = 0 to 100 do (* higher than the highest ID *)
     let i' = Int32.of_int i in
     match of_int32 i' with
-      | None -> ()
-      | Some x -> assert (to_int32 x = i')
+      | `Error _ -> ()
+      | `Ok x -> assert (to_int32 x = i')
   done
 
 let example_acl =
