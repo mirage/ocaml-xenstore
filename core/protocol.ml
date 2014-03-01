@@ -267,9 +267,10 @@ exception Unknown_xenstore_operation of int32
 exception Response_parser_failed of string
 exception EOF
 
-type ('a, 'b) result =
-	| Ok of 'a
-	| Exception of 'b
+type ('a, 'b) result = [
+| `Ok of 'a
+| `Error of 'b
+]
 
 module PacketStream = functor(IO: IO) -> struct
   let ( >>= ) = IO.( >>= )
@@ -290,18 +291,18 @@ module PacketStream = functor(IO: IO) -> struct
     let open Parser in match Parser.state t.incoming_pkt with
     | Packet pkt ->
       t.incoming_pkt <- start ();
-      return (Ok pkt)
+      return (`Ok pkt)
     | Need_more_data x ->
       let buf = String.make x '\000' in
       IO.read t.channel buf 0 x
       >>= (function
-      | 0 -> return (Exception EOF)
+      | 0 -> return (`Error EOF)
       | n ->
         let fragment = String.sub buf 0 n in
 	    t.incoming_pkt <- input t.incoming_pkt fragment;
 	    recv t)
-    | Unknown_operation x -> return (Exception (Unknown_xenstore_operation x))
-    | Parser_failed x -> return (Exception (Response_parser_failed x))
+    | Unknown_operation x -> return (`Error (Unknown_xenstore_operation x))
+    | Parser_failed x -> return (`Error (Response_parser_failed x))
 
   (* [send client pkt] sends [pkt] and returns (), or fails *)
   let send t request =

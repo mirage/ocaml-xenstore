@@ -180,8 +180,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   type handle = client Handle.t
 
   let recv_one t = match (PS.recv t.ps) with
-    | Ok x -> x
-    | Exception e -> raise e
+    | `Ok x -> x
+    | `Error e -> raise e
   let send_one t = PS.send t.ps
 
   let handle_exn t e =

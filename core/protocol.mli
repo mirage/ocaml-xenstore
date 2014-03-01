@@ -112,9 +112,10 @@ end
 exception Unknown_xenstore_operation of int32
 exception Response_parser_failed of string
 
-type ('a, 'b) result =
-	| Ok of 'a
-	| Exception of 'b
+type ('a, 'b) result = [
+| `Ok of 'a
+| `Error of 'b
+]
 
 module PacketStream : functor(IO: IO) -> sig
   type stream

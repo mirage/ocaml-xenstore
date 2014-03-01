@@ -114,8 +114,8 @@ module Make = functor(T: S.TRANSPORT) -> struct
 			lwt () =
 			while_lwt true do
 				lwt request = match_lwt (PS.recv channel) with
-					| Ok x -> return x
-					| Exception e -> raise_lwt e in
+				| `Ok x -> return x
+				| `Error e -> raise_lwt e in
 				let events = take_watch_events () in
 				let reply, side_effects = Call.reply store c request in
                                 Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;

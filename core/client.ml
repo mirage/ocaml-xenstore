@@ -106,8 +106,8 @@ module Make = functor(IO: S.TRANSPORT) -> struct
      one client is created. *)
 
   let recv_one t = match_lwt (PS.recv t.ps) with
-    | Ok x -> return x
-    | Exception e -> raise_lwt e
+    | `Ok x -> return x
+    | `Error e -> raise_lwt e
   let send_one t = PS.send t.ps
 
   let handle_exn t e =
