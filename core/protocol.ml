@@ -312,24 +312,6 @@ module PacketStream = functor(IO: IO) -> struct
 	IO.write t.channel req 0 (String.length req)
 end
 
-(** Check paths are suitable for read/write/mkdir/rm/directory etc (NOT watches)  *)
-let is_valid_path path =
-  (* Paths shouldn't have a "//" in the middle *)
-  let result = ref true in
-  let bad = "//" in
-  for offset = 0 to String.length path - (String.length bad) do
-    if String.sub path offset (String.length bad) = bad then result := false
-  done;
-  (* Paths shouldn't have a "/" at the end, except for the root *)
-  if path <> "/" && path <> "" && path.[String.length path - 1] = '/'
-  then result := false;
-  !result
-
-(** Check to see if a path is suitable for watches *)
-let is_valid_watch_path path =
-  (* Check for stuff like @releaseDomain etc first *)
-  (path <> "" && path.[0] = '@') || (is_valid_path path)
-
 module Token = struct
   type t = string with sexp
 
