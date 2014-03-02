@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 500c46f6461b333fc647883e6e441136)
+# DO NOT EDIT (digest: c13c052ee6d62fc9f9e30b764f1e04fd)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -60,16 +60,6 @@
 <unix/*.ml{,i}>: pkg_cstruct.syntax
 <unix/*.ml{,i}>: pkg_uri
 <unix/*.ml{,i}>: pkg_sexplib
-# Library xenstore_legacy_unix
-"legacy_unix/xenstore_legacy_unix.cmxs": use_xenstore_legacy_unix
-<legacy_unix/*.ml{,i}>: use_xenstore
-<legacy_unix/*.ml{,i}>: pkg_lwt
-<legacy_unix/*.ml{,i}>: pkg_unix
-<legacy_unix/*.ml{,i}>: pkg_threads
-<legacy_unix/*.ml{,i}>: pkg_cstruct
-<legacy_unix/*.ml{,i}>: pkg_cstruct.syntax
-<legacy_unix/*.ml{,i}>: pkg_uri
-<legacy_unix/*.ml{,i}>: pkg_sexplib
 # Executable core_test
 <core_test/core_test.{native,byte}>: use_xenstore
 <core_test/core_test.{native,byte}>: pkg_lwt

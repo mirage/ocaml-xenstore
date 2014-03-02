@@ -38,13 +38,13 @@ Library xenstore_unix
   Modules:            Sockets
   BuildDepends:       lwt, lwt.unix, xenstore
 
-Library xenstore_legacy_unix
-  CompiledObject:     best
-  Path:               legacy_unix
-  Findlibname: 	      legacy_unix
-  FindlibParent:      xenstore
-  Modules:            Xs_client_unix
-  BuildDepends:       unix, threads, xenstore
+#Library xenstore_legacy_unix
+#  CompiledObject:     best
+#  Path:               legacy_unix
+#  Findlibname: 	      legacy_unix
+#  FindlibParent:      xenstore
+#  Modules:            Xs_client_unix
+#  BuildDepends:       unix, threads, xenstore
 
 Executable core_test
   CompiledObject:     best

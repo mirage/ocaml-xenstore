@@ -22,11 +22,9 @@ let empty_store () = Store.create ()
 
 let none = Transaction.none
 
-let success f reply =
-	match Protocol.get_ty reply with
-		| Protocol.Op.Error ->
-			failwith (Printf.sprintf "Error: %s" (Protocol.get_data reply))
-		| _ -> f reply
+let success f = function
+| Protocol.Response.Error x -> failwith x
+| x -> f x
 
 let hexify s =
         let hexseq_of_char c = Printf.sprintf "%02x" (Char.code c) in
@@ -38,27 +36,9 @@ let hexify s =
         done;
         hs
 
-let failure f reply =
-	match Protocol.get_ty reply with
-		| Protocol.Op.Error -> f reply
-		| _ ->
-			failwith (Printf.sprintf "Expected failure, got success: %s" (hexify(Protocol.marshal reply)))
-
-let list f reply = match Protocol.Unmarshal.list reply with
-	| Some x -> f x
-	| None -> failwith "Failed to unmarshal string list"
-
-let string f reply = match Protocol.Unmarshal.string reply with
-	| Some x -> f x
-	| None -> failwith "Failed to unmarshal string"
-
-let acl f reply = match Protocol.Unmarshal.acl reply with
-	| Some x -> f x
-	| None -> failwith "Failed to unmarshal acl"
-
-let int32 f reply = match Protocol.Unmarshal.int32 reply with
-	| Some x -> f x
-	| None -> failwith "Failed to unmarshal int32"
+let failure f x = match x with
+| Protocol.Response.Error x -> f x
+| _ -> failwith (Printf.sprintf "Expected failure, got: %s" (Sexp.to_string (Protocol.Response.sexp_of_t x)))
 
 let equals expected got =
 	if expected <> got

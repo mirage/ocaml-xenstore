@@ -46,12 +46,25 @@ let create () =
   lwt () = retry 0 initial_retry_interval in
   return (fd, sockaddr)
 let destroy (fd, _) = Lwt_unix.close fd
-let read (fd, _) = Lwt_unix.read fd
-let write (fd, _) bufs ofs len =
-	lwt n = Lwt_unix.write fd bufs ofs len in
-	if n <> len
-        then fail End_of_file
-	else return ()
+
+let complete op fd buf =
+  let ofs = buf.Cstruct.off in
+  let len = buf.Cstruct.len in
+  let buf = buf.Cstruct.buffer in
+  let rec loop acc fd buf ofs len =
+    op fd buf ofs len >>= fun n ->
+    let len' = len - n in
+    let acc' = acc + n in
+    if len' = 0 || n = 0
+    then return acc'
+    else loop acc' fd buf (ofs + n) len' in
+  loop 0 fd buf ofs len >>= fun n ->
+  if n = 0 && len <> 0
+  then fail End_of_file
+  else return ()
+
+let read (fd, _) = complete Lwt_bytes.read fd
+let write (fd, _) = complete Lwt_bytes.write fd
 
 let int_of_file_descr fd =
 	let fd = Lwt_unix.unix_file_descr fd in

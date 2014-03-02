@@ -15,17 +15,17 @@ open Pervasives
 open Sexplib
 open Sexplib.Std
 
-(* One of the records below contains a Buffer.t *)
-module Buffer = struct
-  include Buffer
+(* The packet contains a Cstruct.t *)
+module Cstruct = struct
+  include Cstruct
   type _t = string with sexp
   let t_of_sexp s =
     let _t = _t_of_sexp s in
-    let b = Buffer.create (String.length _t) in
-    Buffer.add_string b _t;
-    b
+    let c = Cstruct.create (String.length _t) in
+    Cstruct.blit_from_string _t 0 c 0 (Cstruct.len c);
+    c
   let sexp_of_t t =
-    let _t = Buffer.contents t in
+    let _t = Cstruct.to_string t in
     sexp_of__t _t
 end
 
@@ -50,261 +50,87 @@ type ('a, 'b) result = [
 | `Error of 'b
 ] with sexp
 
+let ( >>= ) m f = match m with
+| `Ok x -> f x
+| `Error x -> `Error x
+
+let return x = `Ok x
+
+let xenstore_payload_max = 4096 (* xen/include/public/io/xs_wire.h *)
+
 module Op = struct
   type t =
-    | Debug | Directory | Read | Getperms
-    | Watch | Unwatch | Transaction_start
-    | Transaction_end | Introduce | Release
-    | Getdomainpath | Write | Mkdir | Rm
-    | Setperms | Watchevent | Error | Isintroduced
-    | Resume | Set_target
+  | Debug | Directory | Read | Getperms
+  | Watch | Unwatch | Transaction_start
+  | Transaction_end | Introduce | Release
+  | Getdomainpath | Write | Mkdir | Rm
+  | Setperms | Watchevent | Error | Isintroduced
+  | Resume | Set_target
   | Restrict
   with sexp
 
-(* The index of the value in the array is the integer representation used
-   by the wire protocol. Every element of t exists exactly once in the array. *)
-let on_the_wire =
-  [| Debug; Directory; Read; Getperms;
-     Watch; Unwatch; Transaction_start;
-     Transaction_end; Introduce; Release;
-     Getdomainpath; Write; Mkdir; Rm;
-     Setperms; Watchevent; Error; Isintroduced;
-     Resume; Set_target;
-   Restrict
-  |]
+  (* The index of the value in the array is the integer representation used
+     by the wire protocol. Every element of t exists exactly once in the array. *)
+  let on_the_wire =
+    [| Debug; Directory; Read; Getperms;
+       Watch; Unwatch; Transaction_start;
+       Transaction_end; Introduce; Release;
+       Getdomainpath; Write; Mkdir; Rm;
+       Setperms; Watchevent; Error; Isintroduced;
+       Resume; Set_target;
+       Restrict |]
 
-let of_int32 i =
-  let i = Int32.to_int i in
-  if i >= 0 && i < Array.length on_the_wire
-  then `Ok (on_the_wire.(i))
-  else `Error (Printf.sprintf "Unknown xenstore operation id: %d. Possible new protocol version? Or malfunctioning peer?" i)
+  let of_int32 i =
+    let i = Int32.to_int i in
+    if i >= 0 && i < Array.length on_the_wire
+    then `Ok (on_the_wire.(i))
+    else `Error (Printf.sprintf "Unknown xenstore operation id: %d. Possible new protocol version? Or malfunctioning peer?" i)
 
-let to_int32 x =
-  match snd (Array.fold_left
-    (fun (idx, result) v -> if x = v then (idx + 1, Some idx) else (idx + 1, result))
-    (0, None) on_the_wire) with
-    | None -> assert false (* impossible since on_the_wire contains each element *)
-    | Some i -> Int32.of_int i
+  let to_int32 x =
+    match snd (Array.fold_left
+      (fun (idx, result) v -> if x = v then (idx + 1, Some idx) else (idx + 1, result))
+      (0, None) on_the_wire) with
+      | None -> assert false (* impossible since on_the_wire contains each element *)
+      | Some i -> Int32.of_int i
 
-let all = Array.to_list on_the_wire
+  let all = Array.to_list on_the_wire
 end
 
-let rec split_string ?limit:(limit=(-1)) c s =
-  let i = try String.index s c with Not_found -> -1 in
-  let nlimit = if limit = -1 || limit = 0 then limit else limit - 1 in
-  if i = -1 || nlimit = 0 then
-    [ s ]
-  else
-    let a = String.sub s 0 i
-    and b = String.sub s (i + 1) (String.length s - i - 1) in
-    a :: (split_string ~limit: nlimit c b)
 
-module ACL = struct
-  type perm =
-    | NONE
-    | READ
-    | WRITE
-    | RDWR
-  with sexp
-
-  let char_of_perm = function
-    | READ -> 'r'
-    | WRITE -> 'w'
-    | RDWR -> 'b'
-    | NONE -> 'n'
-
-  let perm_of_char = function
-    | 'r' -> Some READ
-    | 'w' -> Some WRITE
-    | 'b' -> Some RDWR
-    | 'n' -> Some NONE
-    | _ -> None
-
-  type domid = int with sexp
-
+module Header = struct
   type t = {
-    owner: domid;             (** domain which "owns", has full access *)
-    other: perm;              (** default permissions for all others... *)
-    acl: (domid * perm) list; (** ... unless overridden in the ACL *)
+    tid: int32;
+    rid: int32;
+    ty: Op.t;
+    len: int;
   } with sexp
 
-  let marshal perms =
-    let string_of_perm (id, perm) = Printf.sprintf "%c%u" (char_of_perm perm) id in
-    String.concat "\000" (List.map string_of_perm ((perms.owner,perms.other) :: perms.acl))
+  cstruct hdr {
+    uint32_t ty;
+    uint32_t rid;
+    uint32_t tid;
+    uint32_t len
+  } as little_endian
 
-  let unmarshal s =
-      (* A perm is stored as '<c>domid' *)
-    let perm_of_char_exn x = match (perm_of_char x) with Some y -> y | None -> raise Not_found in
-    try
-      let perm_of_string s =
-        if String.length s < 2
-        then invalid_arg (Printf.sprintf "Permission string too short: '%s'" s);
-        int_of_string (String.sub s 1 (String.length s - 1)), perm_of_char_exn s.[0] in
-      let l = List.map perm_of_string (split_string '\000' s) in
-      match l with
-        | (owner, other) :: l -> Some { owner = owner; other = other; acl = l }
-        | [] -> Some { owner = 0; other = NONE; acl = [] }
-      with e ->
-      None
-end
+  let sizeof = sizeof_hdr
 
-type t = {
-  tid: int32;
-  rid: int32;
-  ty: Op.t;
-  len: int;
-  data: Buffer.t;
-} with sexp
+  let marshal t buf =
+    set_hdr_ty buf (Op.to_int32 t.ty);
+    set_hdr_rid buf t.rid;
+    set_hdr_tid buf t.tid;
+    set_hdr_len buf (Int32.of_int t.len);
+    Cstruct.shift buf sizeof_hdr
 
-cstruct header {
-  uint32_t ty;
-  uint32_t rid;
-  uint32_t tid;
-  uint32_t len
-} as little_endian
-
-let marshal pkt =
-  let header = Cstruct.create sizeof_header in
-  let len = Int32.of_int (Buffer.length pkt.data) in
-  let ty = Op.to_int32 pkt.ty in
-  set_header_ty header ty;
-  set_header_rid header pkt.rid;
-  set_header_tid header pkt.tid;
-  set_header_len header len;
-  Cstruct.to_string header ^ (Buffer.contents pkt.data)
-
-let get_tid pkt = pkt.tid
-let get_ty pkt = pkt.ty
-
-let get_data pkt =
-  if pkt.len > 0 && Buffer.nth pkt.data (pkt.len - 1) = '\000' then
-    Buffer.sub pkt.data 0 (pkt.len - 1)
-  else
-    Buffer.contents pkt.data
-let get_data_raw pkt = Buffer.contents pkt.data
-
-let get_rid pkt = pkt.rid
-
-module Parser = struct
-  (** Incrementally parse packets *)
-
-  let header_size = 16
-
-  let xenstore_payload_max = 4096 (* xen/include/public/io/xs_wire.h *)
-
-  type packet = t with sexp
-
-  type state =
-    | Done of (packet, string) result
-    | Continue of int
-  with sexp
-
-  type t =
-    | ReadingHeader of int * string
-    | ReadingBody of packet
-    | Finished of (packet, string) result
-  with sexp
-
-  let create () = ReadingHeader (0, String.make header_size '\000')
-
-  let state = function
-    | ReadingHeader(got_already, _) -> Continue (header_size - got_already)
-    | ReadingBody pkt -> Continue (pkt.len - (Buffer.length pkt.data))
-    | Finished r -> Done r
-
-  let parse_header str =
-    let header = Cstruct.create sizeof_header in
-    Cstruct.blit_from_string str 0 header 0 sizeof_header;
-    let ty = get_header_ty header in
-    let rid = get_header_rid header in
-    let tid = get_header_tid header in
-    let len = get_header_len header in
-
+  let unmarshal buf =
+    let ty = get_hdr_ty buf in
+    Op.of_int32 ty >>= fun ty ->
+    let rid = get_hdr_rid buf in
+    let tid = get_hdr_tid buf in
+    let len = get_hdr_len buf in
     let len = Int32.to_int len in
-    (* A packet which is bigger than xenstore_payload_max is illegal.
-       This will leave the guest connection is a bad state and will
-       be hard to recover from without restarting the connection
-       (ie rebooting the guest) *)
-    let len = max 0 (min xenstore_payload_max len) in
-
-    begin match Op.of_int32 ty with
-    | `Ok ty ->
-      let t = {
-        tid = tid;
-        rid = rid;
-        ty = ty;
-        len = len;
-        data = Buffer.create len;
-        } in
-      if len = 0
-      then Finished (`Ok t)
-      else ReadingBody t
-    | `Error x -> Finished (`Error x)
-    end
-
-  let input state bytes =
-    match state with
-      | ReadingHeader(got_already, str) ->
-  String.blit bytes 0 str got_already (String.length bytes);
-  let got_already = got_already + (String.length bytes) in
-  if got_already < header_size
-  then ReadingHeader(got_already, str)
-  else parse_header str
-      | ReadingBody x ->
-  Buffer.add_string x.data bytes;
-  let needed = x.len - (Buffer.length x.data) in
-  if needed > 0
-  then ReadingBody x
-  else Finished (`Ok x)
-      | Finished f -> Finished f
-end
-
-(* Should we switch to an explicit stream abstraction here? *)
-module type IO = sig
-  type 'a t
-  val return: 'a -> 'a t
-  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
-
-  type channel
-  val read: channel -> string -> int -> int -> int t
-  val write: channel -> string -> int -> int -> unit t
-end
-
-module PacketStream = functor(IO: IO) -> struct
-  let ( >>= ) = IO.( >>= )
-  let return = IO.return
-
-  type stream = {
-    channel: IO.channel;
-    mutable incoming_pkt: Parser.t; (* incrementally parses the next packet *)
-  }
-
-  let make t = {
-    channel = t;
-    incoming_pkt = Parser.create ();
-  }
-
-  (* [recv client] returns a single Packet, or fails *)
-  let rec recv t =
-    let open Parser in match Parser.state t.incoming_pkt with
-    | Done (`Ok pkt) ->
-      t.incoming_pkt <- create ();
-      return (`Ok pkt)
-    | Done (`Error x) -> return (`Error x)
-    | Continue x ->
-      let buf = String.make x '\000' in
-      IO.read t.channel buf 0 x
-      >>= function
-      | 0 -> return (`Error "The xenstore connection has closed")
-      | n ->
-        let fragment = String.sub buf 0 n in
-	    t.incoming_pkt <- input t.incoming_pkt fragment;
-	    recv t
-
-  (* [send client pkt] sends [pkt] and returns (), or fails *)
-  let send t request =
-    let req = marshal request in
-	IO.write t.channel req 0 (String.length req)
+    if len > xenstore_payload_max
+    then `Error(Printf.sprintf "Packet is too large: %d > %d (see xen/include/public/io/xs_wire.h)" len xenstore_payload_max)
+    else `Ok { tid; rid; ty; len }
 end
 
 module Token = struct
@@ -318,27 +144,6 @@ module Token = struct
   let unmarshal x = x
   let marshal x = x
 end
-
-let data_concat ls = (String.concat "\000" ls) ^ "\000"
-
-let create tid rid ty data =
-  let len = String.length data in
-  let b = Buffer.create len in
-  Buffer.add_string b data;
-  {
-    tid = tid;
-    rid = rid;
-    ty = ty;
-    len = len;
-    data = b;
-  }
-
-let set_data pkt (data: string) =
-  let len = String.length data in
-  let b = Buffer.create len in
-  Buffer.add_string b data;
-  { pkt with len = len; data = b }
-
 
 module Path = struct
   module Element = struct
@@ -368,6 +173,16 @@ module Path = struct
   let empty = []
 
   exception Invalid_path of string * string
+
+  let rec split_string ?limit:(limit=(-1)) c s =
+    let i = try String.index s c with Not_found -> -1 in
+    let nlimit = if limit = -1 || limit = 0 then limit else limit - 1 in
+    if i = -1 || nlimit = 0
+    then [ s ]
+    else
+      let a = String.sub s 0 i
+      and b = String.sub s (i + 1) (String.length s - i - 1) in
+      a :: (split_string ~limit: nlimit c b)
 
   let of_string path =
     if path = ""
@@ -417,11 +232,6 @@ module Path = struct
       (* if l1 or l2 is empty, we found the equal part already *)
       [] in
     compare p1 p2
-
-  (* OLD:
-  let get_hierarchy path = [] :: (List.rev (fold (fun path acc -> path :: acc) path []))
-  get_hierarchy [1;2;3] == [ []; [1]; [1;2]; [1;2;3] ]
-  *)
 end
 
 module Name = struct
@@ -472,9 +282,151 @@ module Name = struct
   | Relative p -> p
 end
 
+module Marshal = struct
+
+  let null t =
+    Cstruct.set_uint8 t 0 0;
+    Cstruct.shift t 1
+  let ok t =
+    Cstruct.set_char t 0 'O';
+    Cstruct.set_char t 1 'K';
+    Cstruct.set_char t 2 '\000';
+    Cstruct.shift t 3
+  let rec list f xs t = match xs with
+  | [] -> t
+  | x :: xs -> list f xs (null (f x t))
+
+  let string x t =
+    Cstruct.blit_from_string x 0 t 0 (String.length x);
+    Cstruct.shift t (String.length x)
+  let int32 x t = string (Int32.to_string x) t
+  let bool x t = string (if x then "T" else "F") t
+  let char x t =
+    Cstruct.set_char t 0 x;
+    Cstruct.shift t 1
+  let int x t = string (string_of_int x) t
+
+  let finished f t =
+    let t' = f t in
+    let len = t'.Cstruct.off - t.Cstruct.off in
+    Cstruct.sub t 0 len, t'
+end
+
+module Unmarshal = struct
+  let expect_int x = try `Ok (int_of_string x) with _ -> `Error(Printf.sprintf "Failed to parse integer: \"%s\"" (String.escaped x))
+  let expect_int32 x = try `Ok (Int32.of_string x) with _ -> `Error(Printf.sprintf "Failed to parse int32: \"%s\"" (String.escaped x))
+  let expect_nativeint x = try `Ok (Nativeint.of_string x) with _ -> `Error(Printf.sprintf "Failed to parse nativeint: \"%s\"" (String.escaped x))
+  let expect_unit x = if x = "" then `Ok () else `Error(Printf.sprintf "Expected an empty string, got: \"%s\"" (String.escaped x))
+  let expect_ok x = if x = "OK" then `Ok () else `Error(Printf.sprintf "Expected the string \"OK\", got: \"%s\"" (String.escaped x))
+  let expect_bool = function
+  | "T" -> return true
+  | "F" -> return false
+  | x -> `Error (Printf.sprintf "Expected either T or F, got: \"%s\"" (String.escaped x))
+
+  let null t =
+    if Cstruct.len t > 0 && (Cstruct.get_uint8 t (Cstruct.len t - 1) = 0)
+    then Cstruct.sub t 0 (Cstruct.len t - 1)
+    else t
+  let return x = `Ok x
+  let find buf c =
+    let rec loop n =
+      if n = Cstruct.len buf then raise Not_found;
+      if Cstruct.get_char buf n = c then n else loop (n + 1) in
+    loop 0
+  let rec split ?limit:(limit=(-1)) c buf =
+    let i = try find buf c with Not_found -> -1 in
+    let nlimit = if limit = -1 || limit = 0 then limit else limit - 1 in
+    if i = -1 || nlimit = 0
+    then [ buf ]
+    else
+      let a = Cstruct.sub buf 0 i
+      and b = Cstruct.sub buf (i + 1) (Cstruct.len buf - i - 1) in
+      a :: (split ~limit: nlimit c b)
+
+  let rec join acc = function
+  | [] -> return (List.rev acc)
+  | x :: xs ->
+    x >>= fun x ->
+    join (x :: acc) xs
+
+  let list f x = x |> null |> split '\000' |> List.map f |> join []
+
+  let pair a b x = x |> null |> split '\000' |> (function
+  | a' :: b' :: [] ->
+    a a' >>= fun a'' ->
+    b b' >>= fun b'' ->
+    return (a'', b'')
+  | _ -> `Error(Printf.sprintf "Failed to unmarshal a pair: got \"%s\"" (String.escaped (Cstruct.to_string x))))
+  let triple a b c x = x |> null |> split '\000' |> (function
+  | a' :: b' :: c' :: [] ->
+    a a' >>= fun a'' ->
+    b b' >>= fun b'' ->
+    c c' >>= fun c'' ->
+    return (a'', b'', c'')
+  | _ -> `Error(Printf.sprintf "Failed to unmarshal a triple: got \"%s\"" (String.escaped (Cstruct.to_string x))))
+  
+  let string    x = x |> null |> Cstruct.to_string |> return
+  let int       x = x |> null |> Cstruct.to_string |> expect_int
+  let int32     x = x |> null |> Cstruct.to_string |> expect_int32
+  let nativeint x = x |> null |> Cstruct.to_string |> expect_nativeint
+  let unit      x = x |> null |> Cstruct.to_string |> expect_unit
+  let ok        x = x |> null |> Cstruct.to_string |> expect_ok
+  let bool      x = x |> null |> Cstruct.to_string |> expect_bool
+end
+
+module ACL = struct
+  type perm =
+    | NONE
+    | READ
+    | WRITE
+    | RDWR
+  with sexp
+
+  let char_of_perm = function
+    | READ -> 'r'
+    | WRITE -> 'w'
+    | RDWR -> 'b'
+    | NONE -> 'n'
+
+  let perm_of_char = function
+    | 'r' -> `Ok READ
+    | 'w' -> `Ok WRITE
+    | 'b' -> `Ok RDWR
+    | 'n' -> `Ok NONE
+    | c -> `Error (Printf.sprintf "Unknown permission character '%c'" c)
+
+  type domid = int with sexp
+
+  type t = {
+    owner: domid;             (** domain which "owns", has full access *)
+    other: perm;              (** default permissions for all others... *)
+    acl: (domid * perm) list; (** ... unless overridden in the ACL *)
+  } with sexp
+
+  let marshal perms buf =
+    Marshal.list (fun (domid, perm) buf -> buf
+      |> Marshal.char (char_of_perm perm)
+      |> Marshal.int domid
+    ) ( (perms.owner, perms.other) :: perms.acl ) buf
+
+  let unmarshal buf =
+    Unmarshal.list (fun buf ->
+      perm_of_char (Cstruct.get_char buf 0) >>= fun p ->
+      Cstruct.shift buf 1 |> Cstruct.to_string |> Unmarshal.expect_int >>= fun domid ->
+      return (domid, p)
+    ) buf >>= function
+    | (owner, other) :: l -> return { owner = owner; other = other; acl = l }
+    | [] -> return { owner = 0; other = NONE; acl = [] }
+end
+
+exception Enoent of string
+exception Eagain
+exception Invalid
+exception Error of string
+
 module Response = struct
 
-  type payload =
+  type t =
   | Read of string
   | Directory of string list
   | Getperms of ACL.t
@@ -498,283 +450,205 @@ module Response = struct
   | Watchevent of string * string
   with sexp
 
-  let ty_of_payload = function
-    | Read _ -> Op.Read
-    | Directory _ -> Op.Directory
-    | Getperms perms -> Op.Getperms
-    | Getdomainpath _ -> Op.Getdomainpath
-    | Transaction_start _ -> Op.Transaction_start
-    | Debug _ -> Op.Debug
-    | Isintroduced _ -> Op.Isintroduced
-    | Watchevent (_, _) -> Op.Watchevent
-    | Error _ -> Op.Error
-    | Write -> Op.Write
-    | Mkdir -> Op.Mkdir
-    | Rm -> Op.Rm
-    | Setperms -> Op.Setperms
-    | Watch -> Op.Watch
-    | Unwatch -> Op.Unwatch
-    | Transaction_end -> Op.Transaction_end
-    | Introduce -> Op.Introduce
-    | Resume -> Op.Resume
-    | Release -> Op.Release
-    | Set_target -> Op.Set_target
-    | Restrict -> Op.Restrict
+  let get_ty = function
+  | Read _ -> Op.Read
+  | Directory _ -> Op.Directory
+  | Getperms _ -> Op.Getperms
+  | Getdomainpath _ -> Op.Getdomainpath
+  | Transaction_start _ -> Op.Transaction_start
+  | Debug _ -> Op.Debug
+  | Isintroduced _ -> Op.Isintroduced
+  | Watchevent (_, _) -> Op.Watchevent
+  | Error _ -> Op.Error
+  | Write -> Op.Write
+  | Mkdir -> Op.Mkdir
+  | Rm -> Op.Rm
+  | Setperms -> Op.Setperms
+  | Watch -> Op.Watch
+  | Unwatch -> Op.Unwatch
+  | Transaction_end -> Op.Transaction_end
+  | Introduce -> Op.Introduce
+  | Resume -> Op.Resume
+  | Release -> Op.Release
+  | Set_target -> Op.Set_target
+  | Restrict -> Op.Restrict
 
-  let ok = "OK\000"
+  let marshal x buf = let open Marshal in match x with
+  | Read x                  -> buf |> string x
+  | Directory ls            -> buf |> list string ls
+  | Getperms perms          -> buf |> ACL.marshal perms           |> null
+  | Getdomainpath x         -> buf |> string x                    |> null
+  | Transaction_start x     -> buf |> int32 x                     |> null
+  | Debug items             -> buf |> list string items
+  | Isintroduced b          -> buf |> bool b                      |> null
+  | Watchevent(path, token) -> buf |> list string [ path; token ]
+  | Error x                 -> buf |> string x                    |> null
+  | _                       -> buf |> ok
 
-  let data_of_payload = function
-    | Read x                   -> x
-    | Directory ls             -> if ls = [] then "" else data_concat ls
-    | Getperms perms           -> data_concat [ ACL.marshal perms ]
-    | Getdomainpath x          -> data_concat [ x ]
-    | Transaction_start tid    -> data_concat [ Int32.to_string tid ]
-    | Debug items              -> data_concat items
-    | Isintroduced b           -> data_concat [ if b then "T" else "F" ]
-    | Watchevent (path, token) -> data_concat [ path; token ]
-    | Error x                  -> data_concat [ x ]
-    | _                        -> ok
+  let unmarshal hdr payload =
+    let open Unmarshal in
+    let ok op = ok payload >>= fun () -> return op in
+  match hdr.Header.ty with
+  | Op.Read ->
+    string payload >>= fun x ->
+    return (Read x)
+  | Op.Directory ->
+    list string payload >>= fun ls ->
+    return (Directory ls)
+  | Op.Getperms ->
+    ACL.unmarshal payload >>= fun perms ->
+    return (Getperms perms)
+  | Op.Getdomainpath ->
+    string payload >>= fun path ->
+    return (Getdomainpath path)
+  | Op.Transaction_start ->
+    int32 payload >>= fun tid ->
+    return (Transaction_start tid)
+  | Op.Debug ->
+    list string payload >>= fun debug ->
+    return (Debug debug)
+  | Op.Isintroduced ->
+    bool payload >>= fun b ->
+    return (Isintroduced b)
+  | Op.Watchevent ->
+    pair string string payload >>= fun (path, token) ->
+    return (Watchevent(path, token))
+  | Op.Error ->
+    string payload >>= fun x ->
+    return (Error x)
+  | Op.Write           -> ok Write
+  | Op.Mkdir           -> ok Mkdir
+  | Op.Rm              -> ok Rm
+  | Op.Setperms        -> ok Setperms
+  | Op.Watch           -> ok Watch
+  | Op.Unwatch         -> ok Unwatch
+  | Op.Transaction_end -> ok Transaction_end
+  | Op.Introduce       -> ok Introduce
+  | Op.Resume          -> ok Resume
+  | Op.Release         -> ok Release
+  | Op.Set_target      -> ok Set_target
+  | Op.Restrict        -> ok Restrict
 
-  let marshal x tid rid =
-    create tid rid (ty_of_payload x) (data_of_payload x)
 end
 
 module Request = struct
+  type path_op =
+  | Read
+  | Directory
+  | Getperms
+  | Write of string
+  | Mkdir
+  | Rm
+  | Setperms of ACL.t
+  with sexp
 
-	type path_op =
-	| Read
-	| Directory
-	| Getperms
-	| Write of string
-	| Mkdir
-	| Rm
-	| Setperms of ACL.t
-        with sexp
+  type t =
+  | PathOp of string * path_op
+  | Getdomainpath of int
+  | Transaction_start
+  | Watch of string * string
+  | Unwatch of string * string
+  | Transaction_end of bool
+  | Debug of string list
+  | Introduce of int * Nativeint.t * int
+  | Resume of int
+  | Release of int
+  | Set_target of int * int
+  | Restrict of int
+  | Isintroduced of int
+  with sexp
 
-	type payload =
-	| PathOp of string * path_op
-	| Getdomainpath of int
-	| Transaction_start
-	| Watch of string * string
-	| Unwatch of string * string
-	| Transaction_end of bool
-	| Debug of string list
-	| Introduce of int * Nativeint.t * int
-	| Resume of int
-	| Release of int
-	| Set_target of int * int
-	| Restrict of int
-	| Isintroduced of int
-	| Error of string
-	| Watchevent of string
-        with sexp
+  let get_ty = function
+  | PathOp(_, Directory) -> Op.Directory
+  | PathOp(_, Read) -> Op.Read
+  | PathOp(_, Getperms) -> Op.Getperms
+  | Debug _ -> Op.Debug
+  | Watch (_, _) -> Op.Watch
+  | Unwatch (_, _) -> Op.Unwatch
+  | Transaction_start -> Op.Transaction_start
+  | Transaction_end _ -> Op.Transaction_end
+  | Introduce(_, _, _) -> Op.Introduce
+  | Release _ -> Op.Release
+  | Resume _ -> Op.Resume
+  | Getdomainpath _ -> Op.Getdomainpath
+  | PathOp(_, Write _) -> Op.Write
+  | PathOp(_, Mkdir) -> Op.Mkdir
+  | PathOp(_, Rm) -> Op.Rm
+  | PathOp(_, Setperms _) -> Op.Setperms
+  | Set_target (_, _) -> Op.Set_target
+  | Restrict _ -> Op.Restrict
+  | Isintroduced _ -> Op.Isintroduced
 
-	open Printf
-	exception Parse_failure
+  let unmarshal hdr payload =
+    let open Unmarshal in
+    let pathop op =
+      string payload >>= fun p ->
+      return (PathOp (p, op)) in
+    match hdr.Header.ty with
+    | Op.Read -> pathop Read
+    | Op.Directory -> pathop Directory
+    | Op.Getperms -> pathop Getperms
+    | Op.Mkdir -> pathop Mkdir
+    | Op.Rm -> pathop Rm
+    | Op.Getdomainpath ->
+      int payload >>= fun domid ->
+      return (Getdomainpath domid)
+    | Op.Transaction_start -> return Transaction_start
+    | Op.Write ->
+      pair string string payload >>= fun (path, value) ->
+      return (PathOp(path, Write value))
+    | Op.Setperms ->
+      pair string ACL.unmarshal payload >>= fun (path, perms) ->
+      return (PathOp (path, Setperms perms))
+    | Op.Watch ->
+      pair string string payload >>= fun (path, token) ->
+      return (Watch (path, token))
+    | Op.Unwatch ->
+      pair string string payload >>= fun (path, token) ->
+      return (Unwatch (path, token))
+    | Op.Transaction_end ->
+      bool payload >>= fun b ->
+      return (Transaction_end b)
+    | Op.Debug ->
+      list string payload >>= fun lines ->
+      return (Debug lines)
+    | Op.Introduce ->
+      triple int nativeint int payload >>= fun (domid, mfn, port) ->
+      return (Introduce (domid, mfn, port))
+    | Op.Resume ->
+      int payload >>= fun domid ->
+      return (Resume domid)
+    | Op.Release ->
+      int payload >>= fun domid ->
+      return (Release domid)
+    | Op.Set_target ->
+      pair int int payload >>= fun (mine, yours) ->
+      return (Set_target (mine, yours))
+    | Op.Restrict ->
+      int payload >>= fun domid ->
+      return (Restrict domid)
+    | Op.Isintroduced ->
+      int payload >>= fun domid ->
+      return (Isintroduced domid)
+    | Op.Watchevent ->
+      `Error "It is illegal to send a Watchevent request"
+    | Op.Error ->
+      `Error "It is illegal to send an Error request"
 
-	let strings data = split_string '\000' data
-
-	(* String must be NUL-terminated *)
-	let one_string data =
-		let args = split_string ~limit:2 '\000' data in
-		match args with
-		| x :: [] ->
-			raise Parse_failure
-		| x :: "" :: [] -> x
-		| _       ->
-			raise Parse_failure
-
-	let two_strings data =
-		let args = split_string ~limit:2 '\000' data in
-		match args with
-		| a :: b :: [] -> a, b
-		| a :: []      ->
-			raise Parse_failure
-		| _            ->
-			raise Parse_failure
-
-	let acl x = match ACL.unmarshal x with
-		| Some x -> x
-		| None ->
-			raise Parse_failure
-
-	let domid s =
-		let v = ref 0 in
-		let is_digit c = c >= '0' && c <= '9' in
-		let len = String.length s in
-		let i = ref 0 in
-		while !i < len && not (is_digit s.[!i]) do incr i done;
-		while !i < len && is_digit s.[!i]
-		do
-			let x = (Char.code s.[!i]) - (Char.code '0') in
-			v := !v * 10 + x;
-			incr i
-		done;
-		!v
-
-	let bool = function
-		| "F" -> false
-		| "T" -> true
-		| data ->
-			raise Parse_failure
-
-	let parse_exn request =
-		let data = get_data_raw request in
-		match get_ty request with
-		| Op.Read -> PathOp (data |> one_string, Read)
-		| Op.Directory -> PathOp (data |> one_string, Directory)
-		| Op.Getperms -> PathOp (data |> one_string, Getperms)
-		| Op.Getdomainpath -> Getdomainpath (data |> one_string |> domid)
-		| Op.Transaction_start -> Transaction_start
-		| Op.Write ->
-			let path, value = two_strings data in
-			PathOp (path, Write value)
-		| Op.Mkdir -> PathOp (data |> one_string, Mkdir)
-		| Op.Rm -> PathOp (data |> one_string, Rm)
-		| Op.Setperms ->
-			let path, perms = two_strings data in
-			(* strip everything from the last NUL onwards *)
-			let perms = String.sub perms 0 (String.rindex perms '\000') in
-			let perms = acl perms in
-			PathOp(path, Setperms perms)
-		| Op.Watch ->
-			let path, token = two_strings data in
-			(* strip everything from the last NUL onwards *)
-			let token = String.sub token 0 (String.rindex token '\000') in
-			Watch(path, token)
-		| Op.Unwatch ->
-			let path, token = two_strings data in
-			Unwatch(path, token)
-		| Op.Transaction_end -> Transaction_end(data |> one_string |> bool)
-		| Op.Debug -> Debug (strings data)
-		| Op.Introduce ->
-			begin match strings data with
-			| d :: mfn :: port :: _ ->
-				let d = domid d in
-				let mfn = Nativeint.of_string mfn in
-				let port = int_of_string port in
-				Introduce (d, mfn, port)
-			| _ ->
-				raise Parse_failure
-			end
-		| Op.Resume -> Resume (data |> one_string |> domid)
-		| Op.Release -> Release (data |> one_string |> domid)
-		| Op.Set_target ->
-			let mine, yours = two_strings data in
-			let mine = domid mine and yours = domid yours in
-			Set_target(mine, yours)
-		| Op.Restrict -> Restrict (data |> one_string |> domid)
-		| Op.Isintroduced -> Isintroduced (data |> one_string |> domid)
-		| Op.Error -> Error(data |> one_string)
-		| Op.Watchevent -> Watchevent(data |> one_string)
-
-	let parse request =
-		try
-			Some (parse_exn request)
-		with _ -> None
-
-        let ty_of_payload = function
-		| PathOp(_, Directory) -> Op.Directory
-		| PathOp(_, Read) -> Op.Read
-		| PathOp(_, Getperms) -> Op.Getperms
-		| Debug _ -> Op.Debug
-		| Watch (_, _) -> Op.Watch
-		| Unwatch (_, _) -> Op.Unwatch
-		| Transaction_start -> Op.Transaction_start
-		| Transaction_end _ -> Op.Transaction_end
-		| Introduce(_, _, _) -> Op.Introduce
-		| Release _ -> Op.Release
-		| Resume _ -> Op.Resume
-		| Getdomainpath _ -> Op.Getdomainpath
-		| PathOp(_, Write _) -> Op.Write
-		| PathOp(_, Mkdir) -> Op.Mkdir
-		| PathOp(_, Rm) -> Op.Rm
-		| PathOp(_, Setperms _) -> Op.Setperms
-		| Set_target (_, _) -> Op.Set_target
-		| Restrict _ -> Op.Restrict
-		| Isintroduced _ -> Op.Isintroduced
-                | Watchevent _ -> Op.Watchevent
-                | Error _ -> Op.Error
-
-	let transactional_of_payload = function
-		| PathOp(_, _)
-		| Transaction_end _ -> true
-		| _ -> false
-
-	let data_of_payload = function
-		| PathOp(path, Write value) ->
-			path ^ "\000" ^ value (* no NULL at the end *)
-		| PathOp(path, Setperms perms) ->
-			data_concat [ path; ACL.marshal perms ]
-		| PathOp(path, _) -> data_concat [ path ]
-		| Debug commands -> data_concat commands
-		| Watch (path, token)
-		| Unwatch (path, token) -> data_concat [ path; token ]
-		| Transaction_start -> data_concat []
-		| Transaction_end commit -> data_concat [ if commit then "T" else "F" ]
-		| Introduce(domid, mfn, port) ->
-			data_concat [
-				Printf.sprintf "%u" domid;
-				Printf.sprintf "%nu" mfn;
-				string_of_int port;
-			]
-		| Release domid
-		| Resume domid
-		| Getdomainpath domid
-		| Restrict domid
-		| Isintroduced domid ->
-			data_concat [ Printf.sprintf "%u" domid; ]
-		| Set_target (mine, yours) ->
-			data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours; ]
-                | Watchevent _
-                | Error _ ->
-                        (* It's illegal to create a request with a Watchevent or an Error.
-                           A well-behaved client (like ours) will never do this, so this code
-                           is never reached. *)
-                        failwith "it's illegal to create a request with a Watchevent or an Error"
-
-	let marshal x tid rid =
-		create
-			(if transactional_of_payload x then tid else 0l)
-			rid
-			(ty_of_payload x)
-			(data_of_payload x)
+  let marshal x buf = let open Marshal in match x with
+    | PathOp(path, Write value)    -> buf |> string path |> null |> string value (* no NULL at the end *)
+    | PathOp(path, Setperms perms) -> buf |> string path |> ACL.marshal perms
+    | PathOp(path, _)              -> buf |> string path |> null
+    | Debug commands               -> buf |> list string commands
+    | Watch (path, token)
+    | Unwatch (path, token)        -> buf |> list string [ path; token ]
+    | Transaction_start            -> buf |> null
+    | Transaction_end commit       -> buf |> bool commit |> null
+    | Introduce (domid, mfn, port) -> buf |> list string [ string_of_int domid; Nativeint.to_string mfn; string_of_int port ]
+    | Release domid
+    | Resume domid
+    | Getdomainpath domid
+    | Restrict domid
+    | Isintroduced domid           -> buf |> list string [ string_of_int domid ]
+    | Set_target (mine, yours)     -> buf |> list string [ string_of_int mine; string_of_int yours ]
 end
-
-module Unmarshal = struct
-  let some x = Some x
-  let int_of_string_opt x = try Some(int_of_string x) with _ -> None
-  let int32_of_string_opt x = try Some(Int32.of_string x) with _ -> None
-  let unit_of_string_opt x = if x = "" then Some () else None
-  let ok x = if x = "OK" then Some () else None
-
-  let string = some ++ get_data
-  let list = some ++ split_string '\000' ++ get_data
-  let acl = ACL.unmarshal ++ get_data
-  let int = int_of_string_opt ++ get_data
-  let int32 = int32_of_string_opt ++ get_data
-  let unit = unit_of_string_opt ++ get_data
-  let ok = ok ++ get_data
-end
-
-exception Enoent of string
-exception Eagain
-exception Invalid
-exception Error of string
-
-let response hint sent received f = match get_ty sent, get_ty received with
-  | _, Op.Error ->
-    begin match get_data received with
-      | "ENOENT" -> raise (Enoent hint)
-      | "EAGAIN" -> raise Eagain
-      | "EINVAL" -> raise Invalid
-      | s -> raise (Error s)
-    end
-  | x, y when x = y ->
-    begin match f received with
-      | None -> raise (Error (Printf.sprintf "failed to parse response (hint:%s) (payload:%s)" hint (get_data received)))
-      | Some z -> z
-    end
-  | x, y ->
-    raise (Error (Printf.sprintf "unexpected packet: expected %s; got %s"
-      (Sexp.to_string_hum (Op.sexp_of_t x)) (Sexp.to_string_hum (Op.sexp_of_t y))))

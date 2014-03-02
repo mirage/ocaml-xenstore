@@ -44,7 +44,7 @@ type t = {
         (* A log of all the requests and responses during this transaction. When
            committing a transaction to a modified store, we replay the requests and
            abort the transaction if any of the responses would now be different. *)
-	mutable operations: (Protocol.Request.payload * Protocol.Response.payload) list;
+	mutable operations: (Protocol.Request.t * Protocol.Response.t) list;
 }
 
 let make id store =

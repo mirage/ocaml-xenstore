@@ -14,13 +14,13 @@
 
 (** XenStore protocol. *)
 
-type t with sexp
-(** A valid packet. *)
-
 type ('a, 'b) result = [
 | `Ok of 'a
 | `Error of 'b
 ]
+
+val xenstore_payload_max: int
+(** the maximum size of a xenstore packet payload (not including header) *)
 
 module Op : sig
   type t =
@@ -58,77 +58,26 @@ module Op : sig
   val to_int32: t -> int32
 end
 
-module ACL : sig
-
-  type perm =
-    | NONE
-    | READ
-    | WRITE
-    | RDWR
-  with sexp
-
-  val char_of_perm: perm -> char
-  val perm_of_char: char -> perm option
-
-  type domid = int with sexp
-
+module Header : sig
   type t = {
-    owner: domid;             (** domain which "owns", has full access *)
-    other: perm;              (** default permissions for all others... *)
-    acl: (domid * perm) list; (** ... unless overridden in the ACL *)
+    tid: int32; (** transaction id *)
+    rid: int32; (** request id: for matching replies *)
+    ty: Op.t;   (** the type of the payload *)
+    len: int;   (** the length of the payload *)
   } with sexp
+  (** Every xenstore message starts with a fixed-length header *)
 
-  val unmarshal: string -> t option
-  val marshal: t -> string
+  val sizeof: int
+  (** The size of the header in bytes *)
+
+  val marshal: t -> Cstruct.t -> Cstruct.t
+  (** [marshal t buf] writes [t] to [buf], and returns [buf] shifted along by
+      the size of [t] *)
+
+  val unmarshal: Cstruct.t -> (t, string) result
+  (** [unmarshal buf] reads a [t] from [buf], or produces a descriptive error
+      message. *)
 end
-(** Access control lists. *)
-
-module Parser : sig
-
-  type state =
-    | Done of (t, string) result (** finished, either with a packet or an error *)
-    | Continue of int            (** we still need 'n' bytes *)
-  with sexp
-
-  type t with sexp
-  (** The internal state of the parser. *)
-
-  val create: unit -> t
-  (** Create a parser set to the initial state. *)
-
-  val state: t -> state
-  (** Query the state of the parser. *)
-
-  val input: t -> string -> t
-  (** Input some bytes into the parser. Must be no more than needed
-      (see Need_more_data above). *)
-end
-(** Incrementally parse packets. *)
-
-module type IO = sig
-  type 'a t
-  val return: 'a -> 'a t
-  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
-
-  type channel
-  val read: channel -> string -> int -> int -> int t
-  val write: channel -> string -> int -> int -> unit t
-end
-
-module PacketStream : functor(IO: IO) -> sig
-  type stream
-  val make: IO.channel -> stream
-  val recv: stream -> (t, string) result IO.t
-  val send: stream -> t -> unit IO.t
-end
-
-val marshal : t -> string
-val get_tid : t -> int32
-val get_ty : t -> Op.t
-val get_data : t -> string
-val get_rid : t -> int32
-
-val create : int32 -> int32 -> Op.t -> string -> t
 
 module Token : sig
   type t
@@ -251,8 +200,40 @@ module Name : sig
       raise Invalid_path *)
 end
 
+module ACL : sig
+
+  type perm =
+    | NONE  (** no permission *)
+    | READ  (** read only *)
+    | WRITE (** write only *)
+    | RDWR  (** read and write *)
+  with sexp
+  (** An access control list grants permissions to domains. *)
+
+  val char_of_perm: perm -> char
+  (** Each perm is associated with a char in the normal UI *)
+
+  type domid = int with sexp
+
+  type t = {
+    owner: domid;             (** domain which "owns", has full access *)
+    other: perm;              (** default permissions for all others... *)
+    acl: (domid * perm) list; (** ... unless overridden in the ACL *)
+  } with sexp
+  (** an access control list *)
+
+  val unmarshal: Cstruct.t -> (t, string) result
+  (** [unmarshal buf] reads a [t] from [buf] or produces a descriptive error
+      message. *)
+
+  val marshal: t -> Cstruct.t -> Cstruct.t
+  (** [marshal t buf] writes [t] to [buf] and returns [buf] shifted along by
+      the size of [t] *)
+end
+(** Access control lists. *)
+
 module Response : sig
-  type payload =
+  type t =
   | Read of string
   | Directory of string list
   | Getperms of ACL.t
@@ -275,10 +256,18 @@ module Response : sig
   | Error of string
   | Watchevent of string * string
   with sexp
+  (** the body of a response *)
 
-  val ty_of_payload: payload -> Op.t
+  val get_ty: t -> Op.t
+  (** [get_ty t] returns the operation code corresponding to [t] *)
 
-  val marshal: payload -> int32 -> int32 -> t
+  val unmarshal: Header.t -> Cstruct.t -> (t, string) result
+  (** [unmarshal header payload] parses [payload] according to the
+      operation code in [header] and returns a [t] *)
+
+  val marshal: t -> Cstruct.t -> Cstruct.t
+  (** [marshal t buf] writes [t] to [buf] and shifts [buf] along by the
+      size of [t] *)
 end
 
 module Request : sig
@@ -293,7 +282,7 @@ module Request : sig
   | Setperms of ACL.t
   with sexp
 
-  type payload =
+  type t =
   | PathOp of string * path_op
   | Getdomainpath of int
   | Transaction_start
@@ -307,32 +296,22 @@ module Request : sig
   | Set_target of int * int
   | Restrict of int
   | Isintroduced of int
-  | Error of string
-  | Watchevent of string
   with sexp
+  (** the payload of a request *)
 
-  val ty_of_payload: payload -> Op.t
+  val get_ty: t -> Op.t
+  (** [get_ty t] returns the operation code associated with [t] *)
 
-  val parse: t -> payload option
-  val marshal: payload -> int32 -> int32 -> t
-end
+  val unmarshal: Header.t -> Cstruct.t -> (t, string) result
+  (** [unmarshal header payload] parses [payload] according to the
+      operation code in [header] and returns a [t] *)
 
-module Unmarshal : sig
-  val string : t -> string option
-  val list : t -> string list option
-  val acl : t -> ACL.t option
-  val int : t -> int option
-  val int32 : t -> int32 option
-  val unit : t -> unit option
-  val ok : t -> unit option
+  val marshal: t -> Cstruct.t -> Cstruct.t
+  (** [marshal t buf] writes [t] to [buf] and returns [buf] shifted by
+      the sizeof [t] *)
 end
 
 exception Enoent of string (** Raised when a named key does not exist. *)
 exception Eagain           (** Raised when a transaction must be repeated. *)
 exception Invalid
 exception Error of string  (** Generic catch-all error. *)
-
-val response: string -> t -> t -> (t -> 'a option) -> 'a
-(** [response debug_hint sent received unmarshal] returns the
-    [unmarshal]led response corresponding to the [received] packet
-    relative to the [sent] packet. *)
