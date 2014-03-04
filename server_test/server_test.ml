@@ -237,40 +237,42 @@ let test_device_create_coalesce () =
 	(* Check that two parallel, device-creating transactions can coalesce *)
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
-		dom0, none, PathOp("/local/domain/0/backend/vbd", Mkdir), OK;
-		dom0, none, PathOp("/local/domain/1/device/vbd", Mkdir), OK;
-		dom0, none, PathOp("/local/domain/2/device/vbd", Mkdir), OK;
+		dom0, none, PathOp("/local/domain/0/backend/vbd", Mkdir), Response.Mkdir;
+		dom0, none, PathOp("/local/domain/1/device/vbd", Mkdir), Response.Mkdir;
+		dom0, none, PathOp("/local/domain/2/device/vbd", Mkdir), Response.Mkdir;
 	];
-	let tid_1 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
-	let tid_2 = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+        let tid_1 = begin_transaction store dom0 in
+        let tid_2 = begin_transaction store dom0 in
 	run store [
-		dom0, tid_1, PathOp("/local/domain/0/backend/vbd/1/51712", Write "hello"), OK;
-		dom0, tid_1, PathOp("/local/domain/1/device/vbd/51712", Write "there"), OK;
-		dom0, tid_2, PathOp("/local/domain/0/backend/vbd/2/51712", Write "hello"), OK;
-		dom0, tid_2, PathOp("/local/domain/2/device/vbd/51712", Write "there"), OK;
-		dom0, tid_1, Transaction_end true, OK;
-		dom0, tid_2, Transaction_end true, OK;
-		dom0, none, PathOp("/local/domain/0/backend/vbd/1/51712", Read), String "hello";
-		dom0, none, PathOp("/local/domain/0/backend/vbd/2/51712", Read), String "hello";
+		dom0, tid_1, PathOp("/local/domain/0/backend/vbd/1/51712", Write "hello"), Response.Write;
+		dom0, tid_1, PathOp("/local/domain/1/device/vbd/51712", Write "there"), Response.Write;
+		dom0, tid_2, PathOp("/local/domain/0/backend/vbd/2/51712", Write "hello"), Response.Write;
+		dom0, tid_2, PathOp("/local/domain/2/device/vbd/51712", Write "there"), Response.Write;
+		dom0, tid_1, Transaction_end true, Response.Transaction_end;
+		dom0, tid_2, Transaction_end true, Response.Transaction_end;
+		dom0, none, PathOp("/local/domain/0/backend/vbd/1/51712", Read), Response.Read "hello";
+		dom0, none, PathOp("/local/domain/0/backend/vbd/2/51712", Read), Response.Read "hello";
 	]
 
 let test_transactions_really_do_conflict () =
 	(* Check that transactions that really can't interleave are aborted *)
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
-		dom0, none, PathOp("/a", Mkdir), OK;
+		dom0, none, PathOp("/a", Mkdir), Response.Mkdir;
 	];
-	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+        let tid = begin_transaction store dom0 in
 	run store [
-		dom0, tid, PathOp("/a", Directory), OK;
-		dom0, none, PathOp("/a/b", Write "hello"), OK;
-		dom0, tid, PathOp("/a/b", Write "there"), OK;
-		dom0, tid, Transaction_end true, Err "EAGAIN";
-		dom0, none, PathOp("/a/b", Read), String "hello"
+                dom0, tid, PathOp("/a", Directory), Response.Directory [];
+		dom0, none, PathOp("/a/b", Write "hello"), Response.Write;
+		dom0, tid, PathOp("/a/b", Write "there"), Response.Write;
+		dom0, tid, Transaction_end true, Response.Error "EAGAIN";
+		dom0, none, PathOp("/a/b", Read), Response.Read "hello"
 	]
 
 
@@ -286,28 +288,29 @@ let test_watch_event_quota () =
 	let dom0 = Connection.create (interdomain 0) None in
 	let dom1 = Connection.create (interdomain 1) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	(* No watch events are generated without registering *)
 	run store [
-		dom0, none, PathOp("/tool/xenstored/quota/number-of-queued-watch-events/1", Write "1"), OK;
-		dom0, none, PathOp("/a", Mkdir), OK;
-		dom0, none, PathOp("/a", Setperms Protocol.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
+		dom0, none, PathOp("/tool/xenstored/quota/number-of-queued-watch-events/1", Write "1"), Response.Write;
+		dom0, none, PathOp("/a", Mkdir), Response.Mkdir;
+		dom0, none, PathOp("/a", Setperms Protocol.ACL.({ owner = 0; other = RDWR; acl = []})), Response.Setperms;
 	];
 	assert_watches dom1 [];
 	run store [
-		dom1, none, Watch ("/a", "token"), OK;
+		dom1, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom1 [ ("/a", "token") ];
 	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 0 dom1.Connection.nb_dropped_watches;
 	(* This watch will be dropped *)
 	run store [
-		dom0, none, PathOp("/a", Write "hello"), OK;
+		dom0, none, PathOp("/a", Write "hello"), Response.Write;
 	];
 	assert_watches dom1 [ ("/a", "token") ];
 	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 1 dom1.Connection.nb_dropped_watches;
 	run store [
-		dom0, none, PathOp("/tool/xenstored/quota/number-of-queued-watch-events/1", Write "2"), OK;
-		dom0, none, PathOp("/a", Write "there"), OK;
+		dom0, none, PathOp("/tool/xenstored/quota/number-of-queued-watch-events/1", Write "2"), Response.Write;
+		dom0, none, PathOp("/a", Write "there"), Response.Write;
 	];
 	assert_watches dom1 [ ("/a", "token"); ("/a", "token") ];
 	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 1 dom1.Connection.nb_dropped_watches
@@ -317,39 +320,40 @@ let test_simple_watches () =
 	let dom0 = Connection.create (interdomain 0) None in
 	let dom1 = Connection.create (interdomain 1) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	(* No watch events are generated without registering *)
 	run store [
-		dom0, none, PathOp("/a", Mkdir), OK;
-		dom0, none, PathOp("/a", Setperms Protocol.ACL.({ owner = 0; other = RDWR; acl = []})), OK;
+		dom0, none, PathOp("/a", Mkdir), Response.Mkdir;
+		dom0, none, PathOp("/a", Setperms Protocol.ACL.({ owner = 0; other = RDWR; acl = []})), Response.Setperms;
 	];
 	assert_watches dom0 [];
 	run store [
-		dom0, none, Watch ("/a", "token"), OK;
+		dom0, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
 	(* dom0 can see its own write via watches *)
 	run store [
-		dom0, none, PathOp("/a", Write "foo"), OK;
+		dom0, none, PathOp("/a", Write "foo"), Response.Write;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
 	(* dom0 can see dom1's writes via watches *)
 	run store [
-		dom1, none, PathOp("/a", Write "foo"), OK;
+		dom1, none, PathOp("/a", Write "foo"), Response.Write;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
 	(* reads don't generate watches *)
 	run store [
-		dom0, none, PathOp("/a", Read), OK;
-		dom0, none, PathOp("/a/1", Read), Err "ENOENT";
-		dom1, none, PathOp("/a", Read), OK;
-		dom1, none, PathOp("/a/1", Read), Err "ENOENT";
+		dom0, none, PathOp("/a", Read), Response.Read "foo";
+		dom0, none, PathOp("/a/1", Read), Response.Error "ENOENT";
+		dom1, none, PathOp("/a", Read), Response.Read "foo";
+		dom1, none, PathOp("/a/1", Read), Response.Error "ENOENT";
 	];
 	assert_watches dom0 []
 
@@ -357,18 +361,19 @@ let test_relative_watches () =
 	(* Check that watches for relative paths *)
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	(* No watch events are generated without registering *)
 	run store [
-		dom0, none, PathOp("/local/domain/0/name", Write ""), OK;
-		dom0, none, PathOp("/local/domain/0/device", Write ""), OK;
-		dom0, none, Watch("device", "token"), OK;
+		dom0, none, PathOp("/local/domain/0/name", Write ""), Response.Write;
+		dom0, none, PathOp("/local/domain/0/device", Write ""), Response.Write;
+		dom0, none, Watch("device", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ "device", "token" ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
 	run store [
-		dom0, none, PathOp("/local/domain/0/device/vbd", Write "hello"), OK;
+		dom0, none, PathOp("/local/domain/0/device/vbd", Write "hello"), Response.Write;
 	];
 	assert_watches dom0 [ "device/vbd", "token" ]
 
@@ -378,16 +383,17 @@ let test_watches_read_perm () =
 	let dom0 = Connection.create (interdomain 0) None in
 	let dom1 = Connection.create (interdomain 1) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
-		dom1, none, Watch ("/a", "token"), OK;
+		dom1, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom1 [ ("/a", "token") ];
 	Queue.clear dom1.Connection.watch_events;
 	assert_watches dom1 [];
 	run store [
-		dom0, none, PathOp("/a", Write "hello"), OK;
-		dom1, none, PathOp("/a", Read), Err "EACCES";
+		dom0, none, PathOp("/a", Write "hello"), Response.Write;
+		dom1, none, PathOp("/a", Read), Response.Error "EACCES";
 	];
 	assert_watches dom1 []
 
@@ -396,29 +402,30 @@ let test_transaction_watches () =
 	   and not at all in the case of abort *)
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
-		dom0, none, Watch ("/a", "token"), OK;
+		dom0, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
 	(* PathOp( Writes in a transaction don't generate watches immediately *)
-	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+        let tid = begin_transaction store dom0 in
 	run store [
-		dom0, tid, PathOp("/a", Write "hello"), OK;
+		dom0, tid, PathOp("/a", Write "hello"), Response.Write;
 	];
 	assert_watches dom0 [];
 	(* If the transaction is aborted then no watches are generated *)
 	run store [
-		dom0, tid, Transaction_end false, OK
+		dom0, tid, Transaction_end false, Response.Transaction_end
 	];
 	assert_watches dom0 [];
 	(* If the transaction successfully commits then the watches appear *)
-	let tid = (success ++ int32) id (rpc store dom0 none Transaction_start) in
+        let tid = begin_transaction store dom0 in
 	run store [
-		dom0, tid, PathOp("/a", Write "hello"), OK;
-		dom0, tid, Transaction_end true, OK
+		dom0, tid, PathOp("/a", Write "hello"), Response.Write;
+		dom0, tid, Transaction_end true, Response.Transaction_end
 	];
 	assert_watches dom0 [ ("/a", "token") ]
 
@@ -426,15 +433,16 @@ let test_introduce_watches () =
 	(* Check that @introduceDomain watches appear on introduce *)
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
-		dom0, none, Watch ("@introduceDomain", "token"), OK;
+		dom0, none, Watch ("@introduceDomain", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("@introduceDomain", "token") ];
 	Queue.clear dom0.Connection.watch_events;
 	assert_watches dom0 [];
 	run store [
-		dom0, none, Introduce(5, 5n, 5), OK;
+		dom0, none, Introduce(5, 5n, 5), Response.Introduce;
 	];
 	assert_watches dom0 [ ("@introduceDomain", "token") ]
 
@@ -458,10 +466,11 @@ let test_rm_root () =
         (* Check that deleting / fails *)
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
 		(* Removing the root node is forbidden *)
-		dom0, none, PathOp("/", Rm), Err "EINVAL";
+		dom0, none, PathOp("/", Rm), Response.Error "EINVAL";
 	]
 
 
@@ -469,6 +478,7 @@ let test_quota () =
 	(* Check that node creation and destruction changes a quota *)
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	let start = ref 0 in
 	let expect n x =
@@ -476,28 +486,28 @@ let test_quota () =
 
 	run store [
 (*		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (fun x -> start := int_of_string (List.hd x)); *)
-		dom0, none, PathOp("/a", Write "hello"), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), StringList (expect 1);
+		dom0, none, PathOp("/a", Write "hello"), Response.Write;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), Response.Read "1";
 		(* Implicit creation of 2 elements *)
-		dom0, none, PathOp("/a/b/c", Write "hello"), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), StringList (expect 3);
+		dom0, none, PathOp("/a/b/c", Write "hello"), Response.Write;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), Response.Read "3";
 		(* Remove one element *)
-		dom0, none, PathOp("/a/b/c", Rm), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), StringList (expect 2);
+		dom0, none, PathOp("/a/b/c", Rm), Response.Rm;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), Response.Read "2";
 		(* Recursive remove of 2 elements *)
-		dom0, none, PathOp("/a", Rm), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), StringList (expect 0);
+		dom0, none, PathOp("/a", Rm), Response.Rm;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), Response.Read "0";
 		(* Remove an already removed element *)
-		dom0, none, PathOp("/a", Rm), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), StringList (expect 0);
+		dom0, none, PathOp("/a", Rm), Response.Rm;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), Response.Read "0";
 		(* Remove a missing element: *)
-		dom0, none, PathOp("/a", Rm), OK;
-		dom0, none, PathOp("/a", Rm), OK;
-		dom0, none, PathOp("/a", Rm), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), StringList (expect 0);
+		dom0, none, PathOp("/a", Rm), Response.Rm;
+		dom0, none, PathOp("/a", Rm), Response.Rm;
+		dom0, none, PathOp("/a", Rm), Response.Rm;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), Response.Read "0";
 		(* Removing the root node is forbidden *)
-		dom0, none, PathOp("/", Rm), Err "EINVAL";
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), StringList (expect 0);
+		dom0, none, PathOp("/", Rm), Response.Error "EINVAL";
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), Response.Read "0";
 	]
 
 let test_quota_transaction () =
@@ -506,30 +516,31 @@ let test_quota_transaction () =
 	let dom1 = Connection.create (interdomain 1) None in
 	let dom2 = Connection.create (interdomain 2) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	let start = ref 0 in
 	let expect n x =
 		assert_equal ~msg:"quota" ~printer:string_of_int (!start + n) (int_of_string (List.hd x)) in
 
 	run store [
-		dom0, none, PathOp("/local/domain/1", Write ""), OK;
-		dom0, none, PathOp("/local/domain/1", Setperms { example_acl with Protocol.ACL.owner = 1 }), OK;
-		dom0, none, PathOp("/local/domain/2", Write ""), OK;
-		dom0, none, PathOp("/local/domain/2", Setperms { example_acl with Protocol.ACL.owner = 2 }), OK;
-		dom1, none, PathOp("/local/domain/1/data/test", Write ""), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (expect 2);
-		dom1, none, PathOp("/local/domain/1/data/test/node0", Write "node0"), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (expect 3);
-		dom2, none, PathOp("/local/domain/2/data/test", Write ""), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (expect 2);
+		dom0, none, PathOp("/local/domain/1", Write ""), Response.Write;
+		dom0, none, PathOp("/local/domain/1", Setperms { example_acl with Protocol.ACL.owner = 1 }), Response.Setperms;
+		dom0, none, PathOp("/local/domain/2", Write ""), Response.Write;
+		dom0, none, PathOp("/local/domain/2", Setperms { example_acl with Protocol.ACL.owner = 2 }), Response.Setperms;
+		dom1, none, PathOp("/local/domain/1/data/test", Write ""), Response.Write;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), Response.Read "2";
+		dom1, none, PathOp("/local/domain/1/data/test/node0", Write "node0"), Response.Write;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), Response.Read "3";
+		dom2, none, PathOp("/local/domain/2/data/test", Write ""), Response.Write;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), Response.Read "2";
 	];
-	let tid = (success ++ int32) id (rpc store dom1 none Transaction_start) in
+        let tid = begin_transaction store dom0 in
 	run store [
-		dom1, tid, PathOp("/local/domain/1/data/test", Rm), OK;
-		dom2, none, PathOp("/local/domain/2/data/test/node0", Write "node0"), OK;
-		dom1, tid, Transaction_end true, OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (expect 1);
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (expect 3);
+		dom1, tid, PathOp("/local/domain/1/data/test", Rm), Response.Rm;
+		dom2, none, PathOp("/local/domain/2/data/test/node0", Write "node0"), Response.Write;
+		dom1, tid, Transaction_end true, Response.Transaction_end;
+		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), Response.Read "1";
+		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), Response.Read "3";
 	]
 
 let test_quota_setperms () =
@@ -537,60 +548,60 @@ let test_quota_setperms () =
 	let dom0 = Connection.create (interdomain 0) None in
 	let dom1 = Connection.create (interdomain 1) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
-	let dom1_quota = ref 0 in
-	let dom2_quota = ref 0 in
-	let expect quota n x =
-		assert_equal ~msg:"quota" ~printer:string_of_int (!quota + n) (int_of_string (List.hd x)) in
 	run store [
-		dom0, none, PathOp("/local/domain/1", Mkdir), OK;
-		dom0, none, PathOp("/local/domain/1", Setperms Protocol.ACL.({owner = 1; other = NONE; acl = []})), OK;
-		dom1, none, PathOp("/local/domain/1/private", Mkdir), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (fun x -> dom1_quota := int_of_string (List.hd x));
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (fun x -> dom2_quota := int_of_string (List.hd x));
-		dom1, none, PathOp("/local/domain/1/private/foo", Write "hello"), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), StringList (expect dom1_quota 1);
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (expect dom2_quota 0);
+		dom0, none, PathOp("/local/domain/1", Mkdir), Response.Mkdir;
+		dom0, none, PathOp("/local/domain/1", Setperms Protocol.ACL.({owner = 1; other = NONE; acl = []})), Response.Setperms;
+		dom1, none, PathOp("/local/domain/1/private", Mkdir), Response.Mkdir;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), Response.Read "1";
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), Response.Read "0";
+		dom1, none, PathOp("/local/domain/1/private/foo", Write "hello"), Response.Write;
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/1", Read), Response.Read "2";
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), Response.Read "0";
 		(* Hand this node to domain 2 (who doesn't want it) *)
-		dom1, none, PathOp("/local/domain/1/private/foo", Setperms Protocol.ACL.({owner = 2; other = NONE; acl = []})), OK;
+		dom1, none, PathOp("/local/domain/1/private/foo", Setperms Protocol.ACL.({owner = 2; other = NONE; acl = []})), Response.Setperms;
 		(* Domain 2's quota shouldn't be affected: *)
-		dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), StringList (expect dom2_quota 0);
+                dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), Response.Read "0";
 	]
 
 let test_quota_maxsize () =
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
-		dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "5"), OK;
-		dom0, none, PathOp("/a", Write "hello"), OK;
-		dom0, none, PathOp("/a", Write "hello2"), Err "E2BIG";
-		dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "6"), OK;
-		dom0, none, PathOp("/a", Write "hello2"), OK;
+		dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "5"), Response.Write;
+		dom0, none, PathOp("/a", Write "hello"), Response.Write;
+		dom0, none, PathOp("/a", Write "hello2"), Response.Error "E2BIG";
+		dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "6"), Response.Write;
+		dom0, none, PathOp("/a", Write "hello2"), Response.Write;
 	]
 
 let test_quota_maxent () =
 	let dom0 = Connection.create (interdomain 0) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
 		(* Side effect creates the quota entry *)
-		dom0, none, PathOp("/first", Write "post"), OK;
-		dom0, none, PathOp("/tool/xenstored/quota/default/number-of-entries", Write "1"), OK;
-		dom0, none, PathOp("/a", Write "hello"), Err "EQUOTA";
-		dom0, none, PathOp("/tool/xenstored/quota/number-of-entries/0", Write "2"), OK;
-		dom0, none, PathOp("/a", Write "hello"), OK;
-		dom0, none, PathOp("/a", Write "there"), OK;
-		dom0, none, PathOp("/b", Write "hello"), Err "EQUOTA";
+		dom0, none, PathOp("/first", Write "post"), Response.Write;
+		dom0, none, PathOp("/tool/xenstored/quota/default/number-of-entries", Write "1"), Response.Write;
+		dom0, none, PathOp("/a", Write "hello"), Response.Error "EQUOTA";
+		dom0, none, PathOp("/tool/xenstored/quota/number-of-entries/0", Write "2"), Response.Write;
+		dom0, none, PathOp("/a", Write "hello"), Response.Write;
+		dom0, none, PathOp("/a", Write "there"), Response.Write;
+		dom0, none, PathOp("/b", Write "hello"), Response.Error "EQUOTA";
 	]
 
 let test_control_perms () =
 	let dom1 = Connection.create (interdomain 1) None in
 	let store = empty_store () in
+        let open Protocol in
 	let open Protocol.Request in
 	run store [
-		dom1, none, PathOp("/quota/default/number-of-entries", Write "1"), Err "EACCES";
-		dom1, none, PathOp("/tool/xenstored/log/reply-err/ENOENT", Write "1"), Err "EACCES";
+		dom1, none, PathOp("/quota/default/number-of-entries", Write "1"), Response.Error "EACCES";
+		dom1, none, PathOp("/tool/xenstored/log/reply-err/ENOENT", Write "1"), Response.Error "EACCES";
 	]
 
 let _ =
