@@ -54,7 +54,7 @@ let test_implicit_create () =
 		dom0, none, PathOp("/a/b", Write "hello"), Response.Write;
 		domU, none, PathOp("/a/b", Read), Response.Error "EACCES";
 		(* dom0 can also see the implicit path created: *)
-		dom0, none, PathOp("/a", Read), Response.Read "hello";
+		dom0, none, PathOp("/a", Read), Response.Read "";
 		(* domU gets EACCES: *)
 		domU, none, PathOp("/a", Read), Response.Error "EACCES";
 	]
