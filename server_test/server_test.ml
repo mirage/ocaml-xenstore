@@ -110,7 +110,7 @@ let test_setperms_owner () =
 	]
 
 let begin_transaction store c =
-        match rpc store c none Transaction_start with
+        match rpc store c none Protocol.Request.Transaction_start with
         | Protocol.Response.Transaction_start tid -> tid
         | _ -> failwith "begin_transaction"
 
@@ -480,9 +480,6 @@ let test_quota () =
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
-	let start = ref 0 in
-	let expect n x =
-		assert_equal ~msg:"quota" ~printer:string_of_int (!start + n) (int_of_string (List.hd x)) in
 
 	run store [
 (*		dom0, none, PathOp("/quota/entries-per-domain/0", Read), StringList (fun x -> start := int_of_string (List.hd x)); *)
@@ -518,9 +515,6 @@ let test_quota_transaction () =
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
-	let start = ref 0 in
-	let expect n x =
-		assert_equal ~msg:"quota" ~printer:string_of_int (!start + n) (int_of_string (List.hd x)) in
 
 	run store [
 		dom0, none, PathOp("/local/domain/1", Write ""), Response.Write;
