@@ -641,7 +641,7 @@ module Request = struct
 
   let marshal x buf = let open Marshal in match x with
     | PathOp(path, Write value)    -> buf |> string path |> null |> string value (* no NULL at the end *)
-    | PathOp(path, Setperms perms) -> buf |> string path |> ACL.marshal perms
+    | PathOp(path, Setperms perms) -> buf |> string path |> null |> ACL.marshal perms
     | PathOp(path, _)              -> buf |> string path |> null
     | Debug commands               -> buf |> list string commands
     | Watch (path, token)
