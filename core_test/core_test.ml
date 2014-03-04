@@ -261,7 +261,7 @@ let _ =
         (List.map (fun t ->
           let description = Sexp.to_string (Protocol.Request.sexp_of_t t.Example_request_packet.request) in
           description >:: Example_request_packet.test_print t
-        ) (unexpected_request_packets @ example_request_packets)) in
+        ) example_request_packets) in
 
   let response_printing =
     "response_printing" >:::
