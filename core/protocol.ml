@@ -591,7 +591,11 @@ module Request = struct
     | Op.Mkdir -> pathop Mkdir
     | Op.Rm -> pathop Rm
     | Op.Getdomainpath ->
-      int payload >>= fun domid ->
+      (* quirk: if the string is empty, assume domain 0 *)
+      string payload >>= fun txt ->
+      if txt = ""
+      then return (Getdomainpath 0)
+      else expect_int txt >>= fun domid ->
       return (Getdomainpath domid)
     | Op.Transaction_start -> return Transaction_start
     | Op.Write ->
