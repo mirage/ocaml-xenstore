@@ -47,8 +47,9 @@ let acl_parser _ =
   let buf = Cstruct.create 1024 in
   List.iter
     (fun t ->
-      ignore (marshal t buf);
-      let t' = failure_on_error (unmarshal buf) in
+      let next = marshal t buf in
+      let data = Cstruct.sub buf 0 next.Cstruct.off in
+      let t' = failure_on_error (unmarshal data) in
       let printer x = Sexp.to_string_hum (sexp_of_t x) in
       assert_equal ~msg:"acl" ~printer t t'
     ) ts
