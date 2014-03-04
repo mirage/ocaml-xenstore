@@ -38,10 +38,12 @@ open OUnit
 let test (request, response) () =
   let open Sockets in
   lwt c = create () in
-  lwt () = write c request 0 (String.length request) in
-  let buffer = String.make (String.length response) '\000' in
-  lwt _ = read c buffer 0 (String.length response) in
-  assert_equal ~printer:String.escaped response buffer;
+  let request' = Cstruct.create (String.length request) in
+  Cstruct.blit_from_string request 0 request' 0 (String.length request);
+  lwt () = write c request' in
+  let response' = Cstruct.create (String.length response) in
+  lwt () = read c response' in
+  assert_equal ~printer:String.escaped response (Cstruct.to_string response');
   return ()
 
 let _ =
