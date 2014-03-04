@@ -534,7 +534,7 @@ let test_quota_transaction () =
 		dom2, none, PathOp("/local/domain/2/data/test", Write ""), Response.Write;
                 dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/2", Read), Response.Read "2";
 	];
-        let tid = begin_transaction store dom0 in
+        let tid = begin_transaction store dom1 in
 	run store [
 		dom1, tid, PathOp("/local/domain/1/data/test", Rm), Response.Rm;
 		dom2, none, PathOp("/local/domain/2/data/test/node0", Write "node0"), Response.Write;
