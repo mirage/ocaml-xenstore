@@ -476,7 +476,7 @@ module Response = struct
   let marshal x buf = let open Marshal in match x with
   | Read x                  -> buf |> string x
   | Directory ls            -> buf |> list string ls
-  | Getperms perms          -> buf |> ACL.marshal perms           |> null
+  | Getperms perms          -> buf |> ACL.marshal perms
   | Getdomainpath x         -> buf |> string x                    |> null
   | Transaction_start x     -> buf |> int32 x                     |> null
   | Debug items             -> buf |> list string items
