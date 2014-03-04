@@ -351,12 +351,12 @@ module Unmarshal = struct
 
   let list f x = x |> null |> split '\000' |> List.map f |> join []
 
-  let pair a b x = x |> null |> split '\000' |> (function
+  let cons a b x = x |> null |> split ~limit:2 '\000' |> (function
   | a' :: b' :: [] ->
     a a' >>= fun a'' ->
     b b' >>= fun b'' ->
     return (a'', b'')
-  | _ -> `Error(Printf.sprintf "Failed to unmarshal a pair: got \"%s\"" (String.escaped (Cstruct.to_string x))))
+  | _ -> `Error(Printf.sprintf "Failed to unmarshal a cons: got \"%s\"" (String.escaped (Cstruct.to_string x))))
   let triple a b c x = x |> null |> split '\000' |> (function
   | a' :: b' :: c' :: [] ->
     a a' >>= fun a'' ->
@@ -511,7 +511,7 @@ module Response = struct
     bool payload >>= fun b ->
     return (Isintroduced b)
   | Op.Watchevent ->
-    pair string string payload >>= fun (path, token) ->
+    cons string string payload >>= fun (path, token) ->
     return (Watchevent(path, token))
   | Op.Error ->
     string payload >>= fun x ->
@@ -599,16 +599,16 @@ module Request = struct
       return (Getdomainpath domid)
     | Op.Transaction_start -> return Transaction_start
     | Op.Write ->
-      pair string string payload >>= fun (path, value) ->
+      cons string string payload >>= fun (path, value) ->
       return (PathOp(path, Write value))
     | Op.Setperms ->
-      pair string ACL.unmarshal payload >>= fun (path, perms) ->
+      cons string ACL.unmarshal payload >>= fun (path, perms) ->
       return (PathOp (path, Setperms perms))
     | Op.Watch ->
-      pair string string payload >>= fun (path, token) ->
+      cons string string payload >>= fun (path, token) ->
       return (Watch (path, token))
     | Op.Unwatch ->
-      pair string string payload >>= fun (path, token) ->
+      cons string string payload >>= fun (path, token) ->
       return (Unwatch (path, token))
     | Op.Transaction_end ->
       bool payload >>= fun b ->
@@ -626,7 +626,7 @@ module Request = struct
       int payload >>= fun domid ->
       return (Release domid)
     | Op.Set_target ->
-      pair int int payload >>= fun (mine, yours) ->
+      cons int int payload >>= fun (mine, yours) ->
       return (Set_target (mine, yours))
     | Op.Restrict ->
       int payload >>= fun domid ->
