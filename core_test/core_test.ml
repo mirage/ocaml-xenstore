@@ -92,7 +92,7 @@ module Example_request_packet = struct
     ignore(Protocol.Header.marshal hdr buf);
     let all = Cstruct.sub buf 0 (Protocol.Header.sizeof + len) in
     let txt = Cstruct.to_string all in
-    assert_equal t.expected txt
+    assert_equal ~printer:String.escaped t.expected txt
 end
 
 let make_example_request op request tid expected =
@@ -172,7 +172,7 @@ module Example_response_packet = struct
     ignore(Protocol.Header.marshal hdr buf);
     let all = Cstruct.sub buf 0 (Protocol.Header.sizeof + len) in
     let txt = Cstruct.to_string all in
-    assert_equal t.expected txt
+    assert_equal ~printer:String.escaped t.expected txt
 end
 
 let make_example_response op response expected =
