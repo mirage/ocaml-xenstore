@@ -214,8 +214,8 @@ let example_response_packets =
 		make_example_response Op.Transaction_end Transaction_end
 			"\x07\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x4f\x4b\x00";
 		{
-                        Example_response_packet.tid = 0x10l;
-                        rid = 2l;
+                        Example_response_packet.tid = 0x2l;
+                        rid = 10l;
                         op = Op.Error;
                         response = Protocol.Response.Error "whatyoutalkingabout";
                         expected = 
