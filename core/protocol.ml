@@ -354,7 +354,7 @@ module Unmarshal = struct
     x >>= fun x ->
     join (x :: acc) xs
 
-  let list f x = x |> null |> split '\000' |> List.map f |> join []
+  let list f x = x |> null |> split '\000' |> List.filter (fun x -> Cstruct.len x <> 0) |> List.map f |> join []
 
   let cons a b x = x |> split ~limit:2 '\000' |> (function
   | a' :: b' :: [] ->
