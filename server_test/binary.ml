@@ -44,10 +44,8 @@ let test (request, response) () =
   let open Sockets in
   lwt c = create () in
   let request' = Cstruct.create (String.length request) in
-  Printf.fprintf stderr "writing %s\n%!" (String.escaped request);
   Cstruct.blit_from_string request 0 request' 0 (String.length request);
   lwt () = write c request' in
-  Printf.fprintf stderr "  expecting %s\n%!" (String.escaped response);
 
   let response' = Cstruct.create 1024 in
   let header = Cstruct.sub response' 0 Protocol.Header.sizeof in
@@ -57,7 +55,6 @@ let test (request, response) () =
   let payload' = Cstruct.sub payload 0 (min hdr.Protocol.Header.len (Cstruct.len payload)) in
   lwt () = read c payload' in
   let response' = Cstruct.sub response' 0 (payload'.Cstruct.off + payload'.Cstruct.len) in
-  Printf.fprintf stderr "  read      %s\n%!" (String.escaped (Cstruct.to_string response'));
   assert_equal ~printer:String.escaped response (Cstruct.to_string response');
   return ()
 

@@ -146,7 +146,6 @@ module Make = functor(T: S.TRANSPORT) -> struct
 				let reply, side_effects = match Protocol.Request.unmarshal hdr payload_buf' with
                                 | `Ok request -> Call.reply store c hdr request
                                 | `Error msg ->
-                                        Printf.fprintf stderr "Caught: %s\n%!" msg;
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
 					Protocol.Response.Error "EINVAL", Transaction.no_side_effects () in
                                 Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
