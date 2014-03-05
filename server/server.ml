@@ -142,9 +142,12 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 fail_on_error (Protocol.Header.unmarshal header_buf) >>= fun hdr ->
                                 let payload_buf' = Cstruct.sub payload_buf 0 hdr.Protocol.Header.len in
                                 T.read t payload_buf' >>= fun () ->
-                                fail_on_error (Protocol.Request.unmarshal hdr payload_buf') >>= fun request ->
 				let events = take_watch_events () in
-				let reply, side_effects = Call.reply store c hdr request in
+				let reply, side_effects = match Protocol.Request.unmarshal hdr payload_buf' with
+                                | `Ok request -> Call.reply store c hdr request
+                                | `Error msg ->
+                                        Printf.fprintf stderr "Caught: %s\n%!" msg;
+                                        Protocol.Response.Error "EIO", Transaction.no_side_effects () in
                                 Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
                                 persist side_effects >>= fun () ->
 				Lwt_mutex.with_lock m
