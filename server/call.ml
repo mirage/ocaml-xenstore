@@ -250,7 +250,9 @@ let reply store c hdr request =
 				| _                                ->
                                                 Printf.fprintf stderr "Uncaught exception: %s\n%!" (Printexc.to_string e);
                                                 Printexc.print_backtrace stderr;
-                                                reply "EIO",    default
+                                                (* quirk: Write <string> (no value) is one of several parse
+                                                   failures where EINVAL is expected instead of EIO *)
+                                                reply "EINVAL",    default
 			end in
 	Logging.response ~tid:hdr.Header.tid ~con:c.Connection.domstr ?info response_payload;
         response_payload, side_effects

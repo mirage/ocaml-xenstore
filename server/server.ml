@@ -148,11 +148,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 | `Error msg ->
                                         Printf.fprintf stderr "Caught: %s\n%!" msg;
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
-					let prefix = "Expected a NULL" in
-					if String.length msg > (String.length prefix)
-					&& (String.sub msg 0 (String.length prefix) = prefix)
-					then Protocol.Response.Error "EINVAL", Transaction.no_side_effects ()
-                                        else Protocol.Response.Error "EIO", Transaction.no_side_effects () in
+					Protocol.Response.Error "EINVAL", Transaction.no_side_effects () in
                                 Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
                                 persist side_effects >>= fun () ->
 				Lwt_mutex.with_lock m
