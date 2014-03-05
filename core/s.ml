@@ -71,8 +71,12 @@ module type CLIENT = sig
   val set_target : handle -> int -> int -> unit t
 end
 
+type persistence =
+| NoPersistence (** lose updates after a restart *)
+| Git of string (** persist all updates to a git repo on disk *)
+
 module type SERVER = sig
   include IO
 
-  val serve_forever: unit -> unit t
+  val serve_forever: persistence -> unit t
 end
