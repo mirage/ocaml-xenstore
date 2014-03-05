@@ -56,7 +56,7 @@ let test (request, response) () =
   fail_on_error (Protocol.Header.unmarshal header) >>= fun hdr ->
   let payload' = Cstruct.sub payload 0 (min hdr.Protocol.Header.len (Cstruct.len payload)) in
   lwt () = read c payload' in
-  let response' = Cstruct.sub response' 0 payload'.Cstruct.off in
+  let response' = Cstruct.sub response' 0 (payload'.Cstruct.off + payload'.Cstruct.len) in
   Printf.fprintf stderr "  read      %s\n%!" (String.escaped (Cstruct.to_string response'));
   assert_equal ~printer:String.escaped response (Cstruct.to_string response');
   return ()
