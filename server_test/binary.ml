@@ -32,7 +32,7 @@ let server_thread =
   let (_: 'a) = logging_thread Logging.logger in
   let (_: 'a) = logging_thread Logging.access_logger in
   info "Starting test";
-  Server.serve_forever ()
+  Server.serve_forever S.NoPersistence
 
 open OUnit
 

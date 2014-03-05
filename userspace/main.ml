@@ -13,6 +13,7 @@
  *)
 
 open Lwt
+open Xenstore
 open Xenstored
 
 let debug fmt = Logging.debug "xenstored" fmt
@@ -60,17 +61,29 @@ let enable_unix =
   let doc = "Provide service locally over a Unix domain socket" in
   Arg.(value & flag & info [ "enable-unix" ] ~docv:"UNIX" ~doc)
 
+let irmin_path =
+  let doc = "Persist xenstore database writes to the specified Irminsule database path" in
+  Arg.(value & opt (some string) None & info [ "database" ] ~docv:"DATABASE" ~doc)
+
 let ensure_directory_exists dir_needed =
     if not(Sys.file_exists dir_needed && (Sys.is_directory dir_needed)) then begin
       error "The directory (%s) doesn't exist.\n" dir_needed;
       fail (Failure "directory does not exist")
     end else return ()
 
-let program_thread daemon path pidfile enable_xen enable_unix =
+let program_thread daemon path pidfile enable_xen enable_unix irmin_path =
 
   info "User-space xenstored version %s starting" Version.version;
   let (_: 'a) = logging_thread daemon Logging.logger in
   let (_: 'a) = logging_thread daemon Logging.access_logger in
+
+  let persistence = match irmin_path with
+  | None ->
+    info "Update persistence is disabled. This means the process can not safely restart!";
+    S.NoPersistence
+  | Some path ->
+    info "Will persist updates to git repo %s. This means the process can be safely restarted." path;
+    S.Git path in
 
   lwt () = if not enable_xen && (not enable_unix) then begin
     error "You must specify at least one transport (--enable-unix and/or --enable-xen)";
@@ -106,7 +119,7 @@ let program_thread daemon path pidfile enable_xen enable_unix =
     if enable_unix then begin
       info "Starting server on unix domain socket %s" !Sockets.xenstored_socket;
       try_lwt
-        UnixServer.serve_forever ()
+        UnixServer.serve_forever persistence
       with Unix.Unix_error(Unix.EACCES, _, _) as e ->
         error "Permission denied (EACCES) binding to %s" !Sockets.xenstored_socket;
         error "To resolve this problem either run this program with more privileges or change the path.";
@@ -119,7 +132,7 @@ let program_thread daemon path pidfile enable_xen enable_unix =
   let (b: unit Lwt.t) =
     if enable_xen then begin
       info "Starting server on xen inter-domain transport";
-      DomainServer.serve_forever ()
+      DomainServer.serve_forever persistence
     end else return () in
   Introduce.(introduce { domid = 0; mfn = 0n; remote_port = 0 });
   debug "Introduced domain 0";
@@ -128,15 +141,15 @@ let program_thread daemon path pidfile enable_xen enable_unix =
   debug "No running transports, shutting down.";
   return ()
 
-let program pidfile daemon path enable_xen enable_unix =
+let program pidfile daemon path enable_xen enable_unix irmin_path=
   Sockets.xenstored_socket := path;
   if daemon then Lwt_daemon.daemonize ();
   try
-    Lwt_main.run (program_thread daemon path pidfile enable_xen enable_unix)
+    Lwt_main.run (program_thread daemon path pidfile enable_xen enable_unix irmin_path)
   with e ->
     exit 1
 
-let program_t = Term.(pure program $ pidfile $ daemon $ path $ enable_xen $ enable_unix)
+let program_t = Term.(pure program $ pidfile $ daemon $ path $ enable_xen $ enable_unix $ irmin_path)
 
 let info =
   let doc = "User-space xenstore server" in

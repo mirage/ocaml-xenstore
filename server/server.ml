@@ -22,35 +22,55 @@ let ( ++ ) f g x = f (g x)
 let debug fmt = Logging.debug "server" fmt
 let error fmt = Logging.error "server" fmt
 
-module DB = (val IrminGit.local ~bare:false "/tmp/xenstore/test")
+let persist_request = Lwt_mvar.create_empty ()
+let persist_response = Lwt_mvar.create_empty ()
 
-let db_t = DB.create ()
+let no_persistence () =
+  let rec forever () =
+    Lwt_mvar.take persist_request >>= fun _ ->
+    Lwt_mvar.put persist_response `Ok >>= fun () ->
+    forever () in
+  forever ()
 
-let dir_suffix = ".dir"
-let value_suffix = ".value"
+let git_persistence dir =
+  let module DB = (val IrminGit.local ~bare:false dir) in
+  let db_t = DB.create () in
 
-let value_of_filename path = match List.rev (Protocol.Path.to_string_list path) with
-| [] -> []
-| file :: dirs -> List.rev ((file ^ value_suffix) :: (List.map (fun x -> x ^ dir_suffix) dirs))
+  let dir_suffix = ".dir" in
+  let value_suffix = ".value" in
 
-let dir_of_filename path =
-        List.rev (List.map (fun x -> x ^ dir_suffix) (List.rev (Protocol.Path.to_string_list path)))
+  let value_of_filename path = match List.rev (Protocol.Path.to_string_list path) with
+  | [] -> []
+  | file :: dirs -> List.rev ((file ^ value_suffix) :: (List.map (fun x -> x ^ dir_suffix) dirs)) in
+
+  let dir_of_filename path =
+    List.rev (List.map (fun x -> x ^ dir_suffix) (List.rev (Protocol.Path.to_string_list path))) in
+
+  let rec forever () =
+    db_t >>= fun db ->
+    Lwt_mvar.take persist_request >>= fun request ->
+    (match request with
+    | Store.Write(path, perm, value) ->
+      Printf.fprintf stderr "+ %s\n%!" (Protocol.Path.to_string path);
+      (try_lwt
+        DB.update db (value_of_filename path) value
+      with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e)); return ())
+    | Store.Rm path ->
+      Printf.fprintf stderr "- %s\n%!" (Protocol.Path.to_string path);
+      (try_lwt
+        DB.remove db (dir_of_filename path) >>= fun () ->
+        DB.remove db (value_of_filename path)
+      with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e)); return ()) ) >>= fun () ->
+    Lwt_mvar.put persist_response `Ok >>= fun () ->
+    forever () in
+  forever ()
 
 let persist side_effects =
-        db_t >>= fun db ->
-        Lwt_list.iter_s (function
-        | Store.Write(path, perm, value) ->
-                        Printf.fprintf stderr "+ %s\n%!" (Protocol.Path.to_string path);
-                        (try_lwt
-                DB.update db (value_of_filename path) value
-                with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e); fail e))
-        | Store.Rm path ->
-                        Printf.fprintf stderr "- %s\n%!" (Protocol.Path.to_string path);
-                        (try_lwt
-                DB.remove db (dir_of_filename path) >>= fun () ->
-                DB.remove db (value_of_filename path)
-                with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e); fail e))
-        ) side_effects.Transaction.updates
+  Lwt_list.iter_s (fun x ->
+    Lwt_mvar.put persist_request x >>= fun () ->
+    Lwt_mvar.take persist_response >>= fun _ ->
+    return ()
+  ) side_effects.Transaction.updates
 
 let store =
 	let store = Store.create () in
@@ -169,7 +189,10 @@ module Make = functor(T: S.TRANSPORT) -> struct
 			Connection.destroy address;
 			T.destroy t
 
-	let serve_forever () =
+	let serve_forever persistence =
+                let (_: unit Lwt.t) = match persistence with
+                | S.NoPersistence -> no_persistence ()
+                | S.Git filename -> git_persistence filename in
 		lwt server = T.listen () in
 		T.accept_forever server handle_connection
 end
