@@ -328,6 +328,16 @@ module Unmarshal = struct
     then f t
     else `Error (Printf.sprintf "Expected a NULL-termination, got: \"%s\"" (String.escaped (Cstruct.to_string t)))
 
+  let remove_trailing_data t =
+    (* remove data beyond the last NULL *)
+    let rec to_remove = function
+    | -1 -> Cstruct.len t
+    | i -> if Cstruct.get_char t i = '\000'
+           then Cstruct.len t - i - 1
+           else to_remove (i - 1) in
+    let n = to_remove (Cstruct.len t - 1) in
+    Cstruct.sub t 0 (Cstruct.len t - n)
+
   let null t =
     if Cstruct.len t > 0 && (Cstruct.get_uint8 t (Cstruct.len t - 1) = 0)
     then Cstruct.sub t 0 (Cstruct.len t - 1)
@@ -415,13 +425,16 @@ module ACL = struct
     ) ( (perms.owner, perms.other) :: perms.acl ) buf
 
   let unmarshal buf =
-    Unmarshal.list (fun buf ->
-      perm_of_char (Cstruct.get_char buf 0) >>= fun p ->
-      Cstruct.shift buf 1 |> Cstruct.to_string |> Unmarshal.expect_int >>= fun domid ->
-      return (domid, p)
-    ) buf >>= function
+    buf
+    (* quirk: ignore data following the last NULL *)
+    |> Unmarshal.remove_trailing_data
+    |> (Unmarshal.list (fun buf ->
+        perm_of_char (Cstruct.get_char buf 0) >>= fun p ->
+        Cstruct.shift buf 1 |> Cstruct.to_string |> Unmarshal.expect_int >>= fun domid ->
+        return (domid, p)
+      ))  >>= function
     | (owner, other) :: l -> return { owner = owner; other = other; acl = l }
-    | [] -> return { owner = 0; other = NONE; acl = [] }
+    | [] -> `Error (Printf.sprintf "Invalid ACL: %s" (String.escaped (Cstruct.to_string buf)))
 end
 
 exception Enoent of string
@@ -611,7 +624,10 @@ module Request = struct
       cons string ACL.unmarshal payload >>= fun (path, perms) ->
       return (PathOp (path, Setperms perms))
     | Op.Watch ->
-      cons string string payload >>= fun (path, token) ->
+      (* quirk: remove data beyond the last NULL *)
+      payload
+      |> remove_trailing_data
+      |> cons string string >>= fun (path, token) ->
       return (Watch (path, token))
     | Op.Unwatch ->
       cons string string payload >>= fun (path, token) ->
