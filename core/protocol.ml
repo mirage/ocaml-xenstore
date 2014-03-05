@@ -356,7 +356,7 @@ module Unmarshal = struct
 
   let list f x = x |> null |> split '\000' |> List.map f |> join []
 
-  let cons a b x = x |> null |> split ~limit:2 '\000' |> (function
+  let cons a b x = x |> split ~limit:2 '\000' |> (function
   | a' :: b' :: [] ->
     a a' >>= fun a'' ->
     b b' >>= fun b'' ->
@@ -646,7 +646,7 @@ module Request = struct
       `Error "It is illegal to send an Error request"
 
   let marshal x buf = let open Marshal in match x with
-    | PathOp(path, Write value)    -> buf |> string path |> null |> string value (* no NULL at the end *)
+    | PathOp(path, Write value)    -> buf |> string path |> null |> string value (* quirk: no NULL at the end *)
     | PathOp(path, Setperms perms) -> buf |> string path |> null |> ACL.marshal perms
     | PathOp(path, _)              -> buf |> string path |> null
     | Debug commands               -> buf |> list string commands
