@@ -323,6 +323,11 @@ module Unmarshal = struct
   | "F" -> return false
   | x -> `Error (Printf.sprintf "Expected either T or F, got: \"%s\"" (String.escaped x))
 
+  let expect_null_termination f t =
+    if Cstruct.len t > 0 && (Cstruct.get_uint8 t (Cstruct.len t - 1) = 0)
+    then f t
+    else `Error (Printf.sprintf "Expected a NULL-termination, got: \"%s\"" (String.escaped (Cstruct.to_string t)))
+
   let null t =
     if Cstruct.len t > 0 && (Cstruct.get_uint8 t (Cstruct.len t - 1) = 0)
     then Cstruct.sub t 0 (Cstruct.len t - 1)
@@ -582,7 +587,8 @@ module Request = struct
   let unmarshal hdr payload =
     let open Unmarshal in
     let pathop op =
-      string payload >>= fun p ->
+      (* quirk: fail if a string NULL terminator not present *)
+      expect_null_termination string payload >>= fun p ->
       return (PathOp (p, op)) in
     match hdr.Header.ty with
     | Op.Read -> pathop Read
