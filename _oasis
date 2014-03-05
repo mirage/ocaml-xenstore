@@ -13,7 +13,7 @@ Library xenstore
   Path:               core
   Findlibname:        xenstore
   Modules:            Protocol, Handle, Client, S
-  BuildDepends:       lwt, cstruct (>= 0.6.0), cstruct.syntax, uri
+  BuildDepends:       lwt, cstruct (>= 0.6.0), cstruct.syntax, uri, sexplib
 
 Library xenstored
   CompiledObject:     best
@@ -21,7 +21,7 @@ Library xenstored
   Path:               server
   Findlibname:        xenstored
   Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Node, Store, Transaction, Server, Introduce, Heap_debug_interface
-  BuildDepends:       lwt, xenstore
+  BuildDepends:       lwt, xenstore, irminsule.backend.git
 
 # For backwards compat
 Library xenstore_client
@@ -38,13 +38,13 @@ Library xenstore_unix
   Modules:            Sockets
   BuildDepends:       lwt, lwt.unix, xenstore
 
-Library xenstore_legacy_unix
-  CompiledObject:     best
-  Path:               legacy_unix
-  Findlibname: 	      legacy_unix
-  FindlibParent:      xenstore
-  Modules:            Xs_client_unix
-  BuildDepends:       unix, threads, xenstore
+#Library xenstore_legacy_unix
+#  CompiledObject:     best
+#  Path:               legacy_unix
+#  Findlibname: 	      legacy_unix
+#  FindlibParent:      xenstore
+#  Modules:            Xs_client_unix
+#  BuildDepends:       unix, threads, xenstore
 
 Executable core_test
   CompiledObject:     best

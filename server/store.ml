@@ -11,9 +11,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib.Std
+open Xenstore
+
 let debug fmt = Logging.debug "store" fmt
 let error fmt = Logging.debug "error" fmt
-open Xenstore
 
 exception Already_exists of string
 
@@ -25,7 +27,12 @@ type t =
 	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
 	mutable quota: Quota.t;
-}
+} with sexp
+
+type update =
+| Write of Protocol.Path.t * Protocol.ACL.t * string
+| Rm of Protocol.Path.t
+with sexp
 
 let get_root store = store.root
 let set_root store root =
@@ -39,20 +46,23 @@ let exists store path = match Node.lookup store.root path with
 | None -> false
 | Some _ -> true
 
+let update_of_path store path = match Node.lookup store.root path with
+| Some n -> Write(path, Node.get_perms n, Node.get_value n)
+| None -> assert false
+
 let mkdir store creator perm path =
-  try
-    store.root <- Node.modify store.root path
-      (fun parent name ->
-        if Node.exists parent name then begin
-          Perms.check perm Perms.WRITE (Node.get_perms (Node.find parent name));
-          raise (Already_exists (Protocol.Path.to_string path))
-        end else begin
-          Perms.check perm Perms.WRITE (Node.get_perms parent);
-          Node.add_child parent (Node.create name creator (Node.get_perms parent) "")
-        end
-      );
-    Quota.incr store.quota creator
-  with Already_exists _ -> ()
+  store.root <- Node.modify store.root path
+    (fun parent name ->
+      if Node.exists parent name then begin
+        Perms.check perm Perms.WRITE (Node.get_perms (Node.find parent name));
+        parent
+      end else begin
+        Perms.check perm Perms.WRITE (Node.get_perms parent);
+        Node.add_child parent (Node.create name creator (Node.get_perms parent) "")
+      end
+    );
+    Quota.incr store.quota creator;
+  update_of_path store path
 
 let write store creator perm path value =
   Quota.check store.quota creator (String.length value);
@@ -71,7 +81,8 @@ let write store creator perm path value =
         ), false in
   if node_created
   then Quota.incr store.quota creator;
-  store.root <- root
+  store.root <- root;
+  update_of_path store path
 
 let rm store perm path = match Node.lookup store.root path with
 | None ->
@@ -79,7 +90,7 @@ let rm store perm path = match Node.lookup store.root path with
   let parent = Protocol.Path.dirname path in
   if not(exists store parent) then raise (Node.Doesnt_exist parent);
   (* Otherwise this is not an error *)
-  ()
+  []
 | Some node when node == store.root ->
   invalid_arg "removing the root node is forbidden"
 | Some node ->
@@ -90,13 +101,15 @@ let rm store perm path = match Node.lookup store.root path with
       Perms.check perm Perms.WRITE (Node.get_perms parent);
       Node.del_childname parent name
     ) in
-  (* For each node that was just deleted, adjust the quota
-     of the domain which created it *)
-  let rec traverse node =
+  (* Deletes are recursive *)
+  let rec traverse path acc node =
     Quota.decr store.quota (Node.get_creator node);
-    List.iter traverse (Node.get_children node) in
-  traverse node;
-  store.root <- root'
+    let path = Node.get_name node :: path in 
+    let acc = Rm (Protocol.Path.of_string_list (List.rev path)) :: acc in
+    List.fold_left (traverse path) acc (Node.get_children node) in
+  let updates = traverse (List.rev (Protocol.Path.(to_string_list(dirname path)))) [] node in
+  store.root <- root';
+  updates 
 
 let setperms store perm path nperms = match Node.lookup store.root path with
 | None -> raise (Node.Doesnt_exist path)
@@ -108,7 +121,8 @@ let setperms store perm path nperms = match Node.lookup store.root path with
       Perms.check perm Perms.WRITE (Node.get_perms c);
       let c' = Node.set_perms c nperms in
       Node.replace_child parent (Symbol.of_string name) c'
-    )
+    );
+  update_of_path store path
 
 let read store perm path = match Node.lookup store.root path with
 | None -> raise (Node.Doesnt_exist path)
@@ -135,37 +149,11 @@ let traversal root_node f =
 		List.iter (_traversal (path @ [ Node.get_name node ])) (Node.get_children node)
 		in
 	_traversal [] root_node
-		
-let dump_store_buf root_node =
-	let buf = Buffer.create 8192 in
-	let dump_node path node =
-		let pathstr = String.concat "/" path in
-		Printf.bprintf buf "%s/%s{%s}" pathstr (Node.get_name node)
-		               (String.escaped (Protocol.ACL.to_string (Node.get_perms node)));
-		if String.length (Node.get_value node) > 0 then
-			Printf.bprintf buf " = %s\n" (String.escaped (Node.get_value node))
-		else
-			Printf.bprintf buf "\n";
-		in
-	traversal root_node dump_node;
-	buf
-
-let dump_store chan root_node =
-	let buf = dump_store_buf root_node in
-	output_string chan (Buffer.contents buf);
-	Buffer.reset buf
-
-let dump_fct store f = traversal store.root f
-let dump store out_chan = dump_store out_chan store.root
-let dump_stdout store = dump_store stdout store.root
-let dump_buffer store = dump_store_buf store.root
 
 (* Used in transaction merging *)
 let replace store path node orig_quota mod_quota =
   store.root <- Node.replace store.root path node;
   Quota.merge orig_quota mod_quota store.quota
-
-
 
 let create () = {
 	stat_transaction_abort = 0;

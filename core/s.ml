@@ -26,8 +26,8 @@ module type TRANSPORT = sig
 
   type channel
   val create: unit -> channel t
-  val read: channel -> string -> int -> int -> int t
-  val write: channel -> string -> int -> int -> unit t
+  val read: channel -> Cstruct.t -> unit t
+  val write: channel -> Cstruct.t -> unit t
   val destroy: channel -> unit t
 
   val address_of: channel -> Uri.t t

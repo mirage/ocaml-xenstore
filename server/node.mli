@@ -13,7 +13,7 @@
  *)
 open Xenstore
 
-type t
+type t with sexp
 (** A Node in the main xenstore tree *)
 
 val create : string -> int -> Protocol.ACL.t -> string -> t

@@ -180,18 +180,12 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   type handle = client Handle.t
 
   let recv_one t = match (PS.recv t.ps) with
-    | Ok x -> x
-    | Exception e -> raise e
+    | `Ok x -> x
+    | `Error e -> raise (Failure e)
   let send_one t = PS.send t.ps
 
   let handle_exn t e =
     error "Caught: %s\n%!" (Printexc.to_string e);
-    begin match e with
-      | Protocol.Response_parser_failed x ->
-      (* Lwt_io.hexdump Lwt_io.stderr x *)
-         ()
-      | _ -> ()
-    end;
     t.dispatcher_shutting_down <- true;
     raise e
 
@@ -298,7 +292,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let rpc hint h payload unmarshal =
     let open Handle in
     let rid = make_rid () in
-    let request = Request.print payload (get_tid h) rid in
+    let request = Request.marshal payload (get_tid h) rid in
     let t = Task.make () in
     let c = get_client h in
     if c.dispatcher_shutting_down

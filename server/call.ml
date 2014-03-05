@@ -42,7 +42,7 @@ let get_namespace_implementation path = match Protocol.Path.to_string_list path 
 
 (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
-let op_exn store c t (payload: Request.payload) : Response.payload * Transaction.side_effects =
+let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effects =
 	let open Request in
         (* used when an operation has side-effects which should be visible
            immediately (if not in a transaction context) or upon commit (if
@@ -62,9 +62,7 @@ let op_exn store c t (payload: Request.payload) : Response.payload * Transaction
 		| Release(_)
 		| Set_target(_, _)
 		| Restrict _
-		| Isintroduced _
-		| Error _
-		| Watchevent _ -> assert false
+		| Isintroduced _ -> assert false
 		| Getdomainpath domid ->
 			let v = Store.getdomainpath domid |> Protocol.Name.to_string in
 			Response.Getdomainpath v, Transaction.no_side_effects ()
@@ -119,7 +117,7 @@ let transaction_replay store c t =
 		List.iter perform_exn ops;
 		Logging.end_transaction ~tid ~con;
 
-		Transaction.commit ~con t
+		Transaction.commit t
 	with e ->
 		error "transaction_replay caught: %s" (Printexc.to_string e);
 		false
@@ -134,21 +132,16 @@ let hexify s =
         done;
         hs
 
-let reply_exn store c (request: t) : Response.payload * Transaction.side_effects =
-	let tid = get_tid request in
+let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_effects =
+	let tid = hdr.Header.tid in
 	let t =
 		if tid = Transaction.none
 		then Transaction.make tid store
 		else Connection.get_transaction c tid in
-	let payload : Request.payload = match Request.parse (request: t) with
-		| None ->
- 			error "Failed to parse request: got %s" (hexify (to_string request));
-			raise Parse_failure
-		| Some x -> x in
 
-	Logging.request ~tid ~con:c.Connection.domstr payload;
+	Logging.request ~tid ~con:c.Connection.domstr request;
 
-	match payload with
+	match request with
 		| Request.Transaction_start ->
 			if tid <> Transaction.none then raise Transaction_nested;
 			let tid = Connection.register_transaction c store in
@@ -158,9 +151,13 @@ let reply_exn store c (request: t) : Response.payload * Transaction.side_effects
 			if commit then begin
 				Logging.end_transaction ~tid ~con:c.Connection.domstr;
 				if true
-					&& not(Transaction.commit ~con:c.Connection.domstr t)
+					&& not(Transaction.commit t)
 					&& not(transaction_replay store c t)
-				then raise Transaction_again;
+				then begin
+                                        Logging.conflict ~tid ~con:c.Connection.domstr;
+                                        raise Transaction_again
+                                end;
+                                Logging.commit ~tid ~con:c.Connection.domstr;
 				Response.Transaction_end, Transaction.get_side_effects t
 			end else begin
 				(* Don't log an explicit abort *)
@@ -211,12 +208,6 @@ let reply_exn store c (request: t) : Response.payload * Transaction.side_effects
 		| Request.Isintroduced domid ->
 			Perms.has c.Connection.perm Perms.ISINTRODUCED;
 			Response.Isintroduced false, Transaction.no_side_effects ()
-		| Request.Error msg ->
-			error "client sent us an error: %s" (hexify msg);
-			raise Parse_failure
-		| Request.Watchevent msg ->
-			error "client sent us a watch event: %s" (hexify msg);
-			raise Parse_failure
 		| op ->
 			let reply, side_effects = op_exn store c t op in
 			if tid <> Transaction.none then Transaction.add_operation t op reply;
@@ -232,14 +223,12 @@ let gc store =
 		Symbol.garbage ()
 	end
 
-let reply store c request =
+let reply store c hdr request =
 	gc store;
 	c.Connection.stat_nb_ops <- c.Connection.stat_nb_ops + 1;
-	let tid = get_tid request in
-	let rid = get_rid request in
 	let (response_payload, side_effects), info =
 		try
-			reply_exn store c request, None
+			reply_exn store c hdr request, None
 		with e ->
 			let default = Some (Printexc.to_string e) in
                         let reply code = Response.Error code, Transaction.no_side_effects () in
@@ -261,8 +250,9 @@ let reply store c request =
 				| _                                ->
                                                 Printf.fprintf stderr "Uncaught exception: %s\n%!" (Printexc.to_string e);
                                                 Printexc.print_backtrace stderr;
-                                                reply "EIO",    default
+                                                (* quirk: Write <string> (no value) is one of several parse
+                                                   failures where EINVAL is expected instead of EIO *)
+                                                reply "EINVAL",    default
 			end in
-	Logging.response ~tid ~con:c.Connection.domstr ?info response_payload;
-
-	Response.print response_payload tid rid, side_effects
+	Logging.response ~tid:hdr.Header.tid ~con:c.Connection.domstr ?info response_payload;
+        response_payload, side_effects

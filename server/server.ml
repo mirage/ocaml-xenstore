@@ -22,15 +22,50 @@ let ( ++ ) f g x = f (g x)
 let debug fmt = Logging.debug "server" fmt
 let error fmt = Logging.error "server" fmt
 
+module DB = (val IrminGit.local ~bare:false "/tmp/xenstore/test")
+
+let db_t = DB.create ()
+
+let dir_suffix = ".dir"
+let value_suffix = ".value"
+
+let value_of_filename path = match List.rev (Protocol.Path.to_string_list path) with
+| [] -> []
+| file :: dirs -> List.rev ((file ^ value_suffix) :: (List.map (fun x -> x ^ dir_suffix) dirs))
+
+let dir_of_filename path =
+        List.rev (List.map (fun x -> x ^ dir_suffix) (List.rev (Protocol.Path.to_string_list path)))
+
+let persist side_effects =
+        db_t >>= fun db ->
+        Lwt_list.iter_s (function
+        | Store.Write(path, perm, value) ->
+                        Printf.fprintf stderr "+ %s\n%!" (Protocol.Path.to_string path);
+                        (try_lwt
+                DB.update db (value_of_filename path) value
+                with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e); fail e))
+        | Store.Rm path ->
+                        Printf.fprintf stderr "- %s\n%!" (Protocol.Path.to_string path);
+                        (try_lwt
+                DB.remove db (dir_of_filename path) >>= fun () ->
+                DB.remove db (value_of_filename path)
+                with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e); fail e))
+        ) side_effects.Transaction.updates
+
 let store =
 	let store = Store.create () in
+        let t = Transaction.make 1l store in
 	List.iter
 		(fun path ->
                         let path = Protocol.Path.of_string path in
-			if not (Store.exists store path)
-			then Store.mkdir store 0 (Perms.of_domain 0) path
+			if not (Transaction.exists t (Perms.of_domain 0) path)
+			then Transaction.mkdir t 0 (Perms.of_domain 0) path
 		) [ "/local"; "/local/domain"; "/tool"; "/tool/xenstored"; "/tool/xenstored/quota"; "/tool/xenstored/connection"; "/tool/xenstored/log"; "/tool/xenstored/memory" ];
-	store
+        assert (Transaction.commit t);
+        (*
+        persist (Transaction.get_side_effects t);
+        *)
+        store
 
 module Make_namespace(T: S.TRANSPORT) = struct
   let namespace_of channel =
@@ -53,8 +88,11 @@ module Make_namespace(T: S.TRANSPORT) = struct
     Some (module Interface: Namespace.IO)
 end
 
+let fail_on_error = function
+| `Ok x -> return x
+| `Error x -> fail (Failure x)
+
 module Make = functor(T: S.TRANSPORT) -> struct
-	module PS = PacketStream(T)
         module NS = Make_namespace(T)
 
         include T
@@ -64,41 +102,65 @@ module Make = functor(T: S.TRANSPORT) -> struct
                 let dom = T.domain_of t in
 		let interface = NS.namespace_of t in
 		let c = Connection.create (address, dom) interface in
-		let channel = PS.make t in
 		let m = Lwt_mutex.create () in
 		let take_watch_events () =
 			let q = List.rev (Queue.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
 			Queue.clear c.Connection.watch_events;
 			q in
-		let flush_watch_events q =
+		let flush_watch_events header_buf payload_buf q =
 			Lwt_list.iter_s
 				(fun (path, token) ->
-					PS.send channel (Protocol.(Response.(print (Watchevent(path, token)) 0l 0l)))
+                                        let reply = Protocol.Response.Watchevent(path, token) in
+                                        let next = Protocol.Response.marshal reply payload_buf in
+                                        let len = next.Cstruct.off in
+                                        let payload_buf' = Cstruct.sub payload_buf 0 len in
+                                        let hdr = { Header.tid = 0l; rid = 0l; ty = Protocol.Op.Watchevent; len } in
+                                        ignore (Protocol.Header.marshal hdr header_buf);
+                                        T.write t header_buf >>= fun () ->
+                                        T.write t payload_buf' >>= fun () ->
+                                        return ()
 				) q in
 		let (background_watch_event_flusher: unit Lwt.t) =
 			while_lwt true do
+                                let header_buf = Cstruct.create Protocol.Header.sizeof in
+                                let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
 				Lwt_mutex.with_lock m
 					(fun () ->
 						lwt () = while_lwt Queue.length c.Connection.watch_events = 0 do
 							Lwt_condition.wait ~mutex:m c.Connection.cvar
 						done in
-						flush_watch_events (take_watch_events ())
+						flush_watch_events header_buf payload_buf (take_watch_events ())
 					)
 			done in
 
 		try_lwt
 			lwt () =
+                        let header_buf = Cstruct.create Protocol.Header.sizeof in
+                        let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
 			while_lwt true do
-				lwt request = match_lwt (PS.recv channel) with
-					| Ok x -> return x
-					| Exception e -> raise_lwt e in
+                                T.read t header_buf >>= fun () ->
+                                fail_on_error (Protocol.Header.unmarshal header_buf) >>= fun hdr ->
+                                let payload_buf' = Cstruct.sub payload_buf 0 hdr.Protocol.Header.len in
+                                T.read t payload_buf' >>= fun () ->
 				let events = take_watch_events () in
-				let reply, side_effects = Call.reply store c request in
+				let reply, side_effects = match Protocol.Request.unmarshal hdr payload_buf' with
+                                | `Ok request -> Call.reply store c hdr request
+                                | `Error msg ->
+					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
+					Protocol.Response.Error "EINVAL", Transaction.no_side_effects () in
                                 Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
+                                persist side_effects >>= fun () ->
 				Lwt_mutex.with_lock m
 					(fun () ->
-						lwt () = flush_watch_events events in	
-						PS.send channel reply
+						lwt () = flush_watch_events header_buf payload_buf events in
+                                                let next = Protocol.Response.marshal reply payload_buf in
+                                                let len = next.Cstruct.off in
+                                                let payload_buf' = Cstruct.sub payload_buf 0 len in
+                                                let ty = Protocol.Response.get_ty reply in
+                                                let hdr = { hdr with Protocol.Header.ty; len } in
+                                                ignore(Protocol.Header.marshal hdr header_buf);
+                                                T.write t header_buf >>= fun () ->
+                                                T.write t payload_buf'
 					)
 			done in
 			T.destroy t

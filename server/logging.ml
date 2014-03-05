@@ -14,6 +14,7 @@
 
 open Lwt
 open Printf
+open Sexplib
 open Xenstore
 
 type logger = {
@@ -99,8 +100,8 @@ type access_type =
 	| Debug of string
 	| Start_transaction
 	| End_transaction
-	| Request of Protocol.Request.payload
-	| Response of Protocol.Response.payload * string option
+	| Request of Protocol.Request.t
+	| Response of Protocol.Response.t * string option
 
 let string_of_tid ~con tid =
 	if tid = 0l
@@ -115,8 +116,8 @@ let string_of_access_type = function
 	| Debug x                 -> "         " ^ x
 	| Start_transaction       -> "t start  "
 	| End_transaction         -> "t end    "
-	| Request r               -> " <- in   " ^ (Protocol.Request.prettyprint_payload r)
-	| Response (r, info_opt)  -> " -> out  " ^ (Protocol.Response.prettyprint_payload r) ^ (match info_opt with Some x -> " (" ^ x ^ ")" | None -> "")
+	| Request r               -> " <- in   " ^ (Sexp.to_string_hum (Protocol.Request.sexp_of_t r))
+	| Response (r, info_opt)  -> " -> out  " ^ (Sexp.to_string_hum (Protocol.Response.sexp_of_t r)) ^ (match info_opt with Some x -> " (" ^ x ^ ")" | None -> "")
 
 let disable_conflict = ref false
 let disable_commit = ref false
@@ -124,12 +125,8 @@ let disable_newconn = ref false
 let disable_endconn = ref false
 let disable_transaction = ref false
 
-let disable_request = ref [ "read" ]
-let disable_reply_ok = ref [
-	"read"; "directory"; "getperms"; "watch"; "unwatch"; "transaction_start"; "transaction_end";
-	"introduce"; "release"; "getdomainpath"; "write"; "mkdir"; "rm"; "setperms"; (* "watchevent"; *)
-	"isintroduced"; "resume"; "set_target"; "restrict"
-]
+let disable_request = ref [ Protocol.Op.Read ]
+let disable_reply_ok = ref (List.filter (fun x -> x <> Protocol.Op.Watchevent) Protocol.Op.all)
 let disable_reply_err = ref [ "read" ]
 
 let access_type_disabled = function
@@ -140,14 +137,13 @@ let access_type_disabled = function
 	| Debug _  -> false
 	| Start_transaction
 	| End_transaction   -> !disable_transaction
-	| Request r -> List.mem (Protocol.(Op.to_string (Request.ty_of_payload r))) !disable_request
+	| Request r -> List.mem (Protocol.Request.get_ty r) !disable_request
 	| Response (r, _) ->
 		begin match r with
 			| Protocol.Response.Error x ->
 				List.mem x !disable_reply_err
 			| _ ->
-				let ty = Protocol.Response.ty_of_payload r in
-				List.mem (Protocol.Op.to_string ty) !disable_reply_ok
+				List.mem (Protocol.Response.get_ty r) !disable_reply_ok
 		end
 
 let access_type_enabled x = not(access_type_disabled x)

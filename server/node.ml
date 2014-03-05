@@ -11,6 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib.Std
 open Xenstore
 
 type t = {
@@ -19,7 +20,7 @@ type t = {
 	perms: Protocol.ACL.t;
 	value: string;
 	children: t list;
-}
+} with sexp
 
 let create _name _creator _perms _value =
 	{ name = Symbol.of_string _name; creator = _creator; perms = _perms; value = _value; children = []; }

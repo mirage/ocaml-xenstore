@@ -76,8 +76,11 @@ exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
 
+let fail_on_error = function
+| `Ok x -> return x
+| `Error x -> fail (Failure x)
+
 module Make = functor(IO: S.TRANSPORT) -> struct
-  module PS = PacketStream(IO)
 
   type 'a t = 'a IO.t
   let ( >>= ) = IO.( >>= )
@@ -86,8 +89,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
   (* Represents a single acive connection to a server *)
   type client = {
     mutable transport: IO.channel;
-    ps: PS.stream;
-    rid_to_wakeup: (int32, Protocol.t Lwt.u) Hashtbl.t;
+    rid_to_wakeup: (int32, Response.t Lwt.u) Hashtbl.t;
     mutable dispatcher_thread: unit Lwt.t;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
@@ -95,6 +97,8 @@ module Make = functor(IO: S.TRANSPORT) -> struct
     mutable suspended : bool;
     suspended_m : Lwt_mutex.t;
     suspended_c : unit Lwt_condition.t;
+    send_header : Cstruct.t; (* protected by suspended_m *)
+    send_payload : Cstruct.t;
   }
 
   let client_cache = ref None
@@ -105,19 +109,8 @@ module Make = functor(IO: S.TRANSPORT) -> struct
   (* Multiple threads will call 'make' in parallel. We must ensure only
      one client is created. *)
 
-  let recv_one t = match_lwt (PS.recv t.ps) with
-    | Ok x -> return x
-    | Exception e -> raise_lwt e
-  let send_one t = PS.send t.ps
-
   let handle_exn t e =
     Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
-    lwt () = begin 
-      match e with
-      | Protocol.Response_parser_failed x ->
-      (* Lwt_io.hexdump Lwt_io.stderr x *)
-         return ()
-      | _ -> return () end in
     t.dispatcher_shutting_down <- true; (* no more hashtable entries after this *)
     (* all blocking threads are failed with our exception *)
     lwt () = Lwt_mutex.with_lock t.suspended_m (fun () ->
@@ -127,22 +120,24 @@ module Make = functor(IO: S.TRANSPORT) -> struct
     raise_lwt e
 
   let rec dispatcher t =
-    lwt pkt = try_lwt recv_one t with e -> handle_exn t e in
-    match get_ty pkt with
-      | Op.Watchevent  ->
-        lwt () = begin match Unmarshal.list pkt with
-          | Some [path; token] ->
-            let token = Token.of_string token in
-            (* We may get old watches: silently drop these *)
-            if Hashtbl.mem t.watchevents token
-            then Watcher.put (Hashtbl.find t.watchevents token) path >> dispatcher t
-            else dispatcher t
-          | _ ->
-            handle_exn t Malformed_watch_event
-          end in
+    let buf = Cstruct.create Protocol.xenstore_payload_max in
+    IO.read t.transport (Cstruct.sub buf 0 Header.sizeof) >>= fun () ->
+    fail_on_error (Header.unmarshal buf) >>= fun hdr ->
+    let payload = Cstruct.sub buf 0 hdr.Header.len in
+    IO.read t.transport payload >>= fun () ->
+
+    fail_on_error (Response.unmarshal hdr payload) >>= fun r ->
+    match r with
+    | Response.Watchevent(path, token) ->
+        lwt () =
+          let token = Token.unmarshal token in
+          (* We may get old watches: silently drop these *)
+          if Hashtbl.mem t.watchevents token
+          then Watcher.put (Hashtbl.find t.watchevents token) path >> dispatcher t
+          else dispatcher t in
         dispatcher t
-      | _ ->
-        let rid = get_rid pkt in
+    | r ->
+        let rid = hdr.Header.rid in
         lwt thread = Lwt_mutex.with_lock t.suspended_m (fun () -> 
           if Hashtbl.mem t.rid_to_wakeup rid
           then return (Some (Hashtbl.find t.rid_to_wakeup rid))
@@ -151,7 +146,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
           | None -> handle_exn t (Unexpected_rid rid)
           | Some thread -> 
             begin
-              Lwt.wakeup_later thread pkt;
+              Lwt.wakeup_later thread r;
               dispatcher t
             end
 
@@ -160,7 +155,6 @@ module Make = functor(IO: S.TRANSPORT) -> struct
     lwt transport = IO.create () in
     let t = {
       transport = transport;
-      ps = PS.make transport;
       rid_to_wakeup = Hashtbl.create 10;
       dispatcher_thread = return ();
       dispatcher_shutting_down = false;
@@ -168,6 +162,8 @@ module Make = functor(IO: S.TRANSPORT) -> struct
       suspended = false;
       suspended_m = Lwt_mutex.create ();
       suspended_c = Lwt_condition.create ();
+      send_header = Cstruct.create Header.sizeof;
+      send_payload = Cstruct.create Protocol.xenstore_payload_max;
     } in
     t.dispatcher_thread <- dispatcher t;
     return t
@@ -218,10 +214,11 @@ module Make = functor(IO: S.TRANSPORT) -> struct
 		  counter := Int32.succ !counter;
 		  result
 
-  let rpc hint h payload unmarshal =
+  let rpc h payload f =
     let open Handle in
     let rid = make_rid () in
-    let request = Request.print payload (get_tid h) rid in
+    let tid = get_tid h in
+    let ty = Request.get_ty payload in
     let t, u = wait () in
     let c = get_client h in
     if c.dispatcher_shutting_down
@@ -231,8 +228,14 @@ module Make = functor(IO: S.TRANSPORT) -> struct
         lwt () = while_lwt c.suspended do
           Lwt_condition.wait ~mutex:c.suspended_m c.suspended_c
         done in
-        Hashtbl.add c.rid_to_wakeup rid u;   
-        lwt () = send_one c request in
+        Hashtbl.add c.rid_to_wakeup rid u;
+        let next = Request.marshal payload c.send_payload in
+        let len = next.Cstruct.off in
+        let payload = Cstruct.sub c.send_payload 0 len in
+        let hdr = { Header.rid; tid; ty; len } in
+        ignore(Header.marshal hdr c.send_header);
+        IO.write c.transport c.send_header >>= fun () ->
+        IO.write c.transport payload >>= fun () ->
         return ()) in
       lwt res = t in
       lwt () = Lwt_mutex.with_lock c.suspended_m 
@@ -240,23 +243,55 @@ module Make = functor(IO: S.TRANSPORT) -> struct
           Hashtbl.remove c.rid_to_wakeup rid;
           Lwt_condition.broadcast c.suspended_c (); 
           return ()) in
-      try_lwt
-        return (response hint request res unmarshal)
+      f res
  end
 
-  let directory h path = rpc "directory" (Handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
-  let read h path = rpc "read" (Handle.accessed_path h path) Request.(PathOp(path, Read)) Unmarshal.string
-  let write h path data = rpc "write" (Handle.accessed_path h path) Request.(PathOp(path, Write data)) Unmarshal.ok
-  let rm h path = rpc "rm" (Handle.accessed_path h path) Request.(PathOp(path, Rm)) Unmarshal.ok
-  let mkdir h path = rpc "mkdir" (Handle.accessed_path h path) Request.(PathOp(path, Mkdir)) Unmarshal.ok
-  let setperms h path acl = rpc "setperms" (Handle.accessed_path h path) Request.(PathOp(path, Setperms acl)) Unmarshal.ok
-  let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
-  let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
-  let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
-  let watch h path token = rpc "watch" (Handle.watch h path) (Request.Watch(path, Token.to_string token)) Unmarshal.ok
-  let unwatch h path token = rpc "unwatch" (Handle.watch h path) (Request.Unwatch(path, Token.to_string token)) Unmarshal.ok
-  let introduce h domid store_mfn store_port = rpc "introduce" h (Request.Introduce(domid, store_mfn, store_port)) Unmarshal.ok
-  let set_target h stubdom_domid domid = rpc "set_target" h (Request.Set_target(stubdom_domid, domid)) Unmarshal.ok
+  let error hint = function
+  | Response.Error "ENOENT" -> raise (Enoent hint)
+  | Response.Error "EAGAIN" -> raise Eagain
+  | Response.Error "EINVAL" -> raise Invalid
+  | Response.Error x        -> raise (Error x)
+  | x              -> raise (Error (Printf.sprintf "%s: unexpected response: %s" hint (Sexplib.Sexp.to_string_hum (Response.sexp_of_t x))))
+
+  let directory h path = rpc (Handle.accessed_path h path) Request.(PathOp(path, Directory))
+    (function Response.Directory ls -> return ls
+    | x -> error "directory" x)
+  let read h path = rpc (Handle.accessed_path h path) Request.(PathOp(path, Read))
+    (function Response.Read x -> return x
+    | x -> error "read" x)
+  let write h path data = rpc (Handle.accessed_path h path) Request.(PathOp(path, Write data))
+    (function Response.Write -> return ()
+    | x -> error "write" x)
+  let rm h path = rpc (Handle.accessed_path h path) Request.(PathOp(path, Rm))
+    (function Response.Rm -> return ()
+    | x -> error "rm" x)
+  let mkdir h path = rpc (Handle.accessed_path h path) Request.(PathOp(path, Mkdir))
+    (function Response.Mkdir -> return ()
+    | x -> error "mkdir" x)
+  let setperms h path acl = rpc (Handle.accessed_path h path) Request.(PathOp(path, Setperms acl))
+    (function Response.Setperms -> return ()
+    | x -> error "setperms" x)
+  let debug h cmd_args = rpc h (Request.Debug cmd_args)
+    (function Response.Debug debug -> return debug
+    | x -> error "debug" x)
+  let restrict h domid = rpc h (Request.Restrict domid)
+    (function Response.Restrict -> return ()
+    | x -> error "restrict" x)
+  let getdomainpath h domid = rpc h (Request.Getdomainpath domid)
+    (function Response.Getdomainpath x -> return x
+    | x -> error "getdomainpath" x)
+  let watch h path token = rpc (Handle.watch h path) (Request.Watch(path, Token.marshal token))
+    (function Response.Watch -> return ()
+    | x -> error "watch" x)
+  let unwatch h path token = rpc (Handle.watch h path) (Request.Unwatch(path, Token.marshal token))
+    (function Response.Unwatch -> return ()
+    | x -> error "unwatch" x)
+  let introduce h domid store_mfn store_port = rpc h (Request.Introduce(domid, store_mfn, store_port))
+    (function Response.Introduce -> return ()
+    | x -> error "introduce" x)
+  let set_target h stubdom_domid domid = rpc h (Request.Set_target(stubdom_domid, domid))
+    (function Response.Set_target -> return ()
+    | x -> error "set_target" x)
   let immediate client f = f (Handle.no_transaction client)
 
   let counter = ref 0l
@@ -264,7 +299,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
   let wait client f =
     let open StringSet in
     counter := Int32.succ !counter;
-    let token = Token.of_string (Printf.sprintf "%ld:xs_client.wait" !counter) in
+    let token = Token.unmarshal (Printf.sprintf "%ld:xs_client.wait" !counter) in
     (* When we register the 'watcher', the dispatcher thread will signal us when
        watches arrive. *)
     let watcher = Watcher.make () in
@@ -320,12 +355,15 @@ module Make = functor(IO: S.TRANSPORT) -> struct
     result
 
   let rec transaction client f =
-    lwt tid = rpc "transaction_start" (Handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
+    lwt tid = rpc (Handle.no_transaction client) Request.Transaction_start
+      (function Response.Transaction_start tid -> return tid
+       | x -> error "transaction_start" x) in
     let h = Handle.transaction client tid in
     lwt result = f h in
     try_lwt
-      lwt res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
-      if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
+      rpc h (Request.Transaction_end true)
+        (function Response.Transaction_end -> return result
+         | x -> error "transaction_end" x)
     with Eagain ->
       transaction client f
 end

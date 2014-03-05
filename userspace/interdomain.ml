@@ -161,31 +161,47 @@ let create_domU address =
 let create () =
   failwith "It's not possible to directly 'create' an interdomain ring."
 
-let rec read t buf ofs len =
-  if t.shutdown
-  then fail Ring_shutdown
-  else
-    let n = Xenstore_ring.Ring.Back.unsafe_read t.ring buf ofs len in
-    if n = 0 then begin
-      lwt () = Lwt_condition.wait t.c in
-      read t buf ofs len
-    end else begin
-      let eventchn = Eventchn.init () in
-      Eventchn.(notify eventchn (of_int t.port));
-      return n
-    end
+let read t buf =
+  let rec loop buf =
+    if Cstruct.len buf = 0
+    then return ()
+    else if t.shutdown
+    then fail Ring_shutdown
+    else
+      let seq, available = Xenstore_ring.Ring.Back.read_prepare t.ring in
+      let available_bytes = Cstruct.len available in
+      if available_bytes = 0 then begin
+        Lwt_condition.wait t.c >>= fun () ->
+        loop buf
+      end else begin
+        let consumable = min (Cstruct.len buf) available_bytes in
+        Cstruct.blit available 0 buf 0 consumable;
+        Xenstore_ring.Ring.Back.read_commit t.ring Int32.(add seq (of_int consumable));
+        Eventchn.(notify (init ()) (of_int t.port));
+        loop (Cstruct.shift buf consumable)
+      end in
+  loop buf
 
-let rec write t buf ofs len =
-  if t.shutdown
-  then fail Ring_shutdown
-  else
-    let n = Xenstore_ring.Ring.Back.unsafe_write t.ring buf ofs len in
-    let eventchn = Eventchn.init () in
-    if n > 0 then Eventchn.(notify eventchn (of_int t.port));
-    if n < len then begin
-      lwt () = Lwt_condition.wait t.c in
-      write t buf (ofs + n) (len - n)
-    end else return ()
+let write t buf =
+  let rec loop buf =
+    if Cstruct.len buf = 0
+    then return ()
+    else if t.shutdown
+    then fail Ring_shutdown
+    else
+      let seq, available = Xenstore_ring.Ring.Back.write_prepare t.ring in
+      let available_bytes = Cstruct.len available in
+      if available_bytes = 0 then begin
+        Lwt_condition.wait t.c >>= fun () ->
+        loop buf
+      end else begin
+        let consumable = min (Cstruct.len buf) available_bytes in
+        Cstruct.blit buf 0 available 0 consumable;
+        Xenstore_ring.Ring.Back.write_commit t.ring Int32.(add seq (of_int consumable));
+        Eventchn.(notify (init ()) (of_int t.port));
+        loop (Cstruct.shift buf consumable)
+      end in
+  loop buf
 
 let destroy t =
   let eventchn = Eventchn.init () in

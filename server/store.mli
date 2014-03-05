@@ -21,9 +21,12 @@ type t =
 	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
 	mutable quota: Quota.t;
-}
+} with sexp
 
-val dump_stdout: t -> unit
+type update =
+| Write of Protocol.Path.t * Protocol.ACL.t * string
+| Rm of Protocol.Path.t
+with sexp
 
 val getdomainpath: int -> Protocol.Name.t
 (** [getdomainpath domid] returns the default directory for [domid] *)
@@ -37,13 +40,13 @@ val copy: t -> t
 
 val exists: t -> Protocol.Path.t -> bool
 
-val write: t -> int -> Perms.t -> Protocol.Path.t -> string -> unit
+val write: t -> int -> Perms.t -> Protocol.Path.t -> string -> update
 
-val mkdir: t -> int -> Perms.t -> Protocol.Path.t -> unit
+val mkdir: t -> int -> Perms.t -> Protocol.Path.t -> update
 
-val setperms: t -> Perms.t -> Protocol.Path.t -> Protocol.ACL.t -> unit
+val setperms: t -> Perms.t -> Protocol.Path.t -> Protocol.ACL.t -> update
 
-val rm: t -> Perms.t -> Protocol.Path.t -> unit
+val rm: t -> Perms.t -> Protocol.Path.t -> update list
 
 val ls: t -> Perms.t -> Protocol.Path.t -> string list
 

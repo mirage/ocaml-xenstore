@@ -23,19 +23,17 @@ type ty = No | Full of (int32 * Node.t * Store.t)
 type side_effects = {
         (* A log of all the store updates in this transaction. When the transaction
            is committed, these paths need to be committed to stable storage. *) 
-        mutable writes: Protocol.Path.t list;
-        mutable deletes: Protocol.Path.t list;
+        mutable updates: Store.update list;
         (* A log of updates which should generate a watch events. Note this can't
-           be derived directly from [writes] above because implicit directory
+           be derived directly from [updates] above because implicit directory
            creates don't generate watches (for no good reason) *)
 	mutable watches: (Protocol.Op.t * Protocol.Name.t) list;
 }
 
-let no_side_effects () = { writes = []; deletes = []; watches = [] }
+let no_side_effects () = { updates = []; watches = [] }
 
 let get_watches side_effects = side_effects.watches
-let get_writes side_effects = side_effects.writes
-let get_deletes side_effects = side_effects.deletes
+let get_updates side_effects = side_effects.updates
 
 type t = {
 	ty: ty;
@@ -46,7 +44,7 @@ type t = {
         (* A log of all the requests and responses during this transaction. When
            committing a transaction to a modified store, we replay the requests and
            abort the transaction if any of the responses would now be different. *)
-	mutable operations: (Protocol.Request.payload * Protocol.Response.payload) list;
+	mutable operations: (Protocol.Request.t * Protocol.Response.t) list;
 }
 
 let make id store =
@@ -71,8 +69,8 @@ let mkdir t creator perm path =
         if not (Store.exists t.store path) then (
                 Protocol.Path.iter (fun prefix ->
                         if not(Store.exists t.store prefix) then begin
-                                Store.mkdir t.store creator perm prefix;
-                                t.side_effects.writes <- path :: t.side_effects.writes;
+                                let update = Store.mkdir t.store creator perm prefix in
+                                t.side_effects.updates <- update :: t.side_effects.updates;
                                 (* no watches for implicitly created directories *)
                         end
                 ) path;
@@ -81,18 +79,18 @@ let mkdir t creator perm path =
 
 let write t creator perm path value =
         mkdir t creator perm (Protocol.Path.dirname path);
-	Store.write t.store creator perm path value;
-        t.side_effects.writes <- path :: t.side_effects.writes;
+        let update = Store.write t.store creator perm path value in
+        t.side_effects.updates <- update :: t.side_effects.updates;
         add_watch t Protocol.Op.Write path
 
 let setperms t perm path perms =
-	Store.setperms t.store perm path perms;
-        t.side_effects.writes <- path :: t.side_effects.writes;
+        let update = Store.setperms t.store perm path perms in
+        t.side_effects.updates <- update :: t.side_effects.updates;
 	add_watch t Protocol.Op.Setperms path
 
 let rm t perm path =
-	Store.rm t.store perm path;
-        t.side_effects.writes <- path :: t.side_effects.writes;
+        let updates = Store.rm t.store perm path in
+        t.side_effects.updates <- updates @ t.side_effects.updates;
 	add_watch t Protocol.Op.Rm path
 
 let exists t perms path = Store.exists t.store path
@@ -100,8 +98,7 @@ let ls t perm path = Store.ls t.store perm path
 let read t perm path = Store.read t.store perm path
 let getperms t perm path = Store.getperms t.store perm path
 
-let commit ~con t =
-	let has_commited =
+let commit t =
 	match t.ty with
 	| No                         -> true
 	| Full (id, oldroot, cstore) ->
@@ -109,7 +106,7 @@ let commit ~con t =
 			if oldroot == cstore.Store.root then (
 				(* move the new root to the current store, if the oldroot
 				   has not been modified *)
-                                if t.side_effects.writes <> [] || t.side_effects.deletes <> [] then (
+                                if t.side_effects.updates <> [] then (
 					Store.set_root cstore store.Store.root;
 					Store.set_quota cstore store.Store.quota
 				);
@@ -121,8 +118,3 @@ let commit ~con t =
 			false
 		else
 			try_commit oldroot cstore t.store
-	in
-	if not has_commited 
-	then Logging.conflict ~tid:(get_id t) ~con
-	else Logging.commit ~tid:(get_id t) ~con;
-	has_commited

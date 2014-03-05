@@ -12,7 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
-type t = int
+type t = int with sexp
+
 type 'a record = { data : 'a; mutable garbage : bool; }
 val int_string_tbl : (int, string record) Hashtbl.t
 val string_int_tbl : (string, int) Hashtbl.t

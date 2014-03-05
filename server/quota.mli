@@ -69,7 +69,7 @@ val maxwatchevent_of_domain: int -> int
 (** [maxwatchevent_of_domain domid] returns the max number of outstanding watch
 	events for [domid] *)
 
-type t
+type t with sexp
 (** Represents the current per-domain number of entries *)
 
 val create: unit -> t

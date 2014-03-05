@@ -1,4 +1,5 @@
 open Lwt
+open Xenstore
 open Xenstored
 
 let debug fmt = Logging.debug "xenstored" fmt
@@ -35,13 +36,26 @@ let server_thread =
 
 open OUnit
 
+let fail_on_error = function
+| `Ok x -> return x
+| `Error x -> fail (Failure x)
+
 let test (request, response) () =
   let open Sockets in
   lwt c = create () in
-  lwt () = write c request 0 (String.length request) in
-  let buffer = String.make (String.length response) '\000' in
-  lwt _ = read c buffer 0 (String.length response) in
-  assert_equal ~printer:String.escaped response buffer;
+  let request' = Cstruct.create (String.length request) in
+  Cstruct.blit_from_string request 0 request' 0 (String.length request);
+  lwt () = write c request' in
+
+  let response' = Cstruct.create 1024 in
+  let header = Cstruct.sub response' 0 Protocol.Header.sizeof in
+  lwt () = read c header in
+  let payload = Cstruct.shift response' Protocol.Header.sizeof in
+  fail_on_error (Protocol.Header.unmarshal header) >>= fun hdr ->
+  let payload' = Cstruct.sub payload 0 (min hdr.Protocol.Header.len (Cstruct.len payload)) in
+  lwt () = read c payload' in
+  let response' = Cstruct.sub response' 0 (payload'.Cstruct.off + payload'.Cstruct.len) in
+  assert_equal ~printer:String.escaped response (Cstruct.to_string response');
   return ()
 
 let _ =
