@@ -49,7 +49,7 @@ let test (request, response) () =
   lwt () = write c request' in
   Printf.fprintf stderr "  expecting %s\n%!" (String.escaped response);
 
-  let response' = Cstruct.create (String.length response) in
+  let response' = Cstruct.create 1024 in
   let header = Cstruct.sub response' 0 Protocol.Header.sizeof in
   lwt () = read c header in
   let payload = Cstruct.shift response' Protocol.Header.sizeof in
