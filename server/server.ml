@@ -98,8 +98,9 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 let payload_buf' = Cstruct.sub payload_buf 0 hdr.Protocol.Header.len in
                                 T.read t payload_buf' >>= fun () ->
 				let events = take_watch_events () in
+                                Database.store >>= fun store ->
 				let reply, side_effects = match Protocol.Request.unmarshal hdr payload_buf' with
-                                | `Ok request -> Call.reply Database.store c hdr request
+                                | `Ok request -> Call.reply store c hdr request
                                 | `Error msg ->
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
 					Protocol.Response.Error "EINVAL", Transaction.no_side_effects () in

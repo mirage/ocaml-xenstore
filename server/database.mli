@@ -25,5 +25,5 @@ val persist: Transaction.side_effects -> unit Lwt.t
 (** Persists the given side-effects. Make sure you start exactly one
     persistence thread *)
 
-val store: Store.t
+val store: Store.t Lwt.t
 (** The in-memory copy of the database *)
