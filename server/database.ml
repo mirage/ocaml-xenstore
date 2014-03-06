@@ -80,7 +80,7 @@ let store =
       let path = Protocol.Path.of_string path in
       if not (Transaction.exists t (Perms.of_domain 0) path)
       then Transaction.mkdir t 0 (Perms.of_domain 0) path
-    ) [ "/local"; "/local/domain"; "/tool"; "/tool/xenstored"; "/tool/xenstored/quota"; "/tool/xenstored/connection"; "/tool/xenstored/log"; "/tool/xenstored/memory" ];
+    ) [ "/local"; "/local/domain" ];
   assert (Transaction.commit t);
   persist (Transaction.get_side_effects t) >>= fun () ->
   return store
