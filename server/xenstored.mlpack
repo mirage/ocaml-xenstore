@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 88f0e7212cfb724391beb78dc499ec71)
+# DO NOT EDIT (digest: ddc43b963ffaaa551180dc6bf827aaf4)
 Logging
 Logging_interface
 Connection
@@ -12,6 +12,7 @@ Quota_interface
 Perms
 Node
 Store
+Database
 Transaction
 Server
 Introduce
