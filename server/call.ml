@@ -28,19 +28,7 @@ exception Transaction_again
 
 exception Transaction_nested
 
-let get_namespace_implementation path = match Protocol.Path.to_string_list path with
-	| "tool" :: "xenstored" :: "quota" :: rest ->
-		Protocol.Path.of_string_list rest, (module Quota_interface: Namespace.IO)
-	| "tool" :: "xenstored" :: "connection" :: rest ->
-		Protocol.Path.of_string_list rest, (module Connection.Interface: Namespace.IO)
-	| "tool" :: "xenstored" :: "log" :: rest ->
-		Protocol.Path.of_string_list rest, (module Logging_interface: Namespace.IO)
-	| "tool" :: "xenstored" :: "memory" :: rest ->
-		Protocol.Path.of_string_list rest, (module Heap_debug_interface: Namespace.IO)
-	| _ ->
-		path, (module Transaction: Namespace.IO)
-
-(* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
+  (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
 let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effects =
 	let open Request in
@@ -68,8 +56,8 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
 			Response.Getdomainpath v, Transaction.no_side_effects ()
 		| PathOp(path, op) ->
 			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
-			let path, m = get_namespace_implementation path in
-			let module Impl = (val m: Namespace.IO) in
+			let path, m = Mount.lookup path in
+			let module Impl = (val m: Tree.S) in
 
 			begin match op with
 			| Read ->
@@ -246,7 +234,7 @@ let reply store c hdr request =
 				| Quota.Data_too_big               -> reply "E2BIG",  default
 				| Quota.Transaction_opened         -> reply "EQUOTA", default
 				| (Failure "int_of_string")        -> reply "EINVAL", default
-				| Namespace.Unsupported            -> reply "ENOTSUP",default
+				| Tree.Unsupported                 -> reply "ENOTSUP",default
 				| _                                ->
                                                 Printf.fprintf stderr "Uncaught exception: %s\n%!" (Printexc.to_string e);
                                                 Printexc.print_backtrace stderr;

@@ -19,6 +19,8 @@ let ( |> ) a b = b a
 let ( ++ ) a b x = a (b x)
 let id x = x
 
+module Q = Quota_interface (* make sure the filesystem is mounted *)
+
 let empty_store () = Store.create ()
 
 let none = Transaction.none

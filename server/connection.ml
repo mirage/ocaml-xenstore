@@ -28,7 +28,7 @@ type watch = {
 
 and t = {
 	address: Uri.t;
-	interface: (module Namespace.IO) option;
+	interface: (module Tree.S) option;
 	domid: int;
 	domstr: string;
 	idx: int; (* unique counter *)
@@ -249,8 +249,8 @@ let debug con =
 	let watches = List.map (fun (name, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Protocol.Name.to_string name) token) (list_watches con) in
 	String.concat "" watches
 
-module Interface = struct
-	include Namespace.Unsupported
+module Introspect = struct
+	include Tree.Unsupported
 
 	let read_connection t perms path c = function
 		| [] ->
@@ -291,7 +291,7 @@ module Interface = struct
 			begin match c.interface with
 			| None -> raise (Node.Doesnt_exist path)
 			| Some i ->
-				let module I = (val i: Namespace.IO) in
+				let module I = (val i: Tree.S) in
 				I.read t perms (Protocol.Path.of_string_list rest)
 			end
 		| _ -> raise (Node.Doesnt_exist path)
@@ -321,7 +321,7 @@ module Interface = struct
 			begin match c.interface with
 			| None -> raise (Node.Doesnt_exist path)
 			| Some i ->
-				let module I = (val i: Namespace.IO) in
+				let module I = (val i: Tree.S) in
 				I.write t creator perms (Protocol.Path.of_string_list rest) v
 			end
 		| _ -> raise Perms.Permission_denied
@@ -354,7 +354,7 @@ module Interface = struct
 			begin match c.interface with
 			| None -> []
 			| Some i ->
-				let module I = (val i: Namespace.IO) in
+				let module I = (val i: Tree.S) in
 				I.ls t perms (Protocol.Path.of_string_list rest)
 			end
 		| _ -> []
@@ -383,3 +383,5 @@ module Interface = struct
 			list_connection t perms c rest
 		| _ -> []
 end
+
+let _ = Mount.mount (Protocol.Path.of_string "/tool/xenstored/connection") (module Introspect: Tree.S)

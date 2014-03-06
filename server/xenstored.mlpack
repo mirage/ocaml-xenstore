@@ -1,17 +1,19 @@
 # OASIS_START
-# DO NOT EDIT (digest: c35cb03739fb4a06456118c282ccd383)
+# DO NOT EDIT (digest: 72078ec256657c8c3bb5a046e034fb86)
 Logging
 Logging_interface
 Connection
 Call
 Trie
 Symbol
-Namespace
+Tree
 Quota
 Quota_interface
 Perms
 Node
 Store
+Mount
+Database
 Transaction
 Server
 Introduce

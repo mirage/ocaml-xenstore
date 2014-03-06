@@ -114,4 +114,3 @@ let merge orig_quota mod_quota dest_quota =
     if diff <> 0 then
       set dest_quota id ((get dest_quota id) + diff)) mod_quota.cur
 
-
