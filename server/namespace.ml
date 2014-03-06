@@ -1,6 +1,6 @@
 open Xenstore
 
-module type IO = sig
+module type S = sig
 	val exists: Transaction.t -> Perms.t -> Protocol.Path.t -> bool
 	val mkdir: Transaction.t -> int -> Perms.t -> Protocol.Path.t -> unit
 	val read: Transaction.t -> Perms.t -> Protocol.Path.t -> string

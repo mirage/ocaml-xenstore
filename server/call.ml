@@ -30,15 +30,15 @@ exception Transaction_nested
 
 let get_namespace_implementation path = match Protocol.Path.to_string_list path with
 	| "tool" :: "xenstored" :: "quota" :: rest ->
-		Protocol.Path.of_string_list rest, (module Quota_interface: Namespace.IO)
+		Protocol.Path.of_string_list rest, (module Quota_interface: Namespace.S)
 	| "tool" :: "xenstored" :: "connection" :: rest ->
-		Protocol.Path.of_string_list rest, (module Connection.Interface: Namespace.IO)
+		Protocol.Path.of_string_list rest, (module Connection.Interface: Namespace.S)
 	| "tool" :: "xenstored" :: "log" :: rest ->
-		Protocol.Path.of_string_list rest, (module Logging_interface: Namespace.IO)
+		Protocol.Path.of_string_list rest, (module Logging_interface: Namespace.S)
 	| "tool" :: "xenstored" :: "memory" :: rest ->
-		Protocol.Path.of_string_list rest, (module Heap_debug_interface: Namespace.IO)
+		Protocol.Path.of_string_list rest, (module Heap_debug_interface: Namespace.S)
 	| _ ->
-		path, (module Transaction: Namespace.IO)
+		path, (module Transaction: Namespace.S)
 
 (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
@@ -69,7 +69,7 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
 		| PathOp(path, op) ->
 			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
 			let path, m = get_namespace_implementation path in
-			let module Impl = (val m: Namespace.IO) in
+			let module Impl = (val m: Namespace.S) in
 
 			begin match op with
 			| Read ->

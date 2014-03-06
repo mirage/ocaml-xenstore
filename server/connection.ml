@@ -28,7 +28,7 @@ type watch = {
 
 and t = {
 	address: Uri.t;
-	interface: (module Namespace.IO) option;
+	interface: (module Namespace.S) option;
 	domid: int;
 	domstr: string;
 	idx: int; (* unique counter *)
@@ -291,7 +291,7 @@ module Interface = struct
 			begin match c.interface with
 			| None -> raise (Node.Doesnt_exist path)
 			| Some i ->
-				let module I = (val i: Namespace.IO) in
+				let module I = (val i: Namespace.S) in
 				I.read t perms (Protocol.Path.of_string_list rest)
 			end
 		| _ -> raise (Node.Doesnt_exist path)
@@ -321,7 +321,7 @@ module Interface = struct
 			begin match c.interface with
 			| None -> raise (Node.Doesnt_exist path)
 			| Some i ->
-				let module I = (val i: Namespace.IO) in
+				let module I = (val i: Namespace.S) in
 				I.write t creator perms (Protocol.Path.of_string_list rest) v
 			end
 		| _ -> raise Perms.Permission_denied
@@ -354,7 +354,7 @@ module Interface = struct
 			begin match c.interface with
 			| None -> []
 			| Some i ->
-				let module I = (val i: Namespace.IO) in
+				let module I = (val i: Namespace.S) in
 				I.ls t perms (Protocol.Path.of_string_list rest)
 			end
 		| _ -> []

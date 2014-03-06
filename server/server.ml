@@ -105,7 +105,7 @@ module Make_namespace(T: S.TRANSPORT) = struct
         if not(T.Introspect.write channel (Protocol.Path.to_string_list path) v)
         then raise Perms.Permission_denied
     end in
-    Some (module Interface: Namespace.IO)
+    Some (module Interface: Namespace.S)
 end
 
 let fail_on_error = function
