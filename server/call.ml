@@ -30,15 +30,15 @@ exception Transaction_nested
 
 let get_namespace_implementation path = match Protocol.Path.to_string_list path with
 	| "tool" :: "xenstored" :: "quota" :: rest ->
-		Protocol.Path.of_string_list rest, (module Quota_interface: Namespace.S)
+		Protocol.Path.of_string_list rest, (module Quota_interface: Tree.S)
 	| "tool" :: "xenstored" :: "connection" :: rest ->
-		Protocol.Path.of_string_list rest, (module Connection.Interface: Namespace.S)
+		Protocol.Path.of_string_list rest, (module Connection.Interface: Tree.S)
 	| "tool" :: "xenstored" :: "log" :: rest ->
-		Protocol.Path.of_string_list rest, (module Logging_interface: Namespace.S)
+		Protocol.Path.of_string_list rest, (module Logging_interface: Tree.S)
 	| "tool" :: "xenstored" :: "memory" :: rest ->
-		Protocol.Path.of_string_list rest, (module Heap_debug_interface: Namespace.S)
+		Protocol.Path.of_string_list rest, (module Heap_debug_interface: Tree.S)
 	| _ ->
-		path, (module Transaction: Namespace.S)
+		path, (module Transaction: Tree.S)
 
 (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
@@ -69,7 +69,7 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
 		| PathOp(path, op) ->
 			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
 			let path, m = get_namespace_implementation path in
-			let module Impl = (val m: Namespace.S) in
+			let module Impl = (val m: Tree.S) in
 
 			begin match op with
 			| Read ->
@@ -246,7 +246,7 @@ let reply store c hdr request =
 				| Quota.Data_too_big               -> reply "E2BIG",  default
 				| Quota.Transaction_opened         -> reply "EQUOTA", default
 				| (Failure "int_of_string")        -> reply "EINVAL", default
-				| Namespace.Unsupported            -> reply "ENOTSUP",default
+				| Tree.Unsupported                 -> reply "ENOTSUP",default
 				| _                                ->
                                                 Printf.fprintf stderr "Uncaught exception: %s\n%!" (Printexc.to_string e);
                                                 Printexc.print_backtrace stderr;

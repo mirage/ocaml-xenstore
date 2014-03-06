@@ -1,5 +1,5 @@
 open Xenstore
-include Namespace.Unsupported
+include Tree.Unsupported
 
 let debug fmt = Logging.debug "memory_interface" fmt
 

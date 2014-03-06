@@ -90,7 +90,7 @@ let store =
 module Make_namespace(T: S.TRANSPORT) = struct
   let namespace_of channel =
     let module Interface = struct
-      include Namespace.Unsupported
+      include Tree.Unsupported
       let read t (perms: Perms.t) (path: Protocol.Path.t) =
         Perms.has perms Perms.CONFIGURE;
         match T.Introspect.read channel (Protocol.Path.to_string_list path) with
@@ -105,7 +105,7 @@ module Make_namespace(T: S.TRANSPORT) = struct
         if not(T.Introspect.write channel (Protocol.Path.to_string_list path) v)
         then raise Perms.Permission_denied
     end in
-    Some (module Interface: Namespace.S)
+    Some (module Interface: Tree.S)
 end
 
 let fail_on_error = function

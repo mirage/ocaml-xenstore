@@ -1,5 +1,5 @@
 open Xenstore
-include Namespace.Unsupported
+include Tree.Unsupported
 
 let ( |> ) a b = b a
 

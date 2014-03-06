@@ -1,7 +1,7 @@
 open Xenstore
 open Logging
 
-include Namespace.Unsupported
+include Tree.Unsupported
 
 let ( |> ) a b = b a
 
