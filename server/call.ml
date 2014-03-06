@@ -28,19 +28,26 @@ exception Transaction_again
 
 exception Transaction_nested
 
-let get_namespace_implementation path = match Protocol.Path.to_string_list path with
-	| "tool" :: "xenstored" :: "quota" :: rest ->
-		Protocol.Path.of_string_list rest, (module Quota_interface: Tree.S)
-	| "tool" :: "xenstored" :: "connection" :: rest ->
-		Protocol.Path.of_string_list rest, (module Connection.Interface: Tree.S)
-	| "tool" :: "xenstored" :: "log" :: rest ->
-		Protocol.Path.of_string_list rest, (module Logging_interface: Tree.S)
-	| "tool" :: "xenstored" :: "memory" :: rest ->
-		Protocol.Path.of_string_list rest, (module Heap_debug_interface: Tree.S)
-	| _ ->
-		path, (module Transaction: Tree.S)
+let mounts =
+  let t = Trie.create () in
+  let t = Trie.set t [ "tool"; "xenstored"; "quota" ] (module Quota_interface: Tree.S) in
+  let t = Trie.set t [ "tool"; "xenstored"; "connection" ] (module Connection.Interface: Tree.S) in
+  let t = Trie.set t [ "tool"; "xenstored"; "log" ] (module Logging_interface: Tree.S) in
+  let t = Trie.set t [ "tool"; "xenstored"; "memory" ] (module Heap_debug_interface: Tree.S) in
+  t
 
-(* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
+let get_mount path =
+  (* Find the longest prefix patch between [path] and the keys of [mounts] *)
+  match Protocol.Path.fold
+    (fun prefix acc ->
+      let key = Protocol.Path.to_string_list prefix in
+      let relative = Protocol.Name.(to_path(relative (Absolute path) (Absolute prefix))) in
+      if Trie.mem mounts key then Some(relative, Trie.find mounts key) else acc
+    ) path None with
+  | Some (a, b) -> a, b
+  | None -> path, (module Transaction: Tree.S)
+
+  (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
 let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effects =
 	let open Request in
@@ -68,7 +75,7 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
 			Response.Getdomainpath v, Transaction.no_side_effects ()
 		| PathOp(path, op) ->
 			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
-			let path, m = get_namespace_implementation path in
+			let path, m = get_mount path in
 			let module Impl = (val m: Tree.S) in
 
 			begin match op with
