@@ -249,7 +249,7 @@ let debug con =
 	let watches = List.map (fun (name, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Protocol.Name.to_string name) token) (list_watches con) in
 	String.concat "" watches
 
-module Interface = struct
+module Introspect = struct
 	include Tree.Unsupported
 
 	let read_connection t perms path c = function
@@ -383,3 +383,5 @@ module Interface = struct
 			list_connection t perms c rest
 		| _ -> []
 end
+
+let _ = Mount.mount (Protocol.Path.of_string "/tool/xenstored/connection") (module Introspect: Tree.S)
