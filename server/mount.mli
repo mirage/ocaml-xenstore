@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val mount: Xenstore.Protocol.Path.t -> (module Tree.S) -> unit
+val mount: Xenstore.Protocol.Path.t -> (module Tree.S) -> unit Lwt.t
 (** [mount mountpoint implementation] attaches the [implementation] tree
     at the given [mountpoint] path such that accessing paths for which
     [mountpoint] is a prefix, are performed within [implementation] *)

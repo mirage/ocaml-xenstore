@@ -19,7 +19,12 @@ open Protocol
 let mounts : (string, (module Tree.S)) Trie.t ref = ref (Trie.create ())
 
 let mount path implementation =
-  mounts := Trie.set !mounts (Path.to_string_list path) implementation
+  mounts := Trie.set !mounts (Path.to_string_list path) implementation;
+  Database.store >>= fun store ->
+  let t = Transaction.make 1l store in
+  Transaction.mkdir t 0 (Perms.of_domain 0) path;
+  assert (Transaction.commit t);
+  Database.persist (Transaction.get_side_effects t)
 
 let lookup path =
   (* Find the longest prefix patch between [path] and the keys of [mounts] *)
