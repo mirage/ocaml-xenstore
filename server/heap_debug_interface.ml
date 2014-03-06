@@ -17,7 +17,7 @@ let read t (perms: Perms.t) (path: Protocol.Path.t) =
 
 let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
 
-let list t perms path =
+let ls t perms path =
 	Perms.has perms Perms.CONFIGURE;
 	match Protocol.Path.to_string_list path with
 	| [] -> [ "heap_words"; "live_words"; "free_words"; "symbols" ]

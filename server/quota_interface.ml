@@ -75,7 +75,7 @@ let write t creator perms path value =
 			Quota.set_override Quota.maxwatchevent_overrides (int_of_string domid) (Some (int_of_string value))
 		| _ -> raise (Node.Doesnt_exist path)
 
-let list t perms path =
+let ls t perms path =
 	Perms.has perms Perms.CONFIGURE;
 	match Protocol.Path.to_string_list path with
 	| [] -> [ "default"; "entries-per-domain"; "number-of-entries"; "number-of-registered-watches"; "number-of-active-transactions"; "number-of-queued-watch-events" ]

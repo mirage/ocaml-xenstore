@@ -507,6 +507,24 @@ let test_quota () =
                 dom0, none, PathOp("/tool/xenstored/quota/entries-per-domain/0", Read), Response.Read "0";
 	]
 
+let test_quota_ls () =
+	let dom0 = Connection.create (interdomain 0) None in
+	let store = empty_store () in
+        let open Protocol in
+	let open Protocol.Request in
+
+	run store [
+                dom0, none, PathOp("/tool/xenstored/quota", Directory), Response.Directory
+                        [
+                                "default";
+                                "entries-per-domain";
+                                "number-of-entries";
+                                "number-of-registered-watches";
+                                "number-of-active-transactions";
+                                "number-of-queued-watch-events";
+                        ]
+        ]
+
 let test_quota_transaction () =
 	(* Check that node creation and destruction changes a quota *)
 	let dom0 = Connection.create (interdomain 0) None in
@@ -627,6 +645,7 @@ let _ =
 		"test_introduce_watches" >:: test_introduce_watches;
                 "test_rm_root" >:: test_rm_root;
 		"test_quota" >:: test_quota;
+                "test_quota_ls" >:: test_quota_ls;
 		"test_quota_transaction" >:: test_quota_transaction;
 		"test_quota_setperms" >:: test_quota_setperms;
 		"test_quota_maxsize" >:: test_quota_maxsize;
