@@ -212,7 +212,11 @@ let destroy t =
   return ()
 
 let address_of t =
-  return (Uri.make ~scheme:"domain" ~path:(string_of_int t.address.domid) ())
+  return (Uri.make
+    ~scheme:"domain"
+    ~path:(Printf.sprintf "%d/%nu/%d" t.address.domid t.address.mfn t.address.remote_port)
+    ()
+  )
 
 let domain_of t = t.address.domid
 
