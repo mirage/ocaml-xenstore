@@ -21,7 +21,5 @@ val unmount: Xenstore.Protocol.Path.t -> unit Lwt.t
 (** [unmount mountpoint] removes any attached implementation from
     [mountpoint] and deletes [mountpoint] if it is now empty. *)
 
-val lookup: Xenstore.Protocol.Path.t -> Xenstore.Protocol.Path.t * (module Tree.S)
-(** [lookup path] returns a [relative_path, implementation] where
-    [path = mountpoint . relative_path] and [mountpoint] is the path
-    where [implementation] is mounted. *)
+module Tree: Tree.S
+(** A tree with all the 'mounts' overlayed on top of the store *)

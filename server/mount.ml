@@ -21,47 +21,69 @@ let mounts : (string, (module Tree.S)) Trie.t ref = ref (Trie.create ())
 let debug fmt = Logging.debug "mount" fmt
 let error fmt = Logging.error "mount" fmt
 
-let lookup path =
+(* Find all pairs [mountpoint, implementation] where [mountpoint] is a prefix
+   of [path], ordered longest-prefix first. *)
+let all path =
   (* Find the longest prefix patch between [path] and the keys of [mounts] *)
-  match Path.fold
+  Path.fold
     (fun prefix acc ->
       let key = Path.to_string_list prefix in
       let relative = Name.(to_path(relative (Absolute path) (Absolute prefix))) in
-      if Trie.mem !mounts key then Some(relative, Trie.find !mounts key) else acc
-    ) path None with
-  | Some (a, b) -> a, b
-  | None -> path, (module Transaction: Tree.S)
+      if Trie.mem !mounts key then (relative, Trie.find !mounts key) :: acc else acc
+    ) path []
+  @ [ path, (module Transaction: Tree.S) ]
 
-let read_through mountpoint (module Base: Tree.S) (module T: Tree.S) =
-  let module M = struct
-    let write = T.write
-    let mkdir = T.mkdir
-    let ls t perms path =
-      let underneath = try Base.ls t perms (Path.concat mountpoint path) with Node.Doesnt_exist _ -> [] in
-      let this = T.ls t perms path in
-      List.filter (fun x -> not(List.mem x underneath)) this @ underneath
-    let read t perms path =
-      if T.exists t perms path
-      then T.read t perms path
-      else Base.read t perms (Path.concat mountpoint path)
-    let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
-    let rm t perms path =
-      if T.exists t perms path
-      then T.rm t perms path
-      else Base.rm t perms (Path.concat mountpoint path)
-    let getperms t perms path =
-      if T.exists t perms path
-      then T.getperms t perms path
-      else Base.getperms t perms (Path.concat mountpoint path)
-    let setperms t perms path acl =
-      if T.exists t perms path
-      then T.setperms t perms path acl
-      else Base.setperms t perms (Path.concat mountpoint path) acl
-  end in
-  (module M: Tree.S)
+(* Return the longest-prefix match, i.e. the most specific implementation *)
+let bottom_layer path = match all path with
+| [] -> path, (module Transaction: Tree.S)
+| x :: _ -> x
+
+(* Return the longest-prefix match where the path actually exists *)
+let lowest_existing t path =
+  let exists (path, m) =
+    let module Impl = (val m: Tree.S) in
+    Impl.exists t (Perms.of_domain 0) path in
+  match List.filter exists (all path) with
+  | [] -> raise (Node.Doesnt_exist path)
+  | x :: _ -> x
+
+module Tree = struct
+  let write t creator perms path v =
+    let path, m = bottom_layer path in
+    let module Impl = (val m: Tree.S) in
+    Impl.write t creator perms path v
+  let mkdir t creator perms path =
+    let path, m = bottom_layer path in
+    let module Impl = (val m: Tree.S) in
+    Impl.mkdir t creator perms path
+  let read t perms path =
+    let path, m = lowest_existing t path in
+    let module Impl = (val m: Tree.S) in
+    Impl.read t perms path
+  let getperms t perms path =
+    let path, m = lowest_existing t path in
+    let module Impl = (val m: Tree.S) in
+    Impl.getperms t perms path
+  let setperms t perms path acl =
+    let path, m = lowest_existing t path in
+    let module Impl = (val m: Tree.S) in
+    Impl.setperms t perms path acl
+  let rm t perms path =
+    let path, m = lowest_existing t path in
+    let module Impl = (val m: Tree.S) in
+    Impl.rm t perms path
+  let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
+  let ls t perms path =
+    if not(exists t perms path) then raise (Node.Doesnt_exist path);
+    List.fold_left (fun acc (path, m) ->
+      let module Impl = (val m: Tree.S) in
+      let extra = try Impl.ls t perms path with Node.Doesnt_exist _ -> [] in
+      List.filter (fun x -> not(List.mem x acc)) extra @ acc
+    ) [] (all path)
+end
 
 let mount path implementation =
-  mounts := Trie.set !mounts (Path.to_string_list path) (read_through path (module Transaction) implementation);
+  mounts := Trie.set !mounts (Path.to_string_list path) implementation;
   Database.store >>= fun store ->
   let t = Transaction.make 1l store in
   Transaction.mkdir t 0 (Perms.of_domain 0) path;
@@ -82,4 +104,3 @@ let unmount path =
     then Database.persist (Transaction.get_side_effects t)
     else return () (* conflict means we'll leave it alone *)
   end
-

@@ -311,7 +311,7 @@ module Introspect = struct
 
 	let list_connection t perms c = function
 		| [] ->
-			[ "address"; "current-transactions"; "total-operations"; "watch"; "current-watch-queue-length"; "total-dropped-watches"; "backend" ]
+			[ "address"; "current-transactions"; "total-operations"; "watch"; "current-watch-queue-length"; "total-dropped-watches" ]
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))

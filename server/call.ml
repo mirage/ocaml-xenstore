@@ -56,9 +56,7 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
 			Response.Getdomainpath v, Transaction.no_side_effects ()
 		| PathOp(path, op) ->
 			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
-			let path, m = Mount.lookup path in
-			let module Impl = (val m: Tree.S) in
-
+                        let module Impl = Mount.Tree in
 			begin match op with
 			| Read ->
 				let v = Impl.read t c.Connection.perm path in
