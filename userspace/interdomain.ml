@@ -243,6 +243,7 @@ let address_of t =
   )
 
 let domain_of t = t.address.domid
+let kind = "domain"
 
 type server = address Lwt_stream.t
 

@@ -28,7 +28,6 @@ type watch = {
 
 and t = {
 	address: Uri.t;
-	interface: (module Tree.S) option;
 	domid: int;
 	domstr: string;
 	idx: int; (* unique counter *)
@@ -87,7 +86,7 @@ let destroy address =
 
 let counter = ref 0
 
-let create (address, dom) interface =
+let create (address, dom) =
 	if Hashtbl.mem by_address address then begin
 		info "Connection.create: found existing connection for %s: closing" (Uri.to_string address);
 		destroy address
@@ -95,7 +94,6 @@ let create (address, dom) interface =
 	let con = 
 	{
 		address = address;
-		interface = interface;
 		domid = dom;
 		idx = !counter;
 		domstr = Uri.to_string address;
@@ -287,13 +285,6 @@ module Introspect = struct
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			if n > (List.length all) then raise (Node.Doesnt_exist path);
 			string_of_int (List.nth all n).count
-		| "backend" :: rest ->
-			begin match c.interface with
-			| None -> raise (Node.Doesnt_exist path)
-			| Some i ->
-				let module I = (val i: Tree.S) in
-				I.read t perms (Protocol.Path.of_string_list rest)
-			end
 		| _ -> raise (Node.Doesnt_exist path)
 
 	let read t (perms: Perms.t) (path: Protocol.Path.t) =
@@ -316,31 +307,6 @@ module Introspect = struct
 
 	let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
 
-	let write_connection t creator perms path c v = function
-		| "backend" :: rest ->
-			begin match c.interface with
-			| None -> raise (Node.Doesnt_exist path)
-			| Some i ->
-				let module I = (val i: Tree.S) in
-				I.write t creator perms (Protocol.Path.of_string_list rest) v
-			end
-		| _ -> raise Perms.Permission_denied
-
-	let write t creator (perms: Perms.t) (path: Protocol.Path.t) v =
-		Perms.has perms Perms.CONFIGURE;
-		match Protocol.Path.to_string_list path with
-		| "socket" :: idx :: rest ->
-			let idx = int_of_string idx in
-			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
-			let c = Hashtbl.find by_index idx in
-			write_connection t creator perms path c v rest
-		| "domain" :: domid :: rest ->
-			let address = Uri.make ~scheme:"domain" ~path:domid () in
-			if not(Hashtbl.mem by_address address) then raise (Node.Doesnt_exist path);
-			let c = Hashtbl.find by_address address in
-			write_connection t creator perms path c v rest
-		| _ -> raise Perms.Permission_denied
-
 	let rec between start finish = if start > finish then [] else start :: (between (start + 1) finish)
 
 	let list_connection t perms c = function
@@ -350,13 +316,6 @@ module Introspect = struct
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))
 		| [ "watch"; n ] -> [ "name"; "token"; "total-events" ]
-		| "backend" :: rest ->
-			begin match c.interface with
-			| None -> []
-			| Some i ->
-				let module I = (val i: Tree.S) in
-				I.ls t perms (Protocol.Path.of_string_list rest)
-			end
 		| _ -> []
 
 	let ls t perms path =
@@ -383,5 +342,4 @@ module Introspect = struct
 			list_connection t perms c rest
 		| _ -> []
 end
-
 let _ = Mount.mount (Protocol.Path.of_string "/tool/xenstored/connection") (module Introspect: Tree.S)

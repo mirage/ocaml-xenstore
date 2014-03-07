@@ -212,6 +212,8 @@ module Path = struct
 
   let basename x = List.(hd (rev x))
 
+  let concat a b = a @ b
+
   let walk f path initial = List.fold_left (fun x y -> f y x) initial path
 
   let fold f path initial =

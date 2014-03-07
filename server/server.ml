@@ -22,8 +22,15 @@ let ( ++ ) f g x = f (g x)
 let debug fmt = Logging.debug "server" fmt
 let error fmt = Logging.error "server" fmt
 
-module Make_namespace(T: S.TRANSPORT) = struct
-  let namespace_of channel =
+let fail_on_error = function
+| `Ok x -> return x
+| `Error x -> fail (Failure x)
+
+module Make = functor(T: S.TRANSPORT) -> struct
+
+  include T
+
+  let introspect channel =
     let module Interface = struct
       include Tree.Unsupported
       let read t (perms: Perms.t) (path: Protocol.Path.t) =
@@ -40,23 +47,14 @@ module Make_namespace(T: S.TRANSPORT) = struct
         if not(T.Introspect.write channel (Protocol.Path.to_string_list path) v)
         then raise Perms.Permission_denied
     end in
-    Some (module Interface: Tree.S)
-end
-
-let fail_on_error = function
-| `Ok x -> return x
-| `Error x -> fail (Failure x)
-
-module Make = functor(T: S.TRANSPORT) -> struct
-        module NS = Make_namespace(T)
-
-        include T
+    (module Interface: Tree.S)
 
 	let handle_connection t =
 		lwt address = T.address_of t in
                 let dom = T.domain_of t in
-		let interface = NS.namespace_of t in
-		let c = Connection.create (address, dom) interface in
+		let interface = introspect t in
+		let c = Connection.create (address, dom) in
+                let connection_path = Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/connection/%s/%d" T.kind c.Connection.idx) in
 		let m = Lwt_mutex.create () in
 		let take_watch_events () =
 			let q = List.rev (Queue.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
@@ -88,6 +86,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
 					)
 			done in
 
+                Mount.mount connection_path interface >>= fun () ->
 		try_lwt
 			lwt () =
                         let header_buf = Cstruct.create Protocol.Header.sizeof in
@@ -123,6 +122,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
 		with e ->
 			Lwt.cancel background_watch_event_flusher;
 			Connection.destroy address;
+                        Mount.unmount connection_path >>= fun () ->
 			T.destroy t
 
 	let serve_forever persistence =

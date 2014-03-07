@@ -21,6 +21,8 @@ end
 module type TRANSPORT = sig
   include IO
 
+  val kind: string
+
   type server
   val listen: unit -> server t
 
