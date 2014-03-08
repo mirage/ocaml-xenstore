@@ -129,17 +129,6 @@ let rec mem tree = function
 			  then node.Node.value <> None
 			  else mem node.Node.children t)
 
-(* Iterate over the longest valid prefix *)
-let rec iter_path f tree = function
-	| []   -> ()
-	| h::l -> 
-		  if mem_node tree h
-		  then begin
-			  let node = find_node tree h in
-			  f node.Node.key node.Node.value;
-			  iter_path f node.Node.children l
-		  end
-
 let rec fold_path f tree initial = function
 	| []   -> initial
 	| h::l -> 
