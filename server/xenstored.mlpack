@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 72078ec256657c8c3bb5a046e034fb86)
+# DO NOT EDIT (digest: 457b3443a4402e4739328c7c2e78ed9a)
 Logging
 Logging_interface
 Connection
@@ -16,6 +16,7 @@ Mount
 Database
 Transaction
 Server
+Domain
 Introduce
 Heap_debug_interface
 # OASIS_STOP

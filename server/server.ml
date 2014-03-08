@@ -104,6 +104,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
 					Protocol.Response.Error "EINVAL", Transaction.no_side_effects () in
                                 Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
+                                Lwt_list.iter_s Introduce.introduce (Transaction.get_domains side_effects) >>= fun () ->
                                 Database.persist side_effects >>= fun () ->
 				Lwt_mutex.with_lock m
 					(fun () ->
@@ -118,12 +119,12 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                                 T.write t payload_buf'
 					)
 			done in
-			T.destroy t
+			return ()
 		with e ->
 			Lwt.cancel background_watch_event_flusher;
 			Connection.destroy address;
                         Mount.unmount connection_path >>= fun () ->
-			T.destroy t
+                        T.destroy t
 
 	let serve_forever persistence =
                 let (_: unit Lwt.t) = match persistence with

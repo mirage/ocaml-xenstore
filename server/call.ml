@@ -167,9 +167,13 @@ let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_e
 				with _ -> []), Transaction.no_side_effects ()
 		| Request.Introduce(domid, mfn, remote_port) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
-			Introduce.(introduce { domid = domid; mfn = mfn; remote_port = remote_port });
-                        Connection.fire (Op.Write, Protocol.Name.(Predefined IntroduceDomain));
-			Response.Introduce, Transaction.no_side_effects ()
+                        let address = { Domain.domid; mfn; remote_port } in
+                        let side_effects = {
+                          Transaction.no_side_effects () with
+                          Transaction.domains = [ address ];
+                          watches = [ Op.Write, Protocol.Name.(Predefined IntroduceDomain) ]
+                        } in
+			Response.Introduce, side_effects
 		| Request.Resume(domid) ->
 			Perms.has c.Connection.perm Perms.RESUME;
 			(* register domain *)

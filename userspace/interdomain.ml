@@ -15,6 +15,7 @@
 open Lwt
 open Xenstore
 open Xenstored
+open Domain
 
 type 'a t = 'a Lwt.t
 let return x = return x
@@ -141,27 +142,6 @@ let create_dom0 () =
   Hashtbl.add by_port port d;
   return (Some d)
 
-let keys_of_address address = [
-  Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/connection/domain/%d/mfn" address.domid),
-  Nativeint.to_string address.mfn;
-  Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/connection/domain/%d/remote-port" address.domid),
-  string_of_int address.remote_port;
-]
-
-let writev keys =
-  Database.store >>= fun store ->
-  let t = Transaction.make 1l store in
-  List.iter (fun (k, v) -> Transaction.write t 0 (Perms.of_domain 0) k v) keys;
-  assert (Transaction.commit t);
-  Database.persist (Transaction.get_side_effects t)
-
-let rmv keys =
-  Database.store >>= fun store ->
-  let t = Transaction.make 1l store in
-  List.iter (fun (k, _) -> Transaction.rm t (Perms.of_domain 0) k) keys;
-  assert (Transaction.commit t);
-  Database.persist (Transaction.get_side_effects t)
-
 let create_domU address =
   let page = Domains.map_foreign address.domid address.mfn in
   let eventchn = Eventchn.init () in
@@ -177,8 +157,6 @@ let create_domU address =
   let (_: unit Lwt.t) = service_domain d in
   Hashtbl.add domains address.domid d;
   Hashtbl.add by_port port d;
-  (* Persist the connection in the database *)
-  writev (keys_of_address address) >>= fun () ->
   return (Some d)
 
 let create () =
@@ -232,8 +210,7 @@ let destroy t =
   Domains.unmap_foreign t.page;
   Hashtbl.remove domains t.address.domid;
   Hashtbl.remove by_port t.port;
-  (* delete persistent connection *)
-  rmv (keys_of_address t.address)
+  Introduce.forget t.address
 
 let address_of t =
   return (Uri.make
