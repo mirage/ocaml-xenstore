@@ -68,11 +68,14 @@ module Tree = struct
     let path, m = lowest_existing t path in
     let module Impl = (val m: Tree.S) in
     Impl.setperms t perms path acl
-  let rm t perms path =
-    let path, m = lowest_existing t path in
-    let module Impl = (val m: Tree.S) in
-    Impl.rm t perms path
   let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
+  let rm t perms path =
+    if not(exists t perms (Path.dirname path)) then raise (Node.Doesnt_exist (Path.dirname path));
+    if exists t perms path then begin
+      let path, m = lowest_existing t path in
+      let module Impl = (val m: Tree.S) in
+      Impl.rm t perms path
+    end
   let ls t perms path =
     if not(exists t perms path) then raise (Node.Doesnt_exist path);
     List.fold_left (fun acc (path, m) ->
