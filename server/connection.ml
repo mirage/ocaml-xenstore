@@ -11,6 +11,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib.Std
+open Lwt
 open Xenstore
 
 let debug fmt = Logging.debug "connection" fmt
@@ -18,6 +20,11 @@ let info  fmt = Logging.info  "connection" fmt
 let error fmt = Logging.debug "connection" fmt
 
 exception End_of_file
+
+module Watch_event = struct
+  type t = string * string with sexp
+end
+module Watch_events = PQueue.Make(Watch_event)
 
 type watch = {
 	con: t;
@@ -38,7 +45,7 @@ and t = {
 	mutable nb_dropped_watches: int;
 	mutable stat_nb_ops: int;
 	mutable perm: Perms.t;
-	watch_events: (string * string) Queue.t;
+	watch_events: Watch_events.t;
 	cvar: unit Lwt_condition.t;
 	domainpath: Protocol.Name.t;
 }
@@ -49,7 +56,7 @@ let by_index   : (int,   t) Hashtbl.t = Hashtbl.create 128
 let watches : (string, watch list) Trie.t ref = ref (Trie.create ())
 
 let list_of_watches () =
-	Trie.fold (fun path v_opt acc ->
+	Trie.fold (fun acc path v_opt ->
 		match v_opt with
 		| None -> Printf.sprintf "%s <- None" path :: acc
 		| Some vs -> Printf.sprintf "%s <- %s" path (String.concat ", " (List.map (fun v -> v.con.domstr) vs)) :: acc
@@ -91,6 +98,7 @@ let create (address, dom) =
 		info "Connection.create: found existing connection for %s: closing" (Uri.to_string address);
 		destroy address
 	end;
+        Watch_events.create [ "test" ] >>= fun watch_events ->
 	let con = 
 	{
 		address = address;
@@ -104,7 +112,7 @@ let create (address, dom) =
 		nb_dropped_watches = 0;
 		stat_nb_ops = 0;
 		perm = Perms.of_domain dom;
-		watch_events = Queue.create ();
+		watch_events;
 		cvar = Lwt_condition.create ();
 		domainpath = Store.getdomainpath dom;
 	}
@@ -113,7 +121,7 @@ let create (address, dom) =
 	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
 	Hashtbl.replace by_address address con;
 	Hashtbl.replace by_index con.idx con;
-	con
+	return con
 
 let restrict con domid =
 	con.perm <- Perms.restrict con.perm domid
@@ -185,29 +193,40 @@ let fire_one name watch =
 	let open Xenstore.Protocol in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
 	watch.count <- watch.count + 1;
-	if Queue.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
-		error "domid %d reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid (Queue.length watch.con.watch_events) (Quota.maxwatchevent_of_domain watch.con.domid) name watch.token;
-		watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1
+	if Watch_events.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
+		error "domid %d reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid (Watch_events.length watch.con.watch_events) (Quota.maxwatchevent_of_domain watch.con.domid) name watch.token;
+                watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
+                return ()
 	end else begin
-		Queue.add (name, watch.token) watch.con.watch_events;
-		Lwt_condition.signal watch.con.cvar ()
+		Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
+                Lwt_condition.signal watch.con.cvar ();
+                return ()
 	end
 
 let fire (op, name) =
 	let key = key_of_name name in
+        let ws = Trie.fold_path (fun acc _ w -> match w with None -> acc | Some ws -> acc @ ws) !watches [] key in
+        Lwt_list.iter_s (fire_one (Some name)) ws >>= fun () ->
+        (*
 	Trie.iter_path
 		(fun _ w -> match w with
 		| None -> ()
 		| Some ws -> List.iter (fire_one (Some name)) ws
 		) !watches key;
-	
+	*)
 	if op = Protocol.Op.Rm
-	then Trie.iter
+	then
+          let ws = Trie.fold (fun acc _ w -> match w with None -> acc | Some ws -> acc @ ws) (Trie.sub !watches key) [] in
+          Lwt_list.iter_s (fire_one None) ws
+        else
+          return ()
+          (*
+        Trie.iter
 		(fun _ w -> match w with
 		| None -> ()
 		| Some ws -> List.iter (fire_one None) ws
-		) (Trie.sub !watches key)
-
+                ) (Trie.sub !watches key)
+        *)
 let find_next_tid con =
 	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret
 
@@ -260,7 +279,7 @@ module Introspect = struct
 		| "total-operations" :: [] ->
 			string_of_int c.stat_nb_ops
 		| "current-watch-queue-length" :: [] ->
-			string_of_int (Queue.length c.watch_events)
+			string_of_int (Watch_events.length c.watch_events)
 		| "total-dropped-watches" :: [] ->
 			string_of_int c.nb_dropped_watches
 		| "watch" :: [] ->

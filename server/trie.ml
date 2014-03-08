@@ -95,7 +95,7 @@ let rec map f tree =
 
 let rec fold f tree acc =
 	let rec aux accu node =
-		fold f node.Node.children (f node.Node.key node.Node.value accu)
+		fold f node.Node.children (f accu node.Node.key node.Node.value)
 	in
 	List.fold_left aux acc tree 
 
@@ -139,6 +139,17 @@ let rec iter_path f tree = function
 			  f node.Node.key node.Node.value;
 			  iter_path f node.Node.children l
 		  end
+
+let rec fold_path f tree initial = function
+	| []   -> initial
+	| h::l -> 
+		  if mem_node tree h
+		  then begin
+			  let node = find_node tree h in
+			  fold_path f node.Node.children (f initial node.Node.key node.Node.value) l
+		  end else initial
+
+let iter_path f tree path = fold_path (fun () -> f) tree () path
 
 let rec set_node node path value =
 	if path = [] 

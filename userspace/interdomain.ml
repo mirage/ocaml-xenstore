@@ -103,8 +103,10 @@ let virq_thread () =
           t.shutdown <- true;
           Lwt_condition.broadcast t.c ()
         ) to_close;
+        (* XXX
       if release_domain
       then Connection.fire (Protocol.Op.Write, Protocol.Name.(Predefined ReleaseDomain));
+      *)
     lwt after = Unix_activations.after virq_port from in
     loop after in
   loop Unix_activations.program_start
