@@ -98,7 +98,7 @@ let create (address, dom) =
 		info "Connection.create: found existing connection for %s: closing" (Uri.to_string address);
 		destroy address
 	end;
-        Watch_events.create [ "test" ] >>= fun watch_events ->
+        Watch_events.create [ "tool"; "xenstored"; "connection"; "domain"; string_of_int dom; "watches" ] >>= fun watch_events ->
 	let con = 
 	{
 		address = address;

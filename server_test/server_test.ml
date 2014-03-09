@@ -25,6 +25,8 @@ let empty_store () = Store.create ()
 
 let none = Transaction.none
 
+let _ = Database.no_persistence ()
+
 let rpc store c tid request =
         let open Lwt in
         let hdr = { Protocol.Header.tid; rid = 0l; ty = Protocol.Request.get_ty request; len = 0 } in
