@@ -59,7 +59,8 @@ module Make(T: S.SEXPABLE) = struct
     Database.store >>= fun db ->
     let tr = Transaction.make 1l db in
     Printf.fprintf stderr "Rm %s\n%!" (String.concat "/" t.name);
-    Transaction.rm tr (Perms.of_domain 0) (Protocol.Path.of_string_list t.name);
+    let path = Protocol.Path.of_string_list t.name in
+    if Transaction.exists tr (Perms.of_domain 0) path then Transaction.rm tr (Perms.of_domain 0) path;
     assert(Transaction.commit tr);
     Database.persist (Transaction.get_side_effects tr) >>= fun () ->
     t.next_id <- 0L;
