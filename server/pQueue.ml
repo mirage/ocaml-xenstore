@@ -48,7 +48,6 @@ module Make(T: S.SEXPABLE) = struct
   let add item t =
     Database.store >>= fun db ->
     let tr = Transaction.make 1l db in
-    Printf.fprintf stderr "Writing %s <- %s\n%!" (String.concat "/" (t.name @ [ Int64.to_string t.next_id ])) (Sexp.to_string (T.sexp_of_t item));
     Transaction.write tr 0 (Perms.of_domain 0) (Protocol.Path.of_string_list (t.name @ [ Int64.to_string t.next_id ])) (Sexp.to_string (T.sexp_of_t item));
     t.root <- IntMap.add t.next_id item t.root;
     t.next_id <- Int64.succ t.next_id;
@@ -58,7 +57,6 @@ module Make(T: S.SEXPABLE) = struct
   let clear t =
     Database.store >>= fun db ->
     let tr = Transaction.make 1l db in
-    Printf.fprintf stderr "Rm %s\n%!" (String.concat "/" t.name);
     let path = Protocol.Path.of_string_list t.name in
     if Transaction.exists tr (Perms.of_domain 0) path then Transaction.rm tr (Perms.of_domain 0) path;
     assert(Transaction.commit tr);
