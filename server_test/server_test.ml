@@ -46,7 +46,15 @@ let run store (sequence: (Connection.t * int32 * Protocol.Request.t * Protocol.R
 
 let interdomain domid = Uri.make ~scheme:"domain" ~path:(string_of_int domid) (), domid
 
-let connect domid = Lwt_main.run (Connection.create (interdomain domid))
+let connect domid =
+        let t =
+                let open Connection in
+                let open Lwt in
+                create (interdomain domid) >>= fun conn ->
+                (* Previous tests may have left untransmitted watches in the persistent queues *)
+                Watch_events.clear conn.watch_events >>= fun () ->
+                return conn in
+        Lwt_main.run t
 
 let test_implicit_create () =
 	(* Write a path and check the parent nodes can be read *)
