@@ -13,6 +13,12 @@
  *)
 open Sexplib
 
+module type STRINGABLE = sig
+  type t
+  val to_string: t -> string
+  val of_string: string -> t
+end
+
 module type SEXPABLE = sig
   type t
   val sexp_of_t: t -> Sexp.t
