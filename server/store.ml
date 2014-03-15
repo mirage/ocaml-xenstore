@@ -142,14 +142,6 @@ let getperms store perm path = match Node.lookup store.root path with
   Perms.check perm Perms.READ (Node.get_perms node);
   Node.get_perms node
 
-(* others utils *)
-let traversal root_node f =
-	let rec _traversal path node =
-		f path node;
-		List.iter (_traversal (path @ [ Node.get_name node ])) (Node.get_children node)
-		in
-	_traversal [] root_node
-
 let create () = {
 	stat_transaction_abort = 0;
 	root = Node.create "" 0 (Protocol.ACL.({ owner = 0; other = NONE; acl = [] })) "";
@@ -166,10 +158,3 @@ let mark_symbols store =
 
 let incr_transaction_abort store =
 	store.stat_transaction_abort <- store.stat_transaction_abort + 1
-
-let stats store =
-	let nb_nodes = ref 0 in
-	traversal store.root (fun path node ->
-		incr nb_nodes
-	);
-	!nb_nodes, store.stat_transaction_abort
