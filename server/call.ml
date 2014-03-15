@@ -86,10 +86,9 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
    the client. *)
 let transaction_replay store c t =
 	let ops = Transaction.get_operations t in
-	let tid = Connection.register_transaction c store in
-	let t = Transaction.make tid store in
 	let con = "replay request:" ^ c.Connection.domstr in
-	let perform_exn (request, response) =
+	let perform_exn t (request, response) =
+                let tid = Transaction.get_id t in
 		Logging.request ~tid ~con:("replay request:" ^ c.Connection.domstr) request;
 		Logging.response ~tid ~con:("replay reply1: " ^ c.Connection.domstr) response;
 		let response', side_effects = op_exn store c t request in
@@ -98,14 +97,19 @@ let transaction_replay store c t =
 		if response <> response' then begin
 			raise Transaction_again
 		end in
+        let tid = Connection.register_transaction c store in
+	let t = Transaction.make tid store in
 	try
+                (* Perform a test replay on a throwaway copy of the store *)
 		Logging.start_transaction ~con ~tid;
-		List.iter perform_exn ops;
-		Logging.end_transaction ~tid ~con;
-
-		Transaction.commit t
+		List.iter (perform_exn t) ops;
+                (* Replay on the live store *)
+                let t = Transaction.make Transaction.none store in
+		List.iter (perform_exn t) ops; (* XXX side effects? *)
+                true
 	with e ->
 		error "transaction_replay caught: %s" (Printexc.to_string e);
+                Connection.unregister_transaction c tid;
 		false
 
 let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_effects =
@@ -126,10 +130,7 @@ let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_e
 			Connection.unregister_transaction c tid;
 			if commit then begin
 				Logging.end_transaction ~tid ~con:c.Connection.domstr;
-				if true
-					&& not(Transaction.commit t)
-					&& not(transaction_replay store c t)
-				then begin
+				if not(transaction_replay store c t) then begin
                                         Logging.conflict ~tid ~con:c.Connection.domstr;
                                         raise Transaction_again
                                 end;

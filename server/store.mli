@@ -54,9 +54,4 @@ val read: t -> Perms.t -> Protocol.Path.t -> string
 
 val getperms: t -> Perms.t -> Protocol.Path.t -> Protocol.ACL.t
 
-
-val replace: t -> Protocol.Path.t -> Node.t -> Quota.t -> Quota.t -> unit
-(** [replace t path node original_quota new_quota]: replaces the node
-    at [path] in [t] with [node], updating the quote at the same time. *)
-
 val mark_symbols: t -> unit

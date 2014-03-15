@@ -78,12 +78,6 @@ val create: unit -> t
 val copy: t -> t
 (** Return a duplicate of [t] *)
 
-val union: t -> t -> unit
-(** [union a b] adds all entries from [b] to [a] *)
-
-val merge: t -> t -> t -> unit
-(** [union a b] adds all entries from [b] to [a] *)
-
 val check: t -> int -> int -> unit
 (** [check t domid size]
 	throws Data_too_big if [size] is too large

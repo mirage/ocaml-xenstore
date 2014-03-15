@@ -150,11 +150,6 @@ let traversal root_node f =
 		in
 	_traversal [] root_node
 
-(* Used in transaction merging *)
-let replace store path node orig_quota mod_quota =
-  store.root <- Node.replace store.root path node;
-  Quota.merge orig_quota mod_quota store.quota
-
 let create () = {
 	stat_transaction_abort = 0;
 	root = Node.create "" 0 (Protocol.ACL.({ owner = 0; other = NONE; acl = [] })) "";
