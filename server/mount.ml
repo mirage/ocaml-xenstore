@@ -88,9 +88,8 @@ end
 let mount path implementation =
   mounts := Trie.set !mounts (Path.to_string_list path) implementation;
   Database.store >>= fun store ->
-  let t = Transaction.make 1l store in
+  let t = Transaction.make Transaction.none store in
   Transaction.mkdir t 0 (Perms.of_domain 0) path;
-  assert (Transaction.commit t);
   Database.persist (Transaction.get_side_effects t)
 
 let unmount path =
@@ -100,10 +99,8 @@ let unmount path =
   else begin
     mounts := Trie.unset !mounts key;
     Database.store >>= fun store ->
-    let t = Transaction.make 1l store in
+    let t = Transaction.make Transaction.none store in
     let ls = Transaction.ls t (Perms.of_domain 0) path in
     if ls = [] then Transaction.rm t (Perms.of_domain 0) path;
-    if Transaction.commit t
-    then Database.persist (Transaction.get_side_effects t)
-    else return () (* conflict means we'll leave it alone *)
+    Database.persist (Transaction.get_side_effects t)
   end

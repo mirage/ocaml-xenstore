@@ -31,7 +31,7 @@ module Make(T: S.SEXPABLE) = struct
 
   let create name =
     Database.store >>= fun db ->
-    let t = Transaction.make 1l db in
+    let t = Transaction.make Transaction.none db in
     let ls = try Transaction.ls t (Perms.of_domain 0) (Protocol.Path.of_string_list name) with Node.Doesnt_exist _ -> [] in
     let root = List.fold_left (fun acc id ->
       try
@@ -47,19 +47,17 @@ module Make(T: S.SEXPABLE) = struct
 
   let add item t =
     Database.store >>= fun db ->
-    let tr = Transaction.make 1l db in
+    let tr = Transaction.make Transaction.none db in
     Transaction.write tr 0 (Perms.of_domain 0) (Protocol.Path.of_string_list (t.name @ [ Int64.to_string t.next_id ])) (Sexp.to_string (T.sexp_of_t item));
     t.root <- IntMap.add t.next_id item t.root;
     t.next_id <- Int64.succ t.next_id;
-    assert(Transaction.commit tr);
     Database.persist (Transaction.get_side_effects tr)
 
   let clear t =
     Database.store >>= fun db ->
-    let tr = Transaction.make 1l db in
+    let tr = Transaction.make Transaction.none db in
     let path = Protocol.Path.of_string_list t.name in
     if Transaction.exists tr (Perms.of_domain 0) path then Transaction.rm tr (Perms.of_domain 0) path;
-    assert(Transaction.commit tr);
     Database.persist (Transaction.get_side_effects tr) >>= fun () ->
     t.next_id <- 0L;
     t.root <- IntMap.empty;
