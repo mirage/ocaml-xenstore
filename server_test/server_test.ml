@@ -27,10 +27,17 @@ let none = Transaction.none
 
 let _ = Database.no_persistence ()
 
+let enable_debug = ref false
+
+let debug fmt =
+        Printf.kprintf (fun s -> if !enable_debug then (print_string s; print_string "\n")) fmt
+
 let rpc store c tid request =
         let open Lwt in
         let hdr = { Protocol.Header.tid; rid = 0l; ty = Protocol.Request.get_ty request; len = 0 } in
+        debug "store = %s" (Sexp.to_string (Store.sexp_of_t store));
         let response, side_effects = Call.reply store c hdr request in
+        debug "request = %s response = %s side_effects = %s" (Sexp.to_string (Protocol.Request.sexp_of_t request)) (Sexp.to_string (Protocol.Response.sexp_of_t response)) (Sexp.to_string (Transaction.sexp_of_side_effects side_effects));
         Transaction.get_watches side_effects |> List.rev |> Lwt_list.iter_s Connection.fire >>= fun () ->
         return response
 
@@ -638,7 +645,7 @@ let test_control_perms () =
 let _ =
   let verbose = ref false in
   Arg.parse [
-    "-verbose", Arg.Unit (fun _ -> verbose := true), "Run in verbose mode";
+    "-verbose", Arg.Unit (fun _ -> verbose := true; enable_debug := true), "Run in verbose mode with lots of debugging";
   ] (fun x -> Printf.fprintf stderr "Ignoring argument: %s" x)
     "Test xenstore server code";
 
