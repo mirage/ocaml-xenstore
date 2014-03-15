@@ -11,13 +11,12 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib.Std
 
-val introduce: Domain.address -> unit Lwt.t
-(** [introduce address] should be called whenever an introduce message
-    is received from the toolstack. *)
+type address = {
+	domid: int;
+	mfn: nativeint;
+	remote_port: int;
+} with sexp
+(** A remote domain address *)
 
-val forget: Domain.address -> unit Lwt.t
-(** [forget address] should be called whenever a domain is destroyed *)
-
-val stream: Domain.address Lwt_stream.t
-(** A stream of introduced addresses *)

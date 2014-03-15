@@ -22,8 +22,15 @@ let ( ++ ) f g x = f (g x)
 let debug fmt = Logging.debug "server" fmt
 let error fmt = Logging.error "server" fmt
 
-module Make_namespace(T: S.TRANSPORT) = struct
-  let namespace_of channel =
+let fail_on_error = function
+| `Ok x -> return x
+| `Error x -> fail (Failure x)
+
+module Make = functor(T: S.TRANSPORT) -> struct
+
+  include T
+
+  let introspect channel =
     let module Interface = struct
       include Tree.Unsupported
       let read t (perms: Perms.t) (path: Protocol.Path.t) =
@@ -40,28 +47,19 @@ module Make_namespace(T: S.TRANSPORT) = struct
         if not(T.Introspect.write channel (Protocol.Path.to_string_list path) v)
         then raise Perms.Permission_denied
     end in
-    Some (module Interface: Tree.S)
-end
-
-let fail_on_error = function
-| `Ok x -> return x
-| `Error x -> fail (Failure x)
-
-module Make = functor(T: S.TRANSPORT) -> struct
-        module NS = Make_namespace(T)
-
-        include T
+    (module Interface: Tree.S)
 
 	let handle_connection t =
 		lwt address = T.address_of t in
                 let dom = T.domain_of t in
-		let interface = NS.namespace_of t in
-		let c = Connection.create (address, dom) interface in
+		let interface = introspect t in
+		Connection.create (address, dom) >>= fun c ->
+                let connection_path = Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/connection/%s/%d" T.kind c.Connection.idx) in
 		let m = Lwt_mutex.create () in
 		let take_watch_events () =
-			let q = List.rev (Queue.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
-			Queue.clear c.Connection.watch_events;
-			q in
+			let q = List.rev (Connection.Watch_events.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
+			Connection.Watch_events.clear c.Connection.watch_events >>= fun () ->
+			return q in
 		let flush_watch_events header_buf payload_buf q =
 			Lwt_list.iter_s
 				(fun (path, token) ->
@@ -81,13 +79,15 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
 				Lwt_mutex.with_lock m
 					(fun () ->
-						lwt () = while_lwt Queue.length c.Connection.watch_events = 0 do
+						lwt () = while_lwt Connection.Watch_events.length c.Connection.watch_events = 0 do
 							Lwt_condition.wait ~mutex:m c.Connection.cvar
 						done in
-						flush_watch_events header_buf payload_buf (take_watch_events ())
+                                                take_watch_events () >>= fun w ->
+						flush_watch_events header_buf payload_buf w
 					)
 			done in
 
+                Mount.mount connection_path interface >>= fun () ->
 		try_lwt
 			lwt () =
                         let header_buf = Cstruct.create Protocol.Header.sizeof in
@@ -97,14 +97,15 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 fail_on_error (Protocol.Header.unmarshal header_buf) >>= fun hdr ->
                                 let payload_buf' = Cstruct.sub payload_buf 0 hdr.Protocol.Header.len in
                                 T.read t payload_buf' >>= fun () ->
-				let events = take_watch_events () in
+				take_watch_events () >>= fun events ->
                                 Database.store >>= fun store ->
 				let reply, side_effects = match Protocol.Request.unmarshal hdr payload_buf' with
                                 | `Ok request -> Call.reply store c hdr request
                                 | `Error msg ->
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
 					Protocol.Response.Error "EINVAL", Transaction.no_side_effects () in
-                                Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
+                                Transaction.get_watches side_effects |> List.rev |> Lwt_list.iter_s Connection.fire >>= fun () ->
+                                Lwt_list.iter_s Introduce.introduce (Transaction.get_domains side_effects) >>= fun () ->
                                 Database.persist side_effects >>= fun () ->
 				Lwt_mutex.with_lock m
 					(fun () ->
@@ -119,11 +120,12 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                                 T.write t payload_buf'
 					)
 			done in
-			T.destroy t
+			return ()
 		with e ->
 			Lwt.cancel background_watch_event_flusher;
 			Connection.destroy address;
-			T.destroy t
+                        Mount.unmount connection_path >>= fun () ->
+                        T.destroy t
 
 	let serve_forever persistence =
                 let (_: unit Lwt.t) = match persistence with

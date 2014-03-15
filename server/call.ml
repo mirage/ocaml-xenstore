@@ -56,9 +56,7 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
 			Response.Getdomainpath v, Transaction.no_side_effects ()
 		| PathOp(path, op) ->
 			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
-			let path, m = Mount.lookup path in
-			let module Impl = (val m: Tree.S) in
-
+                        let module Impl = Mount.Tree in
 			begin match op with
 			| Read ->
 				let v = Impl.read t c.Connection.perm path in
@@ -110,16 +108,6 @@ let transaction_replay store c t =
 		error "transaction_replay caught: %s" (Printexc.to_string e);
 		false
 
-let hexify s =
-        let hexseq_of_char c = Printf.sprintf "%02x" (Char.code c) in
-        let hs = String.create (String.length s * 2) in
-        for i = 0 to String.length s - 1 do
-                let seq = hexseq_of_char s.[i] in
-                hs.[i * 2] <- seq.[0];
-                hs.[i * 2 + 1] <- seq.[1];
-        done;
-        hs
-
 let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_effects =
 	let tid = hdr.Header.tid in
 	let t =
@@ -169,9 +157,13 @@ let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_e
 				with _ -> []), Transaction.no_side_effects ()
 		| Request.Introduce(domid, mfn, remote_port) ->
 			Perms.has c.Connection.perm Perms.INTRODUCE;
-			Introduce.(introduce { domid = domid; mfn = mfn; remote_port = remote_port });
-                        Connection.fire (Op.Write, Protocol.Name.(Predefined IntroduceDomain));
-			Response.Introduce, Transaction.no_side_effects ()
+                        let address = { Domain.domid; mfn; remote_port } in
+                        let side_effects = {
+                          Transaction.no_side_effects () with
+                          Transaction.domains = [ address ];
+                          watches = [ Op.Write, Protocol.Name.(Predefined IntroduceDomain) ]
+                        } in
+			Response.Introduce, side_effects
 		| Request.Resume(domid) ->
 			Perms.has c.Connection.perm Perms.RESUME;
 			(* register domain *)

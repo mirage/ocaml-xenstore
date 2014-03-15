@@ -1,6 +1,7 @@
 # OASIS_START
-# DO NOT EDIT (digest: 72078ec256657c8c3bb5a046e034fb86)
+# DO NOT EDIT (digest: 3f6c986070b981ff6123d9eaa3565c45)
 Logging
+PQueue
 Logging_interface
 Connection
 Call
@@ -16,6 +17,7 @@ Mount
 Database
 Transaction
 Server
+Domain
 Introduce
 Heap_debug_interface
 # OASIS_STOP

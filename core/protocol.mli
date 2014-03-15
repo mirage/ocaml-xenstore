@@ -147,6 +147,9 @@ module Path : sig
   val basename: t -> Element.t
   (** [basename t]: returns the final element of [t], cf Filename.basename *)
 
+  val concat: t -> t -> t
+  (** [concat a b] returns the path given by [b] joined onto the end of [a] *)
+
   val walk: (Element.t -> 'a -> 'a) -> t -> 'a -> 'a
   (** [walk f t]: folds [f] across each path element of [t] in order *)
 

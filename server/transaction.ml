@@ -12,6 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
+open Sexplib.Std
+
 let debug fmt = Logging.debug "transaction" fmt
 open Xenstore
 
@@ -28,12 +30,15 @@ type side_effects = {
            be derived directly from [updates] above because implicit directory
            creates don't generate watches (for no good reason) *)
 	mutable watches: (Protocol.Op.t * Protocol.Name.t) list;
-}
+        (* A list of introduced domains *)
+        mutable domains: Domain.address list
+} with sexp
 
-let no_side_effects () = { updates = []; watches = [] }
+let no_side_effects () = { updates = []; watches = []; domains = [] }
 
 let get_watches side_effects = side_effects.watches
 let get_updates side_effects = side_effects.updates
+let get_domains side_effects = side_effects.domains
 
 type t = {
 	ty: ty;

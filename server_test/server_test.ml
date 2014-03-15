@@ -25,26 +25,48 @@ let empty_store () = Store.create ()
 
 let none = Transaction.none
 
+let _ = Database.no_persistence ()
+
+let enable_debug = ref false
+
+let debug fmt =
+        Printf.kprintf (fun s -> if !enable_debug then (print_string s; print_string "\n")) fmt
+
 let rpc store c tid request =
+        let open Lwt in
         let hdr = { Protocol.Header.tid; rid = 0l; ty = Protocol.Request.get_ty request; len = 0 } in
+        debug "store = %s" (Sexp.to_string (Store.sexp_of_t store));
         let response, side_effects = Call.reply store c hdr request in
-        Transaction.get_watches side_effects |> List.rev |> List.iter Connection.fire;
-        response
+        debug "request = %s response = %s side_effects = %s" (Sexp.to_string (Protocol.Request.sexp_of_t request)) (Sexp.to_string (Protocol.Response.sexp_of_t response)) (Sexp.to_string (Transaction.sexp_of_side_effects side_effects));
+        Transaction.get_watches side_effects |> List.rev |> Lwt_list.iter_s Connection.fire >>= fun () ->
+        return response
 
 let run store (sequence: (Connection.t * int32 * Protocol.Request.t * Protocol.Response.t) list) =
-	List.iter
+        let open Lwt in
+	Lwt_main.run (Lwt_list.iter_s
 		(fun (c, tid, request, expected_result) ->
-                        let actual = rpc store c tid request in
+                        rpc store c tid request >>= fun actual ->
                         (* Store.dump_stdout store; *)
-                        assert_equal ~printer:(fun x -> Sexp.to_string (Protocol.Response.sexp_of_t x)) expected_result actual
-		) sequence
+                        assert_equal ~printer:(fun x -> Sexp.to_string (Protocol.Response.sexp_of_t x)) expected_result actual;
+                        return ()
+		) sequence)
 
 let interdomain domid = Uri.make ~scheme:"domain" ~path:(string_of_int domid) (), domid
 
+let connect domid =
+        let t =
+                let open Connection in
+                let open Lwt in
+                create (interdomain domid) >>= fun conn ->
+                (* Previous tests may have left untransmitted watches in the persistent queues *)
+                Watch_events.clear conn.watch_events >>= fun () ->
+                return conn in
+        Lwt_main.run t
+
 let test_implicit_create () =
 	(* Write a path and check the parent nodes can be read *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let domU = Connection.create (interdomain 1) None in
+	let dom0 = connect 0 in
+	let domU = connect 1 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -64,7 +86,7 @@ let test_implicit_create () =
 let test_directory_order () =
 	(* Create nodes in a particular order and check 'directory'
 	   preserves the ordering *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -81,7 +103,7 @@ let example_acl =
 
 let test_setperms_getperms () =
 	(* Check that getperms(setperms(x)) = x *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -94,9 +116,9 @@ let test_setperms_getperms () =
 let test_setperms_owner () =
 	(* Check that only the owner of a node can setperms even
 	   if another domain has read/write access *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let dom2 = Connection.create (interdomain 2) None in
-	let dom5 = Connection.create (interdomain 5) None in
+        let dom0 = connect 0 in
+        let dom2 = connect 2 in
+        let dom5 = connect 5 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -112,13 +134,15 @@ let test_setperms_owner () =
 	]
 
 let begin_transaction store c =
-        match rpc store c none Protocol.Request.Transaction_start with
-        | Protocol.Response.Transaction_start tid -> tid
-        | _ -> failwith "begin_transaction"
+        let open Lwt in
+        Lwt_main.run
+                (rpc store c none Protocol.Request.Transaction_start >>= function
+                | Protocol.Response.Transaction_start tid -> return tid
+                | _ -> failwith "begin_transaction")
 
 let test_mkdir () =
 	(* Check that mkdir creates usable nodes *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -136,7 +160,7 @@ let test_mkdir () =
 
 let test_empty () =
 	(* Check that I can read an empty value *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -151,7 +175,7 @@ let test_directory () =
 let test_rm () =
 	(* rm of a missing node from an existing parent should succeed *)
 	(* rm of a missing node from a missing parent should ENOENT *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -165,9 +189,9 @@ let test_rm () =
 let test_restrict () =
 	(* Check that only dom0 can restrict to another domain
 	   and that it loses access to dom0-only nodes. *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let dom3 = Connection.create (interdomain 3) None in
-	let dom7 = Connection.create (interdomain 7) None in
+        let dom0 = connect 0 in
+        let dom3 = connect 3 in
+        let dom7 = connect 7 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -183,8 +207,8 @@ let test_restrict () =
 let test_set_target () =
 	(* Check that dom0 can grant dom1 access to dom2's nodes,
 	   without which it wouldn't have access. *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let dom7 = Connection.create (interdomain 7) None in
+        let dom0 = connect 0 in
+        let dom7 = connect 7 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -199,7 +223,7 @@ let test_set_target () =
 let test_transactions_are_isolated () =
 	(* Check that other connections cannot see the nodes created
 	   within an uncommitted transaction *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -215,7 +239,7 @@ let test_transactions_are_isolated () =
 let test_independent_transactions_coalesce () =
 	(* Check that two parallel, unrelated transactions can be
 	   coalesced properly *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -237,7 +261,7 @@ let test_independent_transactions_coalesce () =
 
 let test_device_create_coalesce () =
 	(* Check that two parallel, device-creating transactions can coalesce *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -261,7 +285,7 @@ let test_device_create_coalesce () =
 
 let test_transactions_really_do_conflict () =
 	(* Check that transactions that really can't interleave are aborted *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -282,13 +306,13 @@ let string_of_watch_events watch_events =
 	String.concat "; " (List.map (fun (k, v) -> k ^ ", " ^ v) watch_events)
 
 let assert_watches c expected =
-	let got = List.rev (Queue.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
+	let got = List.rev (Connection.Watch_events.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
 	assert_equal ~msg:"watches" ~printer:string_of_watch_events expected got
 
 let test_watch_event_quota () =
 	(* Check that we can't exceed the per-domain watch event quota *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let dom1 = Connection.create (interdomain 1) None in
+        let dom0 = connect 0 in
+        let dom1 = connect 1 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -319,8 +343,8 @@ let test_watch_event_quota () =
 
 let test_simple_watches () =
 	(* Check that writes generate watches and reads do not *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let dom1 = Connection.create (interdomain 1) None in
+        let dom0 = connect 0 in
+        let dom1 = connect 1 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -334,21 +358,21 @@ let test_simple_watches () =
 		dom0, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
-	Queue.clear dom0.Connection.watch_events;
+        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
 	assert_watches dom0 [];
 	(* dom0 can see its own write via watches *)
 	run store [
 		dom0, none, PathOp("/a", Write "foo"), Response.Write;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
-	Queue.clear dom0.Connection.watch_events;
+        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
 	assert_watches dom0 [];
 	(* dom0 can see dom1's writes via watches *)
 	run store [
 		dom1, none, PathOp("/a", Write "foo"), Response.Write;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
-	Queue.clear dom0.Connection.watch_events;
+        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
 	assert_watches dom0 [];
 	(* reads don't generate watches *)
 	run store [
@@ -361,7 +385,7 @@ let test_simple_watches () =
 
 let test_relative_watches () =
 	(* Check that watches for relative paths *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -372,7 +396,7 @@ let test_relative_watches () =
 		dom0, none, Watch("device", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ "device", "token" ];
-	Queue.clear dom0.Connection.watch_events;
+        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
 	assert_watches dom0 [];
 	run store [
 		dom0, none, PathOp("/local/domain/0/device/vbd", Write "hello"), Response.Write;
@@ -382,8 +406,8 @@ let test_relative_watches () =
 let test_watches_read_perm () =
 	(* Check that a connection only receives a watch if it
        can read the node that was modified. *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let dom1 = Connection.create (interdomain 1) None in
+        let dom0 = connect 0 in
+        let dom1 = connect 1 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -391,7 +415,7 @@ let test_watches_read_perm () =
 		dom1, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom1 [ ("/a", "token") ];
-	Queue.clear dom1.Connection.watch_events;
+        Lwt_main.run (Connection.Watch_events.clear dom1.Connection.watch_events);
 	assert_watches dom1 [];
 	run store [
 		dom0, none, PathOp("/a", Write "hello"), Response.Write;
@@ -402,7 +426,7 @@ let test_watches_read_perm () =
 let test_transaction_watches () =
 	(* Check that watches only appear on transaction commit
 	   and not at all in the case of abort *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -410,7 +434,7 @@ let test_transaction_watches () =
 		dom0, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
-	Queue.clear dom0.Connection.watch_events;
+        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
 	assert_watches dom0 [];
 	(* PathOp( Writes in a transaction don't generate watches immediately *)
         let tid = begin_transaction store dom0 in
@@ -433,7 +457,7 @@ let test_transaction_watches () =
 
 let test_introduce_watches () =
 	(* Check that @introduceDomain watches appear on introduce *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -441,7 +465,7 @@ let test_introduce_watches () =
 		dom0, none, Watch ("@introduceDomain", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("@introduceDomain", "token") ];
-	Queue.clear dom0.Connection.watch_events;
+        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
 	assert_watches dom0 [];
 	run store [
 		dom0, none, Introduce(5, 5n, 5), Response.Introduce;
@@ -466,7 +490,7 @@ let test_bounded_watch_events () =
 
 let test_rm_root () =
         (* Check that deleting / fails *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -478,7 +502,7 @@ let test_rm_root () =
 
 let test_quota () =
 	(* Check that node creation and destruction changes a quota *)
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -510,7 +534,7 @@ let test_quota () =
 	]
 
 let test_quota_ls () =
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -529,9 +553,9 @@ let test_quota_ls () =
 
 let test_quota_transaction () =
 	(* Check that node creation and destruction changes a quota *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let dom1 = Connection.create (interdomain 1) None in
-	let dom2 = Connection.create (interdomain 2) None in
+        let dom0 = connect 0 in
+        let dom1 = connect 1 in
+        let dom2 = connect 2 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -559,8 +583,8 @@ let test_quota_transaction () =
 
 let test_quota_setperms () =
 	(* Check that one connection cannot exhaust another's quota *)
-	let dom0 = Connection.create (interdomain 0) None in
-	let dom1 = Connection.create (interdomain 1) None in
+        let dom0 = connect 0 in
+        let dom1 = connect 1 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -580,7 +604,7 @@ let test_quota_setperms () =
 	]
 
 let test_quota_maxsize () =
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -590,10 +614,12 @@ let test_quota_maxsize () =
 		dom0, none, PathOp("/a", Write "hello2"), Response.Error "E2BIG";
 		dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "6"), Response.Write;
 		dom0, none, PathOp("/a", Write "hello2"), Response.Write;
+                (* XXX: this should be cleared in an empty_store *)
+                dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "2048"), Response.Write;
 	]
 
 let test_quota_maxent () =
-	let dom0 = Connection.create (interdomain 0) None in
+        let dom0 = connect 0 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -606,10 +632,13 @@ let test_quota_maxent () =
 		dom0, none, PathOp("/a", Write "hello"), Response.Write;
 		dom0, none, PathOp("/a", Write "there"), Response.Write;
 		dom0, none, PathOp("/b", Write "hello"), Response.Error "EQUOTA";
+                (* XXX: these should be reset for every new store instance *)
+                dom0, none, PathOp("/tool/xenstored/quota/default/number-of-entries", Write "1000"), Response.Write;
+                dom0, none, PathOp("/tool/xenstored/quota/number-of-entries/0", Write "1000"), Response.Write;
 	]
 
 let test_control_perms () =
-	let dom1 = Connection.create (interdomain 1) None in
+        let dom1 = connect 1 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -621,7 +650,7 @@ let test_control_perms () =
 let _ =
   let verbose = ref false in
   Arg.parse [
-    "-verbose", Arg.Unit (fun _ -> verbose := true), "Run in verbose mode";
+    "-verbose", Arg.Unit (fun _ -> verbose := true; enable_debug := true), "Run in verbose mode with lots of debugging";
   ] (fun x -> Printf.fprintf stderr "Ignoring argument: %s" x)
     "Test xenstore server code";
 

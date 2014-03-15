@@ -47,7 +47,11 @@ val iter_path : ('a -> 'b option -> unit) -> ('a, 'b) t -> 'a list -> unit
 (** [iter_path f t p] iterates [f] over nodes associated with the path [p] in the trie [t]. 
 	If [p] is not a valid path of [t], it iterates on the longest valid prefix of [p]. *)
 
-val fold : ('a -> 'b option -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c 
+val fold_path : ('c -> 'a -> 'b option -> 'c) -> ('a, 'b) t -> 'c -> 'a list -> 'c
+(** [fold_path f t p initial] folds [f] over nodes associated with the path [p] in trie [t].
+    If [p] is not a valid path of [t], it iterates on the longest valid prefix of [p]. *)
+
+val fold : ('c -> 'a -> 'b option -> 'c) -> ('a, 'b) t -> 'c -> 'c 
 (** [fold f t x] fold [f] over every nodes of [t], with [x] as initial value. *)
 
 val map : ('b -> 'c option) -> ('a,'b) t -> ('a,'c) t

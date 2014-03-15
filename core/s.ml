@@ -11,6 +11,13 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib
+
+module type SEXPABLE = sig
+  type t
+  val sexp_of_t: t -> Sexp.t
+  val t_of_sexp: Sexp.t -> t
+end
 
 module type IO = sig
   type 'a t = 'a Lwt.t
@@ -20,6 +27,8 @@ end
 
 module type TRANSPORT = sig
   include IO
+
+  val kind: string
 
   type server
   val listen: unit -> server t
