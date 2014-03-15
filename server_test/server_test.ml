@@ -614,6 +614,8 @@ let test_quota_maxsize () =
 		dom0, none, PathOp("/a", Write "hello2"), Response.Error "E2BIG";
 		dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "6"), Response.Write;
 		dom0, none, PathOp("/a", Write "hello2"), Response.Write;
+                (* XXX: this should be cleared in an empty_store *)
+                dom0, none, PathOp("/tool/xenstored/quota/default/entry-length", Write "2048"), Response.Write;
 	]
 
 let test_quota_maxent () =
@@ -630,6 +632,9 @@ let test_quota_maxent () =
 		dom0, none, PathOp("/a", Write "hello"), Response.Write;
 		dom0, none, PathOp("/a", Write "there"), Response.Write;
 		dom0, none, PathOp("/b", Write "hello"), Response.Error "EQUOTA";
+                (* XXX: these should be reset for every new store instance *)
+                dom0, none, PathOp("/tool/xenstored/quota/default/number-of-entries", Write "1000"), Response.Write;
+                dom0, none, PathOp("/tool/xenstored/quota/number-of-entries/0", Write "1000"), Response.Write;
 	]
 
 let test_control_perms () =
