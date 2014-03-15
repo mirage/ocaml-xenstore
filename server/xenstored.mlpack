@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4799e375bc0081954e3fca70389885b7)
+# DO NOT EDIT (digest: a973ca641f385cb6886165075d4dfd8a)
 Logging
 PRef
 PMap
@@ -10,6 +10,7 @@ Call
 Trie
 Symbol
 Tree
+Limits
 Quota
 Quota_interface
 Perms

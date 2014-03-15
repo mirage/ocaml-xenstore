@@ -30,7 +30,10 @@ module Make(T: S.SEXPABLE) = struct
 
   let create name =
     M.create name >>= fun root ->
-    let next_id = Int64.succ (try fst(M.max_binding root) with Not_found -> (-1L)) in
+    M.max_binding root >>= fun x ->
+    let next_id = match x with
+    | None -> 0L
+    | Some (id, _) -> Int64.succ id in
     return { next_id; root }
 
   let length t = M.cardinal t.root

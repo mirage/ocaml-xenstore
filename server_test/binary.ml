@@ -52,6 +52,7 @@ let test (request, response) () =
   let header = Cstruct.sub response' 0 Protocol.Header.sizeof in
   debug "Reading header";
   lwt () = read c header in
+  debug "Unmarshalling header";
   let payload = Cstruct.shift response' Protocol.Header.sizeof in
   fail_on_error (Protocol.Header.unmarshal header) >>= fun hdr ->
   let payload' = Cstruct.sub payload 0 (min hdr.Protocol.Header.len (Cstruct.len payload)) in

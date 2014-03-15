@@ -26,7 +26,7 @@ type t =
 {
 	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
-	mutable quota: Quota.t;
+        created: (int, int) Hashtbl.t;
 } with sexp
 
 type update =
@@ -39,8 +39,15 @@ let set_root store root =
 	debug "Updating root of store";
 	store.root <- root
 
-let get_quota store = store.quota
-let set_quota store quota = store.quota <- quota
+let get store creator =
+  if Hashtbl.mem store.created creator then Hashtbl.find store.created creator else 0
+
+let incr store creator =
+  Hashtbl.replace store.created creator (get store creator + 1)
+
+let decr store creator = match get store creator with
+| 1 -> Hashtbl.remove store.created creator
+| n -> Hashtbl.replace store.created creator (n - 1)
 
 let exists store path = match Node.lookup store.root path with
 | None -> false
@@ -50,7 +57,15 @@ let update_of_path store path = match Node.lookup store.root path with
 | Some n -> Write(path, Node.get_perms n, Node.get_value n)
 | None -> assert false
 
-let mkdir store creator perm path =
+let mkdir store limits creator perm path =
+  begin match limits with
+  | Some limits ->
+    if get store creator >= limits.Limits.number_of_entries then begin
+      error "domain %u mkdir failed: reached node quota (%d >= %d)" creator (get store creator) limits.Limits.number_of_entries;
+      raise Limits.Limit_reached;
+    end
+  | None -> ()
+  end;
   store.root <- Node.modify store.root path
     (fun parent name ->
       if Node.exists parent name then begin
@@ -61,13 +76,29 @@ let mkdir store creator perm path =
         Node.add_child parent (Node.create name creator (Node.get_perms parent) "")
       end
     );
-    Quota.incr store.quota creator;
+  incr store creator;
   update_of_path store path
 
-let write store creator perm path value =
-  Quota.check store.quota creator (String.length value);
+let write store limits creator perm path value =
+  begin match limits with
+  | Some limits ->
+    let size = String.length value in
+    if size > limits.Limits.entry_length then begin
+      error "domain %u write failed: data too big (%d > %d)" creator size limits.Limits.entry_length;
+      raise Limits.Data_too_big
+    end
+  | None -> ()
+  end;
   let root, node_created = match Node.lookup store.root path with
     | None ->
+      begin match limits with
+      | Some limits ->
+        if get store creator >= limits.Limits.number_of_entries then begin
+          error "domain %u write failed: reached node quota (%d >= %d)" creator (get store creator) limits.Limits.number_of_entries;
+          raise Limits.Limit_reached;
+        end
+      | None -> ()
+      end;
       Node.modify store.root path
         (fun parent name ->
           Perms.check perm Perms.WRITE (Node.get_perms parent);
@@ -79,9 +110,8 @@ let write store creator perm path value =
           Perms.check perm Perms.WRITE (Node.get_perms existing);
           Node.replace_child parent (Symbol.of_string name) (Node.set_value existing value)
         ), false in
-  if node_created
-  then Quota.incr store.quota creator;
   store.root <- root;
+  if node_created then incr store creator;
   update_of_path store path
 
 let rm store perm path = match Node.lookup store.root path with
@@ -103,7 +133,7 @@ let rm store perm path = match Node.lookup store.root path with
     ) in
   (* Deletes are recursive *)
   let rec traverse path acc node =
-    Quota.decr store.quota (Node.get_creator node);
+    decr store (Node.get_creator node);
     let path = Node.get_name node :: path in 
     let acc = Rm (Protocol.Path.of_string_list (List.rev path)) :: acc in
     List.fold_left (traverse path) acc (Node.get_children node) in
@@ -145,12 +175,12 @@ let getperms store perm path = match Node.lookup store.root path with
 let create () = {
 	stat_transaction_abort = 0;
 	root = Node.create "" 0 (Protocol.ACL.({ owner = 0; other = NONE; acl = [] })) "";
-	quota = Quota.create ();
+        created = Hashtbl.create 100;
 }
 let copy store = {
 	stat_transaction_abort = store.stat_transaction_abort;
 	root = store.root;
-	quota = Quota.copy store.quota;
+        created = Hashtbl.copy store.created;
 }
 
 let mark_symbols store =

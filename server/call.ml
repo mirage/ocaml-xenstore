@@ -30,7 +30,7 @@ exception Transaction_nested
 
   (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
-let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effects =
+let op_exn store limits c t (payload: Request.t) : Response.t * Transaction.side_effects =
 	let open Request in
         (* used when an operation has side-effects which should be visible
            immediately (if not in a transaction context) or upon commit (if
@@ -68,10 +68,10 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
 				let v = Impl.getperms t c.Connection.perm path in
 				Response.Getperms v, Transaction.no_side_effects ()
 			| Write value ->
-				Impl.write t c.Connection.domid c.Connection.perm path value;
+				Impl.write t limits c.Connection.domid c.Connection.perm path value;
 				Response.Write, has_side_effects ()
 			| Mkdir ->
-				Impl.mkdir t c.Connection.domid c.Connection.perm path;
+				Impl.mkdir t limits c.Connection.domid c.Connection.perm path;
 				Response.Mkdir, has_side_effects ()
 			| Rm ->
 				Impl.rm t c.Connection.perm path;
@@ -84,20 +84,20 @@ let op_exn store c t (payload: Request.t) : Response.t * Transaction.side_effect
 (* Replay a stored transaction against a fresh store, check the responses are
    all equivalent: if so, commit the transaction. Otherwise send the abort to
    the client. *)
-let transaction_replay store c t =
+let transaction_replay store limits c t =
 	let ops = Transaction.get_operations t in
 	let con = "replay request:" ^ c.Connection.domstr in
 	let perform_exn t (request, response) =
                 let tid = Transaction.get_id t in
 		Logging.request ~tid ~con:("replay request:" ^ c.Connection.domstr) request;
 		Logging.response ~tid ~con:("replay reply1: " ^ c.Connection.domstr) response;
-		let response', side_effects = op_exn store c t request in
+		let response', side_effects = op_exn store limits c t request in
 		Logging.response ~tid ~con:("replay reply2: " ^ c.Connection.domstr) response';
 		Logging.response ~tid ~con response';
 		if response <> response' then begin
 			raise Transaction_again
 		end in
-        let tid = Connection.register_transaction c store in
+        let tid = Connection.register_transaction limits c store in
 	let t = Transaction.make tid store in
 	try
                 (* Perform a test replay on a throwaway copy of the store *)
@@ -112,7 +112,7 @@ let transaction_replay store c t =
                 Connection.unregister_transaction c tid;
 		false
 
-let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_effects =
+let reply_exn store limits c hdr (request: Request.t) : Response.t * Transaction.side_effects =
 	let tid = hdr.Header.tid in
 	let t =
 		if tid = Transaction.none
@@ -124,13 +124,13 @@ let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_e
 	match request with
 		| Request.Transaction_start ->
 			if tid <> Transaction.none then raise Transaction_nested;
-			let tid = Connection.register_transaction c store in
+			let tid = Connection.register_transaction limits c store in
 			Response.Transaction_start tid, Transaction.no_side_effects ()
 		| Request.Transaction_end commit ->
 			Connection.unregister_transaction c tid;
 			if commit then begin
 				Logging.end_transaction ~tid ~con:c.Connection.domstr;
-				if not(transaction_replay store c t) then begin
+				if not(transaction_replay store limits c t) then begin
                                         Logging.conflict ~tid ~con:c.Connection.domstr;
                                         raise Transaction_again
                                 end;
@@ -141,8 +141,8 @@ let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_e
 				Response.Transaction_end, Transaction.no_side_effects ()
 			end
 		| Request.Watch(path, token) ->
-			let watch = Connection.add_watch c (Protocol.Name.of_string path) token in
-			Connection.fire_one None watch;
+			let watch = Connection.add_watch c limits (Protocol.Name.of_string path) token in
+			Connection.fire_one limits None watch;
 			Response.Watch, Transaction.no_side_effects ()
 		| Request.Unwatch(path, token) ->
 			Connection.del_watch c (Protocol.Name.of_string path) token;
@@ -172,7 +172,7 @@ let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_e
 		| Request.Release(domid) ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
-			Connection.fire (Op.Write, Protocol.Name.(Predefined ReleaseDomain));
+			Connection.fire limits (Op.Write, Protocol.Name.(Predefined ReleaseDomain));
 			Response.Release, Transaction.no_side_effects ()
 		| Request.Set_target(mine, yours) ->
 			Perms.has c.Connection.perm Perms.SET_TARGET;
@@ -190,7 +190,7 @@ let reply_exn store c hdr (request: Request.t) : Response.t * Transaction.side_e
 			Perms.has c.Connection.perm Perms.ISINTRODUCED;
 			Response.Isintroduced false, Transaction.no_side_effects ()
 		| op ->
-			let reply, side_effects = op_exn store c t op in
+			let reply, side_effects = op_exn store limits c t op in
 			if tid <> Transaction.none then Transaction.add_operation t op reply;
 			reply, side_effects
 
@@ -204,12 +204,12 @@ let gc store =
 		Symbol.garbage ()
 	end
 
-let reply store c hdr request =
+let reply store limits c hdr request =
 	gc store;
 	c.Connection.stat_nb_ops <- c.Connection.stat_nb_ops + 1;
 	let (response_payload, side_effects), info =
 		try
-			reply_exn store c hdr request, None
+			reply_exn store limits c hdr request, None
 		with e ->
 			let default = Some (Printexc.to_string e) in
                         let reply code = Response.Error code, Transaction.no_side_effects () in
@@ -223,9 +223,9 @@ let reply store c hdr request =
 				| Invalid_argument i               -> reply "EINVAL", Some i
 				| Transaction_again                -> reply "EAGAIN", default
 				| Transaction_nested               -> reply "EBUSY",  default
-				| Quota.Limit_reached              -> reply "EQUOTA", default
-				| Quota.Data_too_big               -> reply "E2BIG",  default
-				| Quota.Transaction_opened         -> reply "EQUOTA", default
+				| Limits.Limit_reached             -> reply "EQUOTA", default
+				| Limits.Data_too_big              -> reply "E2BIG",  default
+				| Limits.Transaction_opened        -> reply "EQUOTA", default
 				| (Failure "int_of_string")        -> reply "EINVAL", default
 				| Tree.Unsupported                 -> reply "ENOTSUP",default
 				| _                                ->

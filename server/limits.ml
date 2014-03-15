@@ -11,10 +11,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+open Sexplib.Std
 
-val remove: int -> unit Lwt.t
-(** [remove domid] removes all domain-specific limit overrides *)
+exception Limit_reached
+exception Data_too_big
+exception Transaction_opened
 
-val limits_of_domain: int -> Limits.t Lwt.t
-(** [limits_of_domain domid] returns the limits currently in force
-    for domain [domid] *)
+type t = {
+  number_of_entries: int;
+  entry_length: int;
+  number_of_registered_watches: int;
+  number_of_active_transactions: int;
+  number_of_queued_watch_events: int;
+} with sexp
+

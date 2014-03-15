@@ -79,7 +79,7 @@ let store =
     (fun path ->
       let path = Protocol.Path.of_string path in
       if not (Transaction.exists t (Perms.of_domain 0) path)
-      then Transaction.mkdir t 0 (Perms.of_domain 0) path
+      then Transaction.mkdir t None 0 (Perms.of_domain 0) path
     ) [ "/local"; "/local/domain" ];
   persist (Transaction.get_side_effects t) >>= fun () ->
   return store

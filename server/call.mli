@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val reply: Store.t -> Connection.t -> Xenstore.Protocol.Header.t -> Xenstore.Protocol.Request.t -> Xenstore.Protocol.Response.t * Transaction.side_effects
-(** [reply store con request] modifies [store] according to the request in
+val reply: Store.t -> Limits.t option -> Connection.t -> Xenstore.Protocol.Header.t -> Xenstore.Protocol.Request.t -> Xenstore.Protocol.Response.t * Transaction.side_effects
+(** [reply store limits con request] modifies [store] according to the request in
     [request] from connection [con] and returns the response to be sent to the client
     together with a description of the side-effects (watches, path writes, deletes). *)

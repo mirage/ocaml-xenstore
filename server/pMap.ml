@@ -21,49 +21,86 @@ let error fmt = Logging.debug "pmap" fmt
 open Lwt
 
 module Make(K: S.STRINGABLE)(T: S.SEXPABLE) = struct
-  module StringMap = Map.Make(String)
 
   type t = {
-    mutable root: T.t StringMap.t;
     name: string list;
   }
 
-  let create name =
+  let recreate t =
     Database.store >>= fun db ->
-    let t = Transaction.make Transaction.none db in
-    let ls = try Transaction.ls t (Perms.of_domain 0) (Protocol.Path.of_string_list name) with Node.Doesnt_exist _ -> [] in
-    let root = List.fold_left (fun acc id ->
-      try
-        let v = T.t_of_sexp (Sexp.of_string (Transaction.read t (Perms.of_domain 0) (Protocol.Path.of_string_list (name @ [ id ])))) in
-        StringMap.add id v acc
-      with _ -> acc
-    ) StringMap.empty ls in
-    return { root; name }
+    let tr = Transaction.make Transaction.none db in
+    let path = Protocol.Path.of_string_list t.name in
+    if not(Transaction.exists tr (Perms.of_domain 0) path) then Transaction.mkdir tr None 0 (Perms.of_domain 0) path;
+    Database.persist (Transaction.get_side_effects tr)
+
+  let create name =
+    let t = { name } in
+    recreate t >>= fun () ->
+    return t
 
   let name t = t.name
 
-  let cardinal t = StringMap.cardinal t.root
+  let cardinal t =
+    recreate t >>= fun () ->
+    Database.store >>= fun db ->
+    let tr = Transaction.make Transaction.none db in
+    let path = Protocol.Path.of_string_list t.name in
+    let ls = Transaction.ls tr (Perms.of_domain 0) path in
+    return (List.length ls)
 
   let add key item t =
     Database.store >>= fun db ->
     let tr = Transaction.make Transaction.none db in
     let key = K.to_string key in
-    Transaction.write tr 0 (Perms.of_domain 0) (Protocol.Path.of_string_list (t.name @ [ key ])) (Sexp.to_string (T.sexp_of_t item));
-    t.root <- StringMap.add key item t.root;
+    Transaction.write tr None 0 (Perms.of_domain 0) (Protocol.Path.of_string_list (t.name @ [ key ])) (Sexp.to_string (T.sexp_of_t item));
     Database.persist (Transaction.get_side_effects tr)
+
+  let remove key t =
+    recreate t >>= fun () ->
+    Database.store >>= fun db ->
+    let tr = Transaction.make Transaction.none db in
+    let key = K.to_string key in
+    Transaction.rm tr (Perms.of_domain 0) (Protocol.Path.of_string_list (t.name @ [ key ]));
+    Database.persist (Transaction.get_side_effects tr)
+
+  let mem key t =
+    Database.store >>= fun db ->
+    let tr = Transaction.make Transaction.none db in
+    let key = K.to_string key in
+    return (Transaction.exists tr (Perms.of_domain 0) (Protocol.Path.of_string_list (t.name @ [ key ])))
+
+  let find key t =
+    mem key t >>= function
+    | false -> (* fail Not_found *) fail (Failure "find")
+    | true ->
+      Database.store >>= fun db ->
+      let tr = Transaction.make Transaction.none db in
+      let key = K.to_string key in
+      return (T.t_of_sexp (Sexp.of_string (Transaction.read tr (Perms.of_domain 0) (Protocol.Path.of_string_list (t.name @ [ key ])))))
 
   let clear t =
     Database.store >>= fun db ->
     let tr = Transaction.make Transaction.none db in
     let path = Protocol.Path.of_string_list t.name in
     if Transaction.exists tr (Perms.of_domain 0) path then Transaction.rm tr (Perms.of_domain 0) path;
+    Transaction.mkdir tr None 0 (Perms.of_domain 0) path;
     Database.persist (Transaction.get_side_effects tr) >>= fun () ->
-    t.root <- StringMap.empty;
     return ()
 
-  let fold f initial t = StringMap.fold (fun k v acc -> f acc (K.of_string k) v) t.root initial
+  let fold f initial t =
+    recreate t >>= fun () ->
+    Database.store >>= fun db ->
+    let tr = Transaction.make Transaction.none db in
+    let path = Protocol.Path.of_string_list t.name in
+    let ls = Transaction.ls tr (Perms.of_domain 0) path in
+    return (List.fold_left (fun acc k ->
+      let v = Transaction.read tr (Perms.of_domain 0) (Protocol.Path.of_string_list (t.name @ [k])) in
+      f acc (K.of_string k) (T.t_of_sexp (Sexp.of_string v))
+    ) initial ls)
 
   let max_binding t =
-    let k, v = StringMap.max_binding t.root in
-    K.of_string k, v
+    fold (fun best k v -> match best with
+          | None -> Some(k, v)
+          | Some (k', v') when k' < k -> Some (k, v)
+          | x -> x) None t
 end

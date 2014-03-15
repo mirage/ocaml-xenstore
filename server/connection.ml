@@ -138,9 +138,15 @@ let key_of_name x =
   | Absolute p -> "" :: (List.map Protocol.Path.Element.to_string (Protocol.Path.to_list p))
   | Relative p -> "" :: (List.map Protocol.Path.Element.to_string (Protocol.Path.to_list p))
 
-let add_watch con name token =
-	if con.nb_watches >= (Quota.maxwatch_of_domain con.domid)
-	then raise Quota.Limit_reached;
+let add_watch con limits name token =
+  begin match limits with
+  | Some limits ->
+    if con.nb_watches >= limits.Limits.number_of_registered_watches then begin
+      error "Failed to add watch for domain %u, already reached quota (%d >= %d)" con.domid con.nb_watches limits.Limits.number_of_registered_watches;
+      raise Limits.Limit_reached;
+    end
+  | None -> ()
+  end;
 
 	let l = get_watches con name in
 	if List.exists (fun w -> w.token = token) l
@@ -178,7 +184,7 @@ let del_watch con name token =
                 Trie.set !watches key ws)
 
 
-let fire_one name watch =
+let fire_one limits name watch =
 	let name = match name with
 		| None ->
 			(* If no specific path was modified then we fire the generic watch *)
@@ -193,20 +199,25 @@ let fire_one name watch =
 	let open Xenstore.Protocol in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
 	watch.count <- watch.count + 1;
-	if Watch_events.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
-		error "domid %d reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid (Watch_events.length watch.con.watch_events) (Quota.maxwatchevent_of_domain watch.con.domid) name watch.token;
-                watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
-                return ()
-	end else begin
-		Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
-                Lwt_condition.signal watch.con.cvar ();
-                return ()
-	end
+        begin match limits with
+        | Some limits ->
+                Watch_events.length watch.con.watch_events >>= fun w ->
+	        if w >= limits.Limits.number_of_queued_watch_events then begin
+		        error "domain %u reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid w limits.Limits.number_of_queued_watch_events name watch.token;
+                        watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
+                        return ()
+        	end else begin
+	        	Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
+                        Lwt_condition.signal watch.con.cvar ();
+                        return ()
+	        end
+        | None -> return ()
+        end
 
-let fire (op, name) =
+let fire limits (op, name) =
 	let key = key_of_name name in
         let ws = Trie.fold_path (fun acc _ w -> match w with None -> acc | Some ws -> acc @ ws) !watches [] key in
-        Lwt_list.iter_s (fire_one (Some name)) ws >>= fun () ->
+        Lwt_list.iter_s (fire_one limits (Some name)) ws >>= fun () ->
         (*
 	Trie.iter_path
 		(fun _ w -> match w with
@@ -217,7 +228,7 @@ let fire (op, name) =
 	if op = Protocol.Op.Rm
 	then
           let ws = Trie.fold (fun acc _ w -> match w with None -> acc | Some ws -> acc @ ws) (Trie.sub !watches key) [] in
-          Lwt_list.iter_s (fire_one None) ws
+          Lwt_list.iter_s (fire_one limits None) ws
         else
           return ()
           (*
@@ -230,9 +241,15 @@ let fire (op, name) =
 let find_next_tid con =
 	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret
 
-let register_transaction con store =
-	if Hashtbl.length con.transactions >= (Quota.maxtransaction_of_domain con.domid)
-	then raise Quota.Limit_reached;	
+let register_transaction limits con store =
+  begin match limits with
+  | Some limits ->
+    if Hashtbl.length con.transactions >= limits.Limits.number_of_active_transactions then begin
+      error "domain %u has reached the open transaction limit (%d >= %d)" con.domid (Hashtbl.length con.transactions) limits.Limits.number_of_active_transactions;
+      raise Limits.Limit_reached;
+    end
+  | None -> ()
+  end;
 
 	let id = find_next_tid con in
 	let ntrans = Transaction.make id store in
@@ -278,8 +295,6 @@ module Introspect = struct
 			string_of_int (Hashtbl.length c.transactions)
 		| "total-operations" :: [] ->
 			string_of_int c.stat_nb_ops
-		| "current-watch-queue-length" :: [] ->
-			string_of_int (Watch_events.length c.watch_events)
 		| "total-dropped-watches" :: [] ->
 			string_of_int c.nb_dropped_watches
 		| "watch" :: [] ->

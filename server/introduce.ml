@@ -30,7 +30,7 @@ let write x =
   let pairs = pairs x in
   Database.store >>= fun store ->
   let t = Transaction.make Transaction.none store in
-  List.iter (fun (k, v) -> Transaction.write t 0 (Perms.of_domain 0) k v) pairs;
+  List.iter (fun (k, v) -> Transaction.write t None 0 (Perms.of_domain 0) k v) pairs;
   Database.persist (Transaction.get_side_effects t)
 
 let introduce x =

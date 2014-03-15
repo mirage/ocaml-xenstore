@@ -68,11 +68,11 @@ let add_watch t ty path = t.side_effects.watches <- (ty, Protocol.Name.Absolute 
 let add_operation t request response = t.operations <- (request, response) :: t.operations
 let get_operations t = List.rev t.operations
 
-let mkdir t creator perm path =
+let mkdir t limits creator perm path =
         if not (Store.exists t.store path) then (
                 Protocol.Path.iter (fun prefix ->
                         if not(Store.exists t.store prefix) then begin
-                                let update = Store.mkdir t.store creator perm prefix in
+                                let update = Store.mkdir t.store limits creator perm prefix in
                                 t.side_effects.updates <- update :: t.side_effects.updates;
                                 (* no watches for implicitly created directories *)
                         end
@@ -80,9 +80,9 @@ let mkdir t creator perm path =
                 add_watch t Protocol.Op.Mkdir path
         )
 
-let write t creator perm path value =
-        mkdir t creator perm (Protocol.Path.dirname path);
-        let update = Store.write t.store creator perm path value in
+let write t limits creator perm path value =
+        mkdir t limits creator perm (Protocol.Path.dirname path);
+        let update = Store.write t.store limits creator perm path value in
         t.side_effects.updates <- update :: t.side_effects.updates;
         add_watch t Protocol.Op.Write path
 

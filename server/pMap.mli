@@ -22,7 +22,7 @@ module Make(K: S.STRINGABLE)(V: S.SEXPABLE) : sig
   val name: t -> string list
   (** [name t]: returns the [name] associated with the map *)
 
-  val cardinal: t -> int
+  val cardinal: t -> int Lwt.t
   (** [cardinal t]: the number of bindings in the map *)
 
   val add: K.t -> V.t -> t -> unit Lwt.t
@@ -30,16 +30,24 @@ module Make(K: S.STRINGABLE)(V: S.SEXPABLE) : sig
       When the thread completes the update will be in the persistent
       store and will survive a crash. *)
 
+  val remove: K.t -> t -> unit Lwt.t
+  (** [remove k t]: returns a map with all the bindings from [t]
+      except [k]. *)
+
+  val find: K.t -> t -> V.t Lwt.t
+  (** [find k t]: returns the current binding of [k] in [t] or raises Not_found *)
+
+  val mem: K.t -> t -> bool Lwt.t
+  (** [mem k t]: true if [k] is bound in [t], false otherwise *)
+
   val clear: t -> unit Lwt.t
   (** [clear t]: deletes all bindings from map [t] *)
 
-  val fold: ('b -> K.t -> V.t -> 'b) -> 'b -> t -> 'b
+  val fold: ('b -> K.t -> V.t -> 'b) -> 'b -> t -> 'b Lwt.t
   (** [fold f initial t]: folds [f] across [t] starting with [initial] *)
 
-  val max_binding: t -> K.t * V.t
+  val max_binding: t -> (K.t * V.t) option Lwt.t
   (** [max_binding t]: returns the largest binding of the given map *)
 end
 (** Create a persistent map which associates strings with values of
-    type V.t. This implementation caches the queue in the heap so reads
-    are fast. Note this means you must not write to the underlying
-    disk structure directly. *)
+    type V.t. *)
