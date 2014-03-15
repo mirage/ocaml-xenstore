@@ -12,6 +12,8 @@
  * GNU Lesser General Public License for more details.
  *)
 
+open Sexplib.Std
+
 let debug fmt = Logging.debug "transaction" fmt
 open Xenstore
 
@@ -30,7 +32,7 @@ type side_effects = {
 	mutable watches: (Protocol.Op.t * Protocol.Name.t) list;
         (* A list of introduced domains *)
         mutable domains: Domain.address list
-}
+} with sexp
 
 let no_side_effects () = { updates = []; watches = []; domains = [] }
 
