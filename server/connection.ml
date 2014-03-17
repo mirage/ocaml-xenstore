@@ -93,17 +93,21 @@ let destroy address =
 
 let counter = ref 0
 
+let path_of_address address idx = [ "tool"; "xenstored"; "connection"; match Uri.scheme address with Some x -> x | None -> "unknown"; string_of_int idx ]
+
 let create (address, dom) =
 	if Hashtbl.mem by_address address then begin
 		info "Connection.create: found existing connection for %s: closing" (Uri.to_string address);
 		destroy address
 	end;
-        Watch_events.create [ "tool"; "xenstored"; "connection"; "domain"; string_of_int dom; "watches" ] >>= fun watch_events ->
+	let idx = !counter in
+	incr counter;
+	Watch_events.create (path_of_address address idx) >>= fun watch_events ->
 	let con = 
 	{
 		address = address;
 		domid = dom;
-		idx = !counter;
+		idx;
 		domstr = Uri.to_string address;
 		transactions = Hashtbl.create 5;
 		next_tid = 1l;
@@ -117,7 +121,6 @@ let create (address, dom) =
 		domainpath = Store.getdomainpath dom;
 	}
 	in
-	incr counter;
 	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
 	Hashtbl.replace by_address address con;
 	Hashtbl.replace by_index con.idx con;
