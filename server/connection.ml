@@ -328,17 +328,11 @@ module Introspect = struct
 		Perms.has perms Perms.CONFIGURE;
 		match Protocol.Path.to_string_list path with
 		| [] -> ""
-		| "socket" :: [] -> ""
-		| "socket" :: idx :: rest ->
+		| scheme :: [] -> ""
+		| scheme :: idx :: rest ->
 			let idx = int_of_string idx in
 			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in
-			read_connection t perms path c rest
-		| "domain" :: [] -> ""
-		| "domain" :: domid :: rest ->
-			let address = Uri.make ~scheme:"domain" ~path:domid () in
-			if not(Hashtbl.mem by_address address) then raise (Node.Doesnt_exist path);
-			let c = Hashtbl.find by_address address in
 			read_connection t perms path c rest
 		| _ -> raise (Node.Doesnt_exist path)
 
@@ -348,7 +342,7 @@ module Introspect = struct
 
 	let list_connection t perms c = function
 		| [] ->
-			[ "address"; "current-transactions"; "total-operations"; "watch"; "current-watch-queue-length"; "total-dropped-watches" ]
+			[ "address"; "current-transactions"; "total-operations"; "watch"; "total-dropped-watches" ]
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))
@@ -358,21 +352,12 @@ module Introspect = struct
 	let ls t perms path =
 		Perms.has perms Perms.CONFIGURE;
 		match Protocol.Path.to_string_list path with
-		| [] -> [ "socket"; "domain" ]
-		| [ "socket" ] ->
+		| [] -> [ "unix"; "domain" ]
+		| [ scheme ] ->
 			Hashtbl.fold (fun x c acc -> match Uri.scheme x with
-                        | Some "unix" -> string_of_int c.idx :: acc
+                        | Some scheme' when scheme = scheme' -> string_of_int c.idx :: acc
 			| _ -> acc) by_address []
-		| [ "domain" ] ->
-			Hashtbl.fold (fun x _ acc -> match Uri.scheme x with
-			| Some "domain" -> Uri.path x :: acc
-			| _ -> acc) by_address []
-		| "domain" :: domid :: rest ->
-			let address = Uri.make ~scheme:"domain" ~path:domid () in
-			if not(Hashtbl.mem by_address address) then raise (Node.Doesnt_exist path);
-			let c = Hashtbl.find by_address address in
-			list_connection t perms c rest
-		| "socket" :: idx :: rest ->
+		| scheme :: idx :: rest ->
 			let idx = int_of_string idx in
 			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in

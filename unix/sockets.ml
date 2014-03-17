@@ -28,8 +28,6 @@ type 'a t = 'a Lwt.t
 let return x = return x
 let ( >>= ) m f = m >>= f
 
-let kind = "socket"
-
 (* Individual connections *)
 type channel = Lwt_unix.file_descr * Lwt_unix.sockaddr
 let create () =
