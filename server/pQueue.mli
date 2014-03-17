@@ -19,7 +19,7 @@ module Make(T: S.SEXPABLE) : sig
   val create: string list -> t Lwt.t
   (** [create name]: loads the queue at [name] *)
 
-  val length: t -> int
+  val length: t -> int Lwt.t
   (** [length t]: the number of elements in queue *)
 
   val add: T.t -> t -> unit Lwt.t
@@ -30,7 +30,7 @@ module Make(T: S.SEXPABLE) : sig
   val clear: t -> unit Lwt.t
   (** [clear t]: deletes all elements in queue [t] *)
 
-  val fold: ('b -> T.t -> 'b) -> 'b -> t -> 'b
+  val fold: ('b -> T.t -> 'b) -> 'b -> t -> 'b Lwt.t
   (** [fold f initial t]: folds [f] across [t] starting with [initial] *)
 
 end

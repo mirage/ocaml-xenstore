@@ -74,13 +74,12 @@ let persist side_effects =
 
 let store =
   let store = Store.create () in
-  let t = Transaction.make 1l store in
+  let t = Transaction.make Transaction.none store in
   List.iter
     (fun path ->
       let path = Protocol.Path.of_string path in
       if not (Transaction.exists t (Perms.of_domain 0) path)
-      then Transaction.mkdir t 0 (Perms.of_domain 0) path
+      then Transaction.mkdir t None 0 (Perms.of_domain 0) path
     ) [ "/local"; "/local/domain" ];
-  assert (Transaction.commit t);
   persist (Transaction.get_side_effects t) >>= fun () ->
   return store

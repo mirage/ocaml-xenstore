@@ -43,7 +43,6 @@ let get_domains side_effects = side_effects.domains
 type t = {
 	ty: ty;
 	store: Store.t;
-	quota: Quota.t;
         (* Side-effects which should be generated when the transaction is committed. *)
         side_effects: side_effects;
         (* A log of all the requests and responses during this transaction. When
@@ -57,7 +56,6 @@ let make id store =
 	{
 		ty = ty;
 		store = if id = none then store else Store.copy store;
-		quota = Quota.copy  store.Store.quota;
                 side_effects = no_side_effects ();
 		operations = [];
 	}
@@ -70,11 +68,11 @@ let add_watch t ty path = t.side_effects.watches <- (ty, Protocol.Name.Absolute 
 let add_operation t request response = t.operations <- (request, response) :: t.operations
 let get_operations t = List.rev t.operations
 
-let mkdir t creator perm path =
+let mkdir t limits creator perm path =
         if not (Store.exists t.store path) then (
                 Protocol.Path.iter (fun prefix ->
                         if not(Store.exists t.store prefix) then begin
-                                let update = Store.mkdir t.store creator perm prefix in
+                                let update = Store.mkdir t.store limits creator perm prefix in
                                 t.side_effects.updates <- update :: t.side_effects.updates;
                                 (* no watches for implicitly created directories *)
                         end
@@ -82,9 +80,9 @@ let mkdir t creator perm path =
                 add_watch t Protocol.Op.Mkdir path
         )
 
-let write t creator perm path value =
-        mkdir t creator perm (Protocol.Path.dirname path);
-        let update = Store.write t.store creator perm path value in
+let write t limits creator perm path value =
+        mkdir t limits creator perm (Protocol.Path.dirname path);
+        let update = Store.write t.store limits creator perm path value in
         t.side_effects.updates <- update :: t.side_effects.updates;
         add_watch t Protocol.Op.Write path
 
@@ -102,24 +100,3 @@ let exists t perms path = Store.exists t.store path
 let ls t perm path = Store.ls t.store perm path
 let read t perm path = Store.read t.store perm path
 let getperms t perm path = Store.getperms t.store perm path
-
-let commit t =
-	match t.ty with
-	| No                         -> true
-	| Full (id, oldroot, cstore) ->
-                let try_commit oldroot cstore store =
-			if oldroot == cstore.Store.root then (
-				(* move the new root to the current store, if the oldroot
-				   has not been modified *)
-                                if t.side_effects.updates <> [] then (
-					Store.set_root cstore store.Store.root;
-					Store.set_quota cstore store.Store.quota
-				);
-				true
-			) else
-                                false
-                        in
-		if !test_eagain && Random.int 3 = 0 then
-			false
-		else
-			try_commit oldroot cstore t.store

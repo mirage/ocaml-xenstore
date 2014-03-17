@@ -93,17 +93,21 @@ let destroy address =
 
 let counter = ref 0
 
+let path_of_address address idx = [ "tool"; "xenstored"; "connection"; match Uri.scheme address with Some x -> x | None -> "unknown"; string_of_int idx ]
+
 let create (address, dom) =
 	if Hashtbl.mem by_address address then begin
 		info "Connection.create: found existing connection for %s: closing" (Uri.to_string address);
 		destroy address
 	end;
-        Watch_events.create [ "tool"; "xenstored"; "connection"; "domain"; string_of_int dom; "watches" ] >>= fun watch_events ->
+	let idx = !counter in
+	incr counter;
+	Watch_events.create (path_of_address address idx) >>= fun watch_events ->
 	let con = 
 	{
 		address = address;
 		domid = dom;
-		idx = !counter;
+		idx;
 		domstr = Uri.to_string address;
 		transactions = Hashtbl.create 5;
 		next_tid = 1l;
@@ -117,7 +121,6 @@ let create (address, dom) =
 		domainpath = Store.getdomainpath dom;
 	}
 	in
-	incr counter;
 	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
 	Hashtbl.replace by_address address con;
 	Hashtbl.replace by_index con.idx con;
@@ -138,9 +141,15 @@ let key_of_name x =
   | Absolute p -> "" :: (List.map Protocol.Path.Element.to_string (Protocol.Path.to_list p))
   | Relative p -> "" :: (List.map Protocol.Path.Element.to_string (Protocol.Path.to_list p))
 
-let add_watch con name token =
-	if con.nb_watches >= (Quota.maxwatch_of_domain con.domid)
-	then raise Quota.Limit_reached;
+let add_watch con limits name token =
+  begin match limits with
+  | Some limits ->
+    if con.nb_watches >= limits.Limits.number_of_registered_watches then begin
+      error "Failed to add watch for domain %u, already reached quota (%d >= %d)" con.domid con.nb_watches limits.Limits.number_of_registered_watches;
+      raise Limits.Limit_reached;
+    end
+  | None -> ()
+  end;
 
 	let l = get_watches con name in
 	if List.exists (fun w -> w.token = token) l
@@ -178,7 +187,7 @@ let del_watch con name token =
                 Trie.set !watches key ws)
 
 
-let fire_one name watch =
+let fire_one limits name watch =
 	let name = match name with
 		| None ->
 			(* If no specific path was modified then we fire the generic watch *)
@@ -193,20 +202,25 @@ let fire_one name watch =
 	let open Xenstore.Protocol in
 	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
 	watch.count <- watch.count + 1;
-	if Watch_events.length watch.con.watch_events >= (Quota.maxwatchevent_of_domain watch.con.domid) then begin
-		error "domid %d reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid (Watch_events.length watch.con.watch_events) (Quota.maxwatchevent_of_domain watch.con.domid) name watch.token;
-                watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
-                return ()
-	end else begin
-		Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
-                Lwt_condition.signal watch.con.cvar ();
-                return ()
-	end
+        begin match limits with
+        | Some limits ->
+                Watch_events.length watch.con.watch_events >>= fun w ->
+	        if w >= limits.Limits.number_of_queued_watch_events then begin
+		        error "domain %u reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid w limits.Limits.number_of_queued_watch_events name watch.token;
+                        watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
+                        return ()
+        	end else begin
+	        	Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
+                        Lwt_condition.signal watch.con.cvar ();
+                        return ()
+	        end
+        | None -> return ()
+        end
 
-let fire (op, name) =
+let fire limits (op, name) =
 	let key = key_of_name name in
         let ws = Trie.fold_path (fun acc _ w -> match w with None -> acc | Some ws -> acc @ ws) !watches [] key in
-        Lwt_list.iter_s (fire_one (Some name)) ws >>= fun () ->
+        Lwt_list.iter_s (fire_one limits (Some name)) ws >>= fun () ->
         (*
 	Trie.iter_path
 		(fun _ w -> match w with
@@ -217,7 +231,7 @@ let fire (op, name) =
 	if op = Protocol.Op.Rm
 	then
           let ws = Trie.fold (fun acc _ w -> match w with None -> acc | Some ws -> acc @ ws) (Trie.sub !watches key) [] in
-          Lwt_list.iter_s (fire_one None) ws
+          Lwt_list.iter_s (fire_one limits None) ws
         else
           return ()
           (*
@@ -230,9 +244,15 @@ let fire (op, name) =
 let find_next_tid con =
 	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret
 
-let register_transaction con store =
-	if Hashtbl.length con.transactions >= (Quota.maxtransaction_of_domain con.domid)
-	then raise Quota.Limit_reached;	
+let register_transaction limits con store =
+  begin match limits with
+  | Some limits ->
+    if Hashtbl.length con.transactions >= limits.Limits.number_of_active_transactions then begin
+      error "domain %u has reached the open transaction limit (%d >= %d)" con.domid (Hashtbl.length con.transactions) limits.Limits.number_of_active_transactions;
+      raise Limits.Limit_reached;
+    end
+  | None -> ()
+  end;
 
 	let id = find_next_tid con in
 	let ntrans = Transaction.make id store in
@@ -278,8 +298,6 @@ module Introspect = struct
 			string_of_int (Hashtbl.length c.transactions)
 		| "total-operations" :: [] ->
 			string_of_int c.stat_nb_ops
-		| "current-watch-queue-length" :: [] ->
-			string_of_int (Watch_events.length c.watch_events)
 		| "total-dropped-watches" :: [] ->
 			string_of_int c.nb_dropped_watches
 		| "watch" :: [] ->
@@ -310,17 +328,11 @@ module Introspect = struct
 		Perms.has perms Perms.CONFIGURE;
 		match Protocol.Path.to_string_list path with
 		| [] -> ""
-		| "socket" :: [] -> ""
-		| "socket" :: idx :: rest ->
+		| scheme :: [] -> ""
+		| scheme :: idx :: rest ->
 			let idx = int_of_string idx in
 			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in
-			read_connection t perms path c rest
-		| "domain" :: [] -> ""
-		| "domain" :: domid :: rest ->
-			let address = Uri.make ~scheme:"domain" ~path:domid () in
-			if not(Hashtbl.mem by_address address) then raise (Node.Doesnt_exist path);
-			let c = Hashtbl.find by_address address in
 			read_connection t perms path c rest
 		| _ -> raise (Node.Doesnt_exist path)
 
@@ -330,7 +342,7 @@ module Introspect = struct
 
 	let list_connection t perms c = function
 		| [] ->
-			[ "address"; "current-transactions"; "total-operations"; "watch"; "current-watch-queue-length"; "total-dropped-watches" ]
+			[ "address"; "current-transactions"; "total-operations"; "watch"; "total-dropped-watches" ]
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))
@@ -340,21 +352,12 @@ module Introspect = struct
 	let ls t perms path =
 		Perms.has perms Perms.CONFIGURE;
 		match Protocol.Path.to_string_list path with
-		| [] -> [ "socket"; "domain" ]
-		| [ "socket" ] ->
+		| [] -> [ "unix"; "domain" ]
+		| [ scheme ] ->
 			Hashtbl.fold (fun x c acc -> match Uri.scheme x with
-                        | Some "unix" -> string_of_int c.idx :: acc
+                        | Some scheme' when scheme = scheme' -> string_of_int c.idx :: acc
 			| _ -> acc) by_address []
-		| [ "domain" ] ->
-			Hashtbl.fold (fun x _ acc -> match Uri.scheme x with
-			| Some "domain" -> Uri.path x :: acc
-			| _ -> acc) by_address []
-		| "domain" :: domid :: rest ->
-			let address = Uri.make ~scheme:"domain" ~path:domid () in
-			if not(Hashtbl.mem by_address address) then raise (Node.Doesnt_exist path);
-			let c = Hashtbl.find by_address address in
-			list_connection t perms c rest
-		| "socket" :: idx :: rest ->
+		| scheme :: idx :: rest ->
 			let idx = int_of_string idx in
 			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in

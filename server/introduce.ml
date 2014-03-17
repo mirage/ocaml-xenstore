@@ -29,9 +29,8 @@ open Lwt
 let write x =
   let pairs = pairs x in
   Database.store >>= fun store ->
-  let t = Transaction.make 1l store in
-  List.iter (fun (k, v) -> Transaction.write t 0 (Perms.of_domain 0) k v) pairs;
-  assert (Transaction.commit t);
+  let t = Transaction.make Transaction.none store in
+  List.iter (fun (k, v) -> Transaction.write t None 0 (Perms.of_domain 0) k v) pairs;
   Database.persist (Transaction.get_side_effects t)
 
 let introduce x =
@@ -43,14 +42,13 @@ let introduce x =
 let forget x =
   let pairs = pairs x in
   Database.store >>= fun store ->
-  let t = Transaction.make 1l store in
+  let t = Transaction.make Transaction.none store in
   List.iter (fun (key, _) -> Transaction.rm t (Perms.of_domain 0) key) pairs;
-  assert (Transaction.commit t);
   Database.persist (Transaction.get_side_effects t)
 
 let read domid =
   Database.store >>= fun store ->
-  let t = Transaction.make 1l store in
+  let t = Transaction.make Transaction.none store in
   try
     let domid = int_of_string domid in
     let mfn = Nativeint.of_string (Transaction.read t (Perms.of_domain 0) (mfn_path domid)) in

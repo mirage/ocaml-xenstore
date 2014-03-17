@@ -49,7 +49,7 @@ module Introspect = struct
 
   let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
 
-  let write t creator perms path value =
+  let write t limits creator perms path value =
     Perms.has perms Perms.CONFIGURE;
     let f list value key =
       match value with

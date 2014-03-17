@@ -20,7 +20,7 @@ Library xenstored
   Pack:               true
   Path:               server
   Findlibname:        xenstored
-  Modules:            Logging, PQueue, Logging_interface, Connection, Call, Trie, Symbol, Tree, Quota, Quota_interface, Perms, Node, Store, Mount, Database, Transaction, Server, Domain, Introduce, Heap_debug_interface
+  Modules:            Logging, PRef, PMap, PQueue, Logging_interface, Connection, Call, Trie, Symbol, Tree, Limits, Quota, Quota_interface, Perms, Node, Store, Mount, Database, Transaction, Server, Domain, Introduce, Heap_debug_interface
   BuildDepends:       lwt, xenstore, irminsule.backend.git, sexplib
 
 # For backwards compat

@@ -12,105 +12,59 @@
  * GNU Lesser General Public License for more details.
  *)
 open Sexplib.Std
+open Lwt
 
 let debug fmt = Logging.debug "quota" fmt
 let info  fmt = Logging.info  "quota" fmt
 let warn  fmt = Logging.warn  "quota" fmt
 
-exception Limit_reached
-exception Data_too_big
-exception Transaction_opened
+module PerDomain = PMap.Make(struct
+  type t = int
+  let of_string = int_of_string
+  let to_string = string_of_int
+end)(struct type t = int with sexp end)
 
-type domid = int with sexp
+let prefix = [ "tool"; "xenstored"; "quota" ]
 
-(* Global defaults *)
-let maxent = ref (10000)
-let maxsize = ref (4096)
-let maxwatch = ref 50
-let maxtransaction = ref 20
-let maxwatchevent = ref 256
+(* Global default quotas: *)
+let maxent         = PRef.Int.create (prefix @ [ "default"; "number-of-entries" ]) 10000
+let maxsize        = PRef.Int.create (prefix @ [ "default"; "entry-length" ]) 4096
+let maxwatch       = PRef.Int.create (prefix @ [ "default"; "number-of-registered-watches" ]) 50
+let maxtransaction = PRef.Int.create (prefix @ [ "default"; "number-of-active-transactions" ]) 20
+let maxwatchevent  = PRef.Int.create (prefix @ [ "default"; "number-of-queued-watch-events" ]) 256
 
-type overrides = (int, int) Hashtbl.t
+(* Per-domain quota overrides: *)
+let maxent_overrides         = PerDomain.create (prefix @ [ "number-of-entries" ])
+let maxwatch_overrides       = PerDomain.create (prefix @ [ "number-of-registered-watches" ])
+let maxtransaction_overrides = PerDomain.create (prefix @ [ "number-of-active-transactions" ])
 
-let maxent_overrides = Hashtbl.create 10
-let maxwatch_overrides = Hashtbl.create 10
-let maxtransaction_overrides = Hashtbl.create 10
-let maxwatchevent_overrides = Hashtbl.create 10
+let remove domid =
+  maxent_overrides >>= fun maxent_overrides ->
+  maxwatch_overrides >>= fun maxwatch_overrides ->
+  maxtransaction_overrides >>= fun maxtransaction_overrides ->
+  PerDomain.remove domid maxent_overrides >>= fun () ->
+  PerDomain.remove domid maxwatch_overrides >>= fun () ->
+  PerDomain.remove domid maxtransaction_overrides
 
-let get_override t domid =
-	if Hashtbl.mem t domid
-	then Some(Hashtbl.find t domid)
-	else None
-
-let set_override t domid override = match override with
-	| None -> Hashtbl.remove t domid
-	| Some override -> Hashtbl.replace t domid override
-
-let list_overrides t =
-	Hashtbl.fold (fun domid x acc -> (domid, x) :: acc) t []
-
-let of_domain t default domid =
-	if Hashtbl.mem t domid
-	then Hashtbl.find t domid
-	else !default
-
-let maxent_of_domain = of_domain maxent_overrides maxent
-let maxwatch_of_domain = of_domain maxwatch_overrides maxwatch
-let maxtransaction_of_domain = of_domain maxtransaction_overrides maxtransaction
-let maxwatchevent_of_domain = of_domain maxwatchevent_overrides maxwatchevent
-
-type t = {
-	cur: (domid, int) Hashtbl.t; (* current domains entry usage *)
-} with sexp
-
-let create () =
-	{ cur = Hashtbl.create 100; }
-
-let copy quota = { cur = (Hashtbl.copy quota.cur) }
-
-let del quota id = Hashtbl.remove quota.cur id
-
-let check quota id size =
-	if size > !maxsize then (
-		warn "domain %u err create entry: data too big %d" id size;
-		raise Data_too_big
-	)
-
-let ls quota =
-	Hashtbl.fold (fun domid x acc -> (domid, x) :: acc) quota.cur []
-
-let get quota id =
-	if Hashtbl.mem quota.cur id
-	then Hashtbl.find quota.cur id
-	else 0
-
-let set quota id nb =
-	if nb = 0
-	then Hashtbl.remove quota.cur id
-	else begin
-	if Hashtbl.mem quota.cur id then
-		Hashtbl.replace quota.cur id nb
-	else
-		Hashtbl.add quota.cur id nb
-	end
-
-let decr quota id =
-	let nb = get quota id in
-	if nb > 0
-	then set quota id (nb - 1)
-
-let incr quota id =
-	let nb = get quota id in
-	let maxent = maxent_of_domain id in
-	if nb >= maxent then raise Limit_reached;
-	set quota id (nb + 1)
-
-let union quota diff =
-	Hashtbl.iter (fun id nb -> set quota id (get quota id + nb)) diff.cur
-
-let merge orig_quota mod_quota dest_quota =
-  Hashtbl.iter (fun id nb ->
-    let diff = nb - (get orig_quota id) in
-    if diff <> 0 then
-      set dest_quota id ((get dest_quota id) + diff)) mod_quota.cur
-
+(* A snapshot of the current state for a given domid, needed to check
+   for quota violations during a transaction. *)
+let limits_of_domain domid =
+  maxent >>= fun maxent ->
+  maxsize >>= fun maxsize ->
+  maxwatch >>= fun maxwatch ->
+  maxwatchevent >>= fun maxwatchevent ->
+  maxtransaction >>= fun maxtransaction ->
+  maxent_overrides >>= fun maxent_overrides ->
+  maxwatch_overrides >>= fun maxwatch_overrides ->
+  maxtransaction_overrides >>= fun maxtransaction_overrides ->
+  PerDomain.mem domid maxent_overrides >>= fun b ->
+  (if b then
+          PerDomain.find domid maxent_overrides 
+  else PRef.Int.get maxent) >>= fun number_of_entries ->
+  PRef.Int.get maxsize >>= fun entry_length ->
+  PerDomain.mem domid maxwatch_overrides >>= fun b ->
+  (if b then PerDomain.find domid maxwatch_overrides else PRef.Int.get maxwatch) >>= fun number_of_registered_watches ->
+  PerDomain.mem domid maxtransaction_overrides >>= fun b ->
+  (if b then PerDomain.find domid maxtransaction_overrides else PRef.Int.get maxtransaction) >>= fun number_of_active_transactions ->
+  PRef.Int.get maxwatchevent >>= fun number_of_queued_watch_events ->
+  return { Limits.number_of_entries; entry_length; number_of_registered_watches; number_of_active_transactions; number_of_queued_watch_events }

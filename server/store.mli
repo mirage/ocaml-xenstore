@@ -20,7 +20,7 @@ type t =
 {
 	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
-	mutable quota: Quota.t;
+        created: (int, int) Hashtbl.t;
 } with sexp
 
 type update =
@@ -32,7 +32,6 @@ val getdomainpath: int -> Protocol.Name.t
 (** [getdomainpath domid] returns the default directory for [domid] *)
 
 val set_root: t -> Node.t -> unit
-val set_quota: t -> Quota.t -> unit
 
 val create: unit -> t
 
@@ -40,9 +39,9 @@ val copy: t -> t
 
 val exists: t -> Protocol.Path.t -> bool
 
-val write: t -> int -> Perms.t -> Protocol.Path.t -> string -> update
+val write: t -> Limits.t option -> int -> Perms.t -> Protocol.Path.t -> string -> update
 
-val mkdir: t -> int -> Perms.t -> Protocol.Path.t -> update
+val mkdir: t -> Limits.t option -> int -> Perms.t -> Protocol.Path.t -> update
 
 val setperms: t -> Perms.t -> Protocol.Path.t -> Protocol.ACL.t -> update
 
@@ -53,10 +52,5 @@ val ls: t -> Perms.t -> Protocol.Path.t -> string list
 val read: t -> Perms.t -> Protocol.Path.t -> string
 
 val getperms: t -> Perms.t -> Protocol.Path.t -> Protocol.ACL.t
-
-
-val replace: t -> Protocol.Path.t -> Node.t -> Quota.t -> Quota.t -> unit
-(** [replace t path node original_quota new_quota]: replaces the node
-    at [path] in [t] with [node], updating the quote at the same time. *)
 
 val mark_symbols: t -> unit

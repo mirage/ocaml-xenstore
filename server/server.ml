@@ -42,7 +42,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
       let ls t perms path =
         Perms.has perms Perms.CONFIGURE;
         T.Introspect.ls channel (Protocol.Path.to_string_list path)
-      let write t _ perms path v =
+      let write t _ _ perms path v =
         Perms.has perms Perms.CONFIGURE;
         if not(T.Introspect.write channel (Protocol.Path.to_string_list path) v)
         then raise Perms.Permission_denied
@@ -54,12 +54,12 @@ module Make = functor(T: S.TRANSPORT) -> struct
                 let dom = T.domain_of t in
 		let interface = introspect t in
 		Connection.create (address, dom) >>= fun c ->
-                let connection_path = Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/connection/%s/%d" T.kind c.Connection.idx) in
+                let connection_path = Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/transport/%s/%d" (match Uri.scheme address with Some x -> x | None -> "unknown") c.Connection.idx) in
 		let m = Lwt_mutex.create () in
 		let take_watch_events () =
-			let q = List.rev (Connection.Watch_events.fold (fun acc x -> x :: acc) [] c.Connection.watch_events) in
+			Connection.Watch_events.fold (fun acc x -> x :: acc) [] c.Connection.watch_events >>= fun q ->
 			Connection.Watch_events.clear c.Connection.watch_events >>= fun () ->
-			return q in
+			return (List.rev q) in
 		let flush_watch_events header_buf payload_buf q =
 			Lwt_list.iter_s
 				(fun (path, token) ->
@@ -79,9 +79,13 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
 				Lwt_mutex.with_lock m
 					(fun () ->
-						lwt () = while_lwt Connection.Watch_events.length c.Connection.watch_events = 0 do
-							Lwt_condition.wait ~mutex:m c.Connection.cvar
-						done in
+                                                let rec wait () =
+                                                        Connection.Watch_events.length c.Connection.watch_events >>= fun l ->
+                                                        if l = 0 then begin
+                                                                Lwt_condition.wait ~mutex:m c.Connection.cvar >>= fun () ->
+                                                                wait ()
+                                                        end else return () in
+                                                wait () >>= fun () ->
                                                 take_watch_events () >>= fun w ->
 						flush_watch_events header_buf payload_buf w
 					)
@@ -99,13 +103,15 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 T.read t payload_buf' >>= fun () ->
 				take_watch_events () >>= fun events ->
                                 Database.store >>= fun store ->
+                                Quota.limits_of_domain dom >>= fun limits ->
 				let reply, side_effects = match Protocol.Request.unmarshal hdr payload_buf' with
-                                | `Ok request -> Call.reply store c hdr request
+                                | `Ok request -> Call.reply store (Some limits) c hdr request
                                 | `Error msg ->
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
 					Protocol.Response.Error "EINVAL", Transaction.no_side_effects () in
-                                Transaction.get_watches side_effects |> List.rev |> Lwt_list.iter_s Connection.fire >>= fun () ->
+                                Transaction.get_watches side_effects |> List.rev |> Lwt_list.iter_s (Connection.fire (Some limits)) >>= fun () ->
                                 Lwt_list.iter_s Introduce.introduce (Transaction.get_domains side_effects) >>= fun () ->
+                                (* XXX: need to update the store root *)
                                 Database.persist side_effects >>= fun () ->
 				Lwt_mutex.with_lock m
 					(fun () ->
@@ -125,6 +131,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
 			Lwt.cancel background_watch_event_flusher;
 			Connection.destroy address;
                         Mount.unmount connection_path >>= fun () ->
+                        Quota.remove dom >>= fun () ->
                         T.destroy t
 
 	let serve_forever persistence =
