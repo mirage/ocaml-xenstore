@@ -58,8 +58,6 @@ let w_create ~con ~name ~token = {
   count = 0;
 }
 
-let anon_id_next = ref 1
-
 let destroy address =
 	try
 		let c = Hashtbl.find by_address address in
