@@ -62,7 +62,7 @@ let w_create ~con ~name ~token = {
 
 let counter = ref 0
 
-let path_of_address address idx = [ "tool"; "xenstored"; "connection"; match Uri.scheme address with Some x -> x | None -> "unknown"; string_of_int idx ]
+let path_of_address thing address idx = [ "tool"; "xenstored"; thing; match Uri.scheme address with Some x -> x | None -> "unknown"; string_of_int idx ]
 
 
 let restrict con domid =
@@ -228,8 +228,8 @@ let create (address, domid) =
   end else begin
     let idx = !counter in
     incr counter;
-    Watch_events.create (path_of_address address idx @ [ "events" ]) >>= fun watch_events ->
-    Watch_registrations.create (path_of_address address idx @ [ "registrations" ]) >>= fun watch_registrations ->
+    Watch_events.create (path_of_address "events" address idx) >>= fun watch_events ->
+    Watch_registrations.create (path_of_address "registrations" address idx) >>= fun watch_registrations ->
     let con = {
       address; domid; idx;
       domstr = Uri.to_string address;
@@ -269,28 +269,6 @@ module Introspect = struct
 			string_of_int c.stat_nb_ops
 		| "total-dropped-watches" :: [] ->
 			string_of_int c.nb_dropped_watches
-		| "watch" :: [] ->
-			""
-		| "watch" :: n :: [] ->
-			let n = int_of_string n in
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
-			if n > (List.length all) then raise (Node.Doesnt_exist path);
-			""
-		| "watch" :: n :: "name" :: [] ->
-			let n = int_of_string n in
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
-			if n > (List.length all) then raise (Node.Doesnt_exist path);
-			Protocol.Name.to_string (fst (List.nth all n).watch)
-		| "watch" :: n :: "token" :: [] ->
-			let n = int_of_string n in
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
-			if n > (List.length all) then raise (Node.Doesnt_exist path);
-			snd (List.nth all n).watch
-		| "watch" :: n :: "total-events" :: [] ->
-			let n = int_of_string n in
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
-			if n > (List.length all) then raise (Node.Doesnt_exist path);
-			string_of_int (List.nth all n).count
 		| _ -> raise (Node.Doesnt_exist path)
 
 	let read t (perms: Perms.t) (path: Protocol.Path.t) =
@@ -310,11 +288,7 @@ module Introspect = struct
 
 	let list_connection t perms c = function
 		| [] ->
-			[ "address"; "current-transactions"; "total-operations"; "watch"; "total-dropped-watches" ]
-		| [ "watch" ] ->
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
-			List.map string_of_int (between 0 (List.length all - 1))
-		| [ "watch"; n ] -> [ "name"; "token"; "total-events" ]
+			[ "address"; "current-transactions"; "total-operations"; "total-dropped-watches" ]
 		| _ -> []
 
 	let ls t perms path =
@@ -326,7 +300,7 @@ module Introspect = struct
                         | Some scheme' when scheme = scheme' -> string_of_int c.idx :: acc
 			| _ -> acc) by_address []
 		| scheme :: idx :: rest ->
-			let idx = int_of_string idx in
+			let idx = try int_of_string idx with _ -> raise (Node.Doesnt_exist path) in
 			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in
 			list_connection t perms c rest
