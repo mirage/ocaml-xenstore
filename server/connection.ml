@@ -111,11 +111,6 @@ let create (address, dom) =
 let restrict con domid =
 	con.perm <- Perms.restrict con.perm domid
 
-let get_watches (con: t) name =
-	if Hashtbl.mem con.ws name
-	then Hashtbl.find con.ws name
-	else []
-
 let key_of_name x =
   let open Protocol.Name in match x with
   | Predefined IntroduceDomain -> [ "@introduceDomain" ]
@@ -165,7 +160,10 @@ let watch con limits (name, token) =
       end else return ()
     | None -> return () ) >>= fun () ->
 
-  let l = get_watches con name in
+  let l =
+    if Hashtbl.mem con.ws name
+    then Hashtbl.find con.ws name
+    else [] in
   ( if List.exists (fun w -> snd w.watch = token) l
     then fail (Store.Already_exists (Printf.sprintf "%s:%s" (Protocol.Name.to_string name) token))
     else return () ) >>= fun () ->
