@@ -22,7 +22,7 @@ let error fmt = Logging.debug "connection" fmt
 exception End_of_file
 
 module Watch_event = struct
-  type t = string * string with sexp
+  type t = Protocol.Name.t * string with sexp
 end
 module Watch_events = PQueue.Make(Watch_event)
 
@@ -152,7 +152,6 @@ let fire_one limits name watch =
     if Protocol.Name.is_relative watch.name
     then Protocol.Name.(relative name watch.con.domainpath)
     else name in
-  let name = Protocol.Name.to_string name in
   let open Xenstore.Protocol in
   Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
   watch.count <- watch.count + 1;
@@ -160,7 +159,7 @@ let fire_one limits name watch =
   | Some limits ->
     Watch_events.length watch.con.watch_events >>= fun w ->
     if w >= limits.Limits.number_of_queued_watch_events then begin
-      error "domain %u reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid w limits.Limits.number_of_queued_watch_events name watch.token;
+      error "domain %u reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid w limits.Limits.number_of_queued_watch_events (Protocol.Name.to_string name) watch.token;
       watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
       return ()
     end else begin

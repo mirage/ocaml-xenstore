@@ -133,7 +133,7 @@ module Make = functor(IO: S.TRANSPORT) -> struct
           let token = Token.unmarshal token in
           (* We may get old watches: silently drop these *)
           if Hashtbl.mem t.watchevents token
-          then Watcher.put (Hashtbl.find t.watchevents token) path >> dispatcher t
+          then Watcher.put (Hashtbl.find t.watchevents token) (Name.to_string path) >> dispatcher t
           else dispatcher t in
         dispatcher t
     | r ->

@@ -467,7 +467,7 @@ module Response = struct
   | Restrict
   | Isintroduced of bool
   | Error of string
-  | Watchevent of string * string
+  | Watchevent of Name.t * string
   with sexp
 
   let get_ty = function
@@ -501,7 +501,7 @@ module Response = struct
   | Transaction_start x     -> buf |> int32 x                     |> null
   | Debug items             -> buf |> list string items
   | Isintroduced b          -> buf |> bool b                      |> null
-  | Watchevent(path, token) -> buf |> list string [ path; token ]
+  | Watchevent(path, token) -> buf |> list string [ Name.to_string path; token ]
   | Error x                 -> buf |> string x                    |> null
   | _                       -> buf |> ok
 
@@ -532,7 +532,7 @@ module Response = struct
     return (Isintroduced b)
   | Op.Watchevent ->
     cons string string payload >>= fun (path, token) ->
-    return (Watchevent(path, token))
+    return (Watchevent(Name.of_string path, token))
   | Op.Error ->
     string payload >>= fun x ->
     return (Error x)

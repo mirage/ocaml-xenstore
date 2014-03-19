@@ -329,11 +329,11 @@ let test_transactions_really_do_conflict () =
 
 
 let string_of_watch_events watch_events =
-	String.concat "; " (List.map (fun (k, v) -> k ^ ", " ^ v) watch_events)
+	String.concat "; " (List.map (fun (k, v) -> Protocol.Name.to_string k ^ ", " ^ v) watch_events)
 
 let assert_watches c expected =
 	let got = List.rev (Lwt_main.run (Connection.Watch_events.fold (fun acc x -> x :: acc) [] c.Connection.watch_events)) in
-	assert_equal ~msg:"watches" ~printer:string_of_watch_events expected got
+	assert_equal ~msg:"watches" ~printer:string_of_watch_events (List.map (fun (k, v) -> Protocol.Name.of_string k, v) expected) got
 
 let test_watch_event_quota () =
 	(* Check that we can't exceed the per-domain watch event quota *)
