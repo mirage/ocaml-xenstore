@@ -227,8 +227,6 @@ let fire limits (op, name) =
 		| Some ws -> List.iter (fire_one None) ws
                 ) (Trie.sub !watches key)
         *)
-let find_next_tid con =
-	let ret = con.next_tid in con.next_tid <- Int32.add con.next_tid 1l; ret
 
 let register_transaction limits con store =
   begin match limits with
@@ -239,8 +237,8 @@ let register_transaction limits con store =
     end
   | None -> ()
   end;
-
-	let id = find_next_tid con in
+  let id = con.next_tid in
+  con.next_tid <- Int32.succ con.next_tid;
 	let ntrans = Transaction.make id store in
 	Hashtbl.add con.transactions id ntrans;
 	Logging.start_transaction ~tid:id ~con:con.domstr;
