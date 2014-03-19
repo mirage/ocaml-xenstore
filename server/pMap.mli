@@ -31,8 +31,10 @@ module Make(K: S.STRINGABLE)(V: S.SEXPABLE) : sig
       store and will survive a crash. *)
 
   val remove: K.t -> t -> unit Lwt.t
-  (** [remove k t]: returns a map with all the bindings from [t]
-      except [k]. *)
+  (** [remove k t]: removes the binding [k] from [t] if it exists.
+      If there is no binding then return ().
+      When the thread completes the update will be in the persistent
+      store and will survive a crash. *)
 
   val find: K.t -> t -> V.t Lwt.t
   (** [find k t]: returns the current binding of [k] in [t] or raises Not_found *)

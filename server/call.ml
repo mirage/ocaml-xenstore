@@ -141,12 +141,9 @@ let reply_exn store limits c hdr (request: Request.t) : Response.t * Transaction
 				Response.Transaction_end, Transaction.no_side_effects ()
 			end
 		| Request.Watch(path, token) ->
-			let watch = Connection.add_watch c limits (Protocol.Name.of_string path) token in
-			Connection.fire_one limits None watch;
-			Response.Watch, Transaction.no_side_effects ()
+                        Response.Watch, Transaction.( { no_side_effects () with watch = [ Protocol.Name.of_string path, token ] } )
 		| Request.Unwatch(path, token) ->
-			Connection.del_watch c (Protocol.Name.of_string path) token;
-			Response.Unwatch, Transaction.no_side_effects ()
+                        Response.Unwatch, Transaction.( { no_side_effects () with unwatch = [ Protocol.Name.of_string path, token ] } )
 		| Request.Debug cmd ->
 			Perms.has c.Connection.perm Perms.DEBUG;
 			Response.Debug (

@@ -31,14 +31,20 @@ type side_effects = {
            creates don't generate watches (for no good reason) *)
 	mutable watches: (Protocol.Op.t * Protocol.Name.t) list;
         (* A list of introduced domains *)
-        mutable domains: Domain.address list
+        mutable domains: Domain.address list;
+        (* A list of all new watches registered during the transaction *)
+        mutable watch: (Protocol.Name.t * string) list;
+        (* A list of all the watches unregistered during the transaction *)
+        mutable unwatch: (Protocol.Name.t * string) list;
 } with sexp
 
-let no_side_effects () = { updates = []; watches = []; domains = [] }
+let no_side_effects () = { updates = []; watches = []; domains = []; watch = []; unwatch = [] }
 
 let get_watches side_effects = side_effects.watches
 let get_updates side_effects = side_effects.updates
 let get_domains side_effects = side_effects.domains
+let get_watch   side_effects = side_effects.watch
+let get_unwatch side_effects = side_effects.unwatch
 
 type t = {
 	ty: ty;
@@ -64,8 +70,10 @@ let get_id t = match t.ty with No -> none | Full (id, _, _) -> id
 let get_store t = t.store
 let get_side_effects t = t.side_effects
 
-let add_watch t ty path = t.side_effects.watches <- (ty, Protocol.Name.Absolute path) :: t.side_effects.watches
+let watchevent t ty path = t.side_effects.watches <- (ty, Protocol.Name.Absolute path) :: t.side_effects.watches
 let add_operation t request response = t.operations <- (request, response) :: t.operations
+let watch t name token = t.side_effects.watch <- (name, token) :: t.side_effects.watch
+let unwatch t name token = t.side_effects.unwatch <- (name, token) :: t.side_effects.unwatch
 let get_operations t = List.rev t.operations
 
 let mkdir t limits creator perm path =
@@ -77,24 +85,24 @@ let mkdir t limits creator perm path =
                                 (* no watches for implicitly created directories *)
                         end
                 ) path;
-                add_watch t Protocol.Op.Mkdir path
+                watchevent t Protocol.Op.Mkdir path
         )
 
 let write t limits creator perm path value =
         mkdir t limits creator perm (Protocol.Path.dirname path);
         let update = Store.write t.store limits creator perm path value in
         t.side_effects.updates <- update :: t.side_effects.updates;
-        add_watch t Protocol.Op.Write path
+        watchevent t Protocol.Op.Write path
 
 let setperms t perm path perms =
         let update = Store.setperms t.store perm path perms in
         t.side_effects.updates <- update :: t.side_effects.updates;
-	add_watch t Protocol.Op.Setperms path
+	watchevent t Protocol.Op.Setperms path
 
 let rm t perm path =
         let updates = Store.rm t.store perm path in
         t.side_effects.updates <- updates @ t.side_effects.updates;
-	add_watch t Protocol.Op.Rm path
+	watchevent t Protocol.Op.Rm path
 
 let exists t perms path = Store.exists t.store path
 let ls t perm path = Store.ls t.store perm path

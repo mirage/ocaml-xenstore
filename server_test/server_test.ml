@@ -50,6 +50,8 @@ let rpc store c tid request =
                 Quota.limits_of_domain c.Connection.domid >>= fun limits ->
                 let response, side_effects = Call.reply store (Some limits) c hdr request in
                 debug "request = %s response = %s side_effects = %s" (Sexp.to_string (Protocol.Request.sexp_of_t request)) (Sexp.to_string (Protocol.Response.sexp_of_t response)) (Sexp.to_string (Transaction.sexp_of_side_effects side_effects));
+                Transaction.get_watch side_effects |> List.rev |> Lwt_list.iter_s (Connection.watch c (Some limits)) >>= fun () ->
+                Transaction.get_unwatch side_effects |> List.rev |> Lwt_list.iter_s (Connection.unwatch c) >>= fun () ->
                 Transaction.get_watches side_effects |> List.rev |> Lwt_list.iter_s (Connection.fire (Some limits)) >>= fun () ->
                 return response
         with
@@ -67,15 +69,14 @@ let run store (sequence: (Connection.t * int32 * Protocol.Request.t * Protocol.R
                         return ()
 		) sequence)
 
-let interdomain domid = Uri.make ~scheme:"domain" ~path:(string_of_int domid) (), domid
+let interdomain domid = Uri.make ~scheme:"domain" ~path:(string_of_int domid) ()
 
 let connect domid =
         let t =
                 let open Connection in
                 let open Lwt in
-                create (interdomain domid) >>= fun conn ->
-                (* Previous tests may have left untransmitted watches in the persistent queues *)
-                Watch_events.clear conn.watch_events >>= fun () ->
+                destroy (interdomain domid) >>= fun conn ->
+                create (interdomain domid, domid) >>= fun conn ->
                 return conn in
         Lwt_main.run t
 
@@ -327,11 +328,11 @@ let test_transactions_really_do_conflict () =
 
 
 let string_of_watch_events watch_events =
-	String.concat "; " (List.map (fun (k, v) -> k ^ ", " ^ v) watch_events)
+	String.concat "; " (List.map (fun (k, v) -> Protocol.Name.to_string k ^ ", " ^ v) watch_events)
 
 let assert_watches c expected =
 	let got = List.rev (Lwt_main.run (Connection.Watch_events.fold (fun acc x -> x :: acc) [] c.Connection.watch_events)) in
-	assert_equal ~msg:"watches" ~printer:string_of_watch_events expected got
+	assert_equal ~msg:"watches" ~printer:string_of_watch_events (List.map (fun (k, v) -> Protocol.Name.of_string k, v) expected) got
 
 let test_watch_event_quota () =
 	(* Check that we can't exceed the per-domain watch event quota *)

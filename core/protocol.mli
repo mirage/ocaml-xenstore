@@ -257,7 +257,7 @@ module Response : sig
   | Restrict
   | Isintroduced of bool
   | Error of string
-  | Watchevent of string * string
+  | Watchevent of Name.t * string
   with sexp
   (** the body of a response *)
 
