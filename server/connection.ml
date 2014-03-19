@@ -141,81 +141,87 @@ let key_of_name x =
   | Absolute p -> "" :: (List.map Protocol.Path.Element.to_string (Protocol.Path.to_list p))
   | Relative p -> "" :: (List.map Protocol.Path.Element.to_string (Protocol.Path.to_list p))
 
-let add_watch con limits name token =
+let fire_one limits name watch =
+  let name = match name with
+  | None ->
+    (* If no specific path was modified then we fire the generic watch *)
+    watch.name
+  | Some name ->
+    (* If the watch was registered as a relative path, then we make
+       all the watch events relative too *)
+    if Protocol.Name.is_relative watch.name
+    then Protocol.Name.(relative name watch.con.domainpath)
+    else name in
+  let name = Protocol.Name.to_string name in
+  let open Xenstore.Protocol in
+  Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
+  watch.count <- watch.count + 1;
   begin match limits with
   | Some limits ->
-    if con.nb_watches >= limits.Limits.number_of_registered_watches then begin
-      error "Failed to add watch for domain %u, already reached quota (%d >= %d)" con.domid con.nb_watches limits.Limits.number_of_registered_watches;
-      raise Limits.Limit_reached;
+    Watch_events.length watch.con.watch_events >>= fun w ->
+    if w >= limits.Limits.number_of_queued_watch_events then begin
+      error "domain %u reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid w limits.Limits.number_of_queued_watch_events name watch.token;
+      watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
+      return ()
+    end else begin
+      Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
+      Lwt_condition.signal watch.con.cvar ();
+      return ()
     end
-  | None -> ()
-  end;
+  | None ->
+      Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
+      Lwt_condition.signal watch.con.cvar ();
+      return ()
+  end
 
-	let l = get_watches con name in
-	if List.exists (fun w -> w.token = token) l
-	then raise (Store.Already_exists (Printf.sprintf "%s:%s" (Protocol.Name.to_string name) token));
-	let watch = watch_create ~con ~token ~name in
-	Hashtbl.replace con.watches name (watch :: l);
-	con.nb_watches <- con.nb_watches + 1;
+let watch con limits (name, token) =
+  ( match limits with
+    | Some limits ->
+      if con.nb_watches >= limits.Limits.number_of_registered_watches then begin
+        error "Failed to add watch for domain %u, already reached quota (%d >= %d)" con.domid con.nb_watches limits.Limits.number_of_registered_watches;
+        fail Limits.Limit_reached;
+      end else return ()
+    | None -> return () ) >>= fun () ->
 
-	watches :=
-		(let key = key_of_name (Protocol.Name.(resolve name con.domainpath)) in
-		let ws =
-            if Trie.mem !watches key
-            then Trie.find !watches key
-            else []
-        in
-        Trie.set !watches key (watch :: ws));
-	watch
+  let l = get_watches con name in
+  ( if List.exists (fun w -> w.token = token) l
+    then fail (Store.Already_exists (Printf.sprintf "%s:%s" (Protocol.Name.to_string name) token))
+    else return () ) >>= fun () ->
 
-let del_watch con name token =
-	let ws = Hashtbl.find con.watches name in
-	let w = List.find (fun w -> w.token = token) ws in
-	let filtered = List.filter (fun e -> e != w) ws in
-	if List.length filtered > 0 then
-		Hashtbl.replace con.watches name filtered
-	else
-		Hashtbl.remove con.watches name;
-	con.nb_watches <- con.nb_watches - 1;
+  let watch = watch_create ~con ~token ~name in
+  fire_one limits None watch >>= fun () ->
+  
+  Hashtbl.replace con.watches name (watch :: l);
+  con.nb_watches <- con.nb_watches + 1;
 
-	watches :=
-		(let key = key_of_name (Protocol.Name.(resolve name con.domainpath)) in
-		let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
-        if ws = [] then
-                Trie.unset !watches key
-        else
-                Trie.set !watches key ws)
+  watches :=
+    (let key = key_of_name (Protocol.Name.(resolve name con.domainpath)) in
+     let ws = if Trie.mem !watches key then Trie.find !watches key else [] in
+     Trie.set !watches key (watch :: ws));
 
+  return ()
 
-let fire_one limits name watch =
-	let name = match name with
-		| None ->
-			(* If no specific path was modified then we fire the generic watch *)
-			watch.name
-		| Some name ->
-			(* If the watch was registered as a relative path, then we make
-			   all the watch events relative too *)
-			if Protocol.Name.is_relative watch.name
-			then Protocol.Name.(relative name watch.con.domainpath)
-			else name in
-	let name = Protocol.Name.to_string name in
-	let open Xenstore.Protocol in
-	Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
-	watch.count <- watch.count + 1;
-        begin match limits with
-        | Some limits ->
-                Watch_events.length watch.con.watch_events >>= fun w ->
-	        if w >= limits.Limits.number_of_queued_watch_events then begin
-		        error "domain %u reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid w limits.Limits.number_of_queued_watch_events name watch.token;
-                        watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
-                        return ()
-        	end else begin
-	        	Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
-                        Lwt_condition.signal watch.con.cvar ();
-                        return ()
-	        end
-        | None -> return ()
-        end
+let unwatch con (name, token) =
+  ( if Hashtbl.mem con.watches name
+    then return (Hashtbl.find con.watches name)
+    else fail (Protocol.Enoent (Protocol.Name.to_string name)) ) >>= fun ws ->
+  ( try return (List.find (fun w -> w.token = token) ws)
+    with Not_found -> fail (Protocol.Enoent (Protocol.Name.to_string name)) ) >>= fun w ->
+
+  let filtered = List.filter (fun e -> e != w) ws in
+  if List.length filtered > 0
+  then Hashtbl.replace con.watches name filtered
+  else Hashtbl.remove con.watches name;
+
+  con.nb_watches <- con.nb_watches - 1;
+
+  watches :=
+    (let key = key_of_name (Protocol.Name.(resolve name con.domainpath)) in
+     let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
+     if ws = [] then Trie.unset !watches key else Trie.set !watches key ws);
+
+  return ()
+
 
 let fire limits (op, name) =
 	let key = key_of_name name in
@@ -334,7 +340,6 @@ module Introspect = struct
 			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in
 			read_connection t perms path c rest
-		| _ -> raise (Node.Doesnt_exist path)
 
 	let exists t perms path = try ignore(read t perms path); true with Node.Doesnt_exist _ -> false
 
@@ -362,6 +367,5 @@ module Introspect = struct
 			if not(Hashtbl.mem by_index idx) then raise (Node.Doesnt_exist path);
 			let c = Hashtbl.find by_index idx in
 			list_connection t perms c rest
-		| _ -> []
 end
 let _ = Mount.mount (Protocol.Path.of_string "/tool/xenstored/connection") (module Introspect: Tree.S)
