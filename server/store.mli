@@ -31,8 +31,6 @@ with sexp
 val getdomainpath: int -> Protocol.Name.t
 (** [getdomainpath domid] returns the default directory for [domid] *)
 
-val set_root: t -> Node.t -> unit
-
 val create: unit -> t
 
 val copy: t -> t

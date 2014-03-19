@@ -35,9 +35,6 @@ type update =
 with sexp
 
 let get_root store = store.root
-let set_root store root =
-	debug "Updating root of store";
-	store.root <- root
 
 let get store creator =
   if Hashtbl.mem store.created creator then Hashtbl.find store.created creator else 0
