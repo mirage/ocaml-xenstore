@@ -184,7 +184,8 @@ let register_transaction limits con store =
 	let ntrans = Transaction.make id store in
 	Hashtbl.add con.transactions id ntrans;
 	Logging.start_transaction ~tid:id ~con:con.domstr;
-	id
+        id;
+        return ()
 
 let unregister_transaction con tid =
 	Hashtbl.remove con.transactions tid

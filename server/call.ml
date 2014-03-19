@@ -98,8 +98,8 @@ let transaction_replay store limits c t =
 			raise Transaction_again
                 end;
                 side_effects in
-        let tid = Connection.register_transaction limits c store in
-	let t = Transaction.make tid store in
+        let t = Transaction.take_snapshot store in
+        let tid = Transaction.none in
 	try
                 (* Perform a test replay on a throwaway copy of the store *)
 		Logging.start_transaction ~con ~tid;

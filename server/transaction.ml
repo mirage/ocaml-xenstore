@@ -74,6 +74,13 @@ let make id store =
 		operations = [];
 	}
 
+let take_snapshot store = {
+  id = none; immediate = false;
+  store = Store.copy store;
+  side_effects = no_side_effects ();
+  operations = [];
+}
+
 let get_id t = t.id
 let get_immediate t = t.immediate
 let get_store t = t.store
