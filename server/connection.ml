@@ -54,13 +54,6 @@ let by_index   : (int,   t) Hashtbl.t = Hashtbl.create 128
 
 let watches : (string, w list) Trie.t ref = ref (Trie.create ())
 
-let list_of_watches () =
-	Trie.fold (fun acc path v_opt ->
-		match v_opt with
-		| None -> Printf.sprintf "%s <- None" path :: acc
-		| Some vs -> Printf.sprintf "%s <- %s" path (String.concat ", " (List.map (fun v -> v.con.domstr) vs)) :: acc
-	) !watches []
-
 let w_create ~con ~name ~token = { 
   con = con;
   watch = name, token;
