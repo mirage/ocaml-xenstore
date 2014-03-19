@@ -34,8 +34,6 @@ type update =
 | Rm of Protocol.Path.t
 with sexp
 
-let get_root store = store.root
-
 let get store creator =
   if Hashtbl.mem store.created creator then Hashtbl.find store.created creator else 0
 
