@@ -69,15 +69,14 @@ let run store (sequence: (Connection.t * int32 * Protocol.Request.t * Protocol.R
                         return ()
 		) sequence)
 
-let interdomain domid = Uri.make ~scheme:"domain" ~path:(string_of_int domid) (), domid
+let interdomain domid = Uri.make ~scheme:"domain" ~path:(string_of_int domid) ()
 
 let connect domid =
         let t =
                 let open Connection in
                 let open Lwt in
-                create (interdomain domid) >>= fun conn ->
-                (* Previous tests may have left untransmitted watches in the persistent queues *)
-                Watch_events.clear conn.watch_events >>= fun () ->
+                destroy (interdomain domid) >>= fun conn ->
+                create (interdomain domid, domid) >>= fun conn ->
                 return conn in
         Lwt_main.run t
 

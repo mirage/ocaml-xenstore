@@ -23,6 +23,7 @@ module Watch = struct
   type t = Protocol.Name.t * string with sexp
 end
 module Watch_events = PQueue.Make(Watch)
+module Watch_registrations = PSet.Make(Watch)
 
 type w = {
   con: t;
@@ -42,6 +43,7 @@ and t = {
 	mutable nb_dropped_watches: int;
 	mutable stat_nb_ops: int;
 	mutable perm: Perms.t;
+        watch_registrations: Watch_registrations.t;
 	watch_events: Watch_events.t;
 	cvar: unit Lwt_condition.t;
 	domainpath: Protocol.Name.t;
@@ -58,55 +60,10 @@ let w_create ~con ~name ~token = {
   count = 0;
 }
 
-let destroy address =
-	try
-		let c = Hashtbl.find by_address address in
-		Logging.end_connection ~tid:Transaction.none ~con:c.domstr;
-		watches := Trie.map
-			(fun watches ->
-				match List.filter (fun w -> w.con != c) watches with
-				| [] -> None
-				| ws -> Some ws
-			) !watches;
-		Hashtbl.remove by_address address;
-		Hashtbl.remove by_index c.idx;
-	with Not_found ->
-		error "Failed to remove connection for: %s" (Uri.to_string address)
-
 let counter = ref 0
 
 let path_of_address address idx = [ "tool"; "xenstored"; "connection"; match Uri.scheme address with Some x -> x | None -> "unknown"; string_of_int idx ]
 
-let create (address, dom) =
-	if Hashtbl.mem by_address address then begin
-		info "Connection.create: found existing connection for %s: closing" (Uri.to_string address);
-		destroy address
-	end;
-	let idx = !counter in
-	incr counter;
-	Watch_events.create (path_of_address address idx) >>= fun watch_events ->
-	let con = 
-	{
-		address = address;
-		domid = dom;
-		idx;
-		domstr = Uri.to_string address;
-		transactions = Hashtbl.create 5;
-		next_tid = 1l;
-		ws = Hashtbl.create 8;
-		nb_watches = 0;
-		nb_dropped_watches = 0;
-		stat_nb_ops = 0;
-		perm = Perms.of_domain dom;
-		watch_events;
-		cvar = Lwt_condition.create ();
-		domainpath = Store.getdomainpath dom;
-	}
-	in
-	Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
-	Hashtbl.replace by_address address con;
-	Hashtbl.replace by_index con.idx con;
-	return con
 
 let restrict con domid =
 	con.perm <- Perms.restrict con.perm domid
@@ -179,7 +136,7 @@ let watch con limits (name, token) =
      let ws = if Trie.mem !watches key then Trie.find !watches key else [] in
      Trie.set !watches key (watch :: ws));
 
-  return ()
+  Watch_registrations.add (name, token) con.watch_registrations
 
 let unwatch con (name, token) =
   ( if Hashtbl.mem con.ws name
@@ -200,8 +157,7 @@ let unwatch con (name, token) =
      let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
      if ws = [] then Trie.unset !watches key else Trie.set !watches key ws);
 
-  return ()
-
+  Watch_registrations.remove (name, token) con.watch_registrations
 
 let fire limits (op, name) =
 	let key = key_of_name name in
@@ -245,6 +201,59 @@ let mark_symbols con =
 
 let stats con =
 	Hashtbl.length con.ws, con.stat_nb_ops
+
+let destroy address =
+  if not(Hashtbl.mem by_address address) then begin
+    error "Failed to remove connection for: %s" (Uri.to_string address);
+    return ()
+  end else begin
+    let c = Hashtbl.find by_address address in
+    Logging.end_connection ~tid:Transaction.none ~con:c.domstr;
+    watches := Trie.map
+      (fun watches ->
+        match List.filter (fun w -> w.con != c) watches with
+        | [] -> None
+        | ws -> Some ws
+      ) !watches;
+    Hashtbl.remove by_address address;
+    Hashtbl.remove by_index c.idx;
+    Watch_events.clear c.watch_events >>= fun () ->
+    Watch_registrations.clear c.watch_registrations
+  end
+
+let create (address, domid) =
+  if Hashtbl.mem by_address address then begin
+    info "Connection.create: found existing connection for %s" (Uri.to_string address);
+    return (Hashtbl.find by_address address)
+  end else begin
+    let idx = !counter in
+    incr counter;
+    Watch_events.create (path_of_address address idx @ [ "events" ]) >>= fun watch_events ->
+    Watch_registrations.create (path_of_address address idx @ [ "registrations" ]) >>= fun watch_registrations ->
+    let con = {
+      address; domid; idx;
+      domstr = Uri.to_string address;
+      transactions = Hashtbl.create 5;
+      next_tid = 1l;
+      ws = Hashtbl.create 8;
+      nb_watches = 0;
+      nb_dropped_watches = 0;
+      stat_nb_ops = 0;
+      perm = Perms.of_domain domid;
+      watch_events; watch_registrations;
+      cvar = Lwt_condition.create ();
+      domainpath = Store.getdomainpath domid;
+    } in
+    Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
+    Hashtbl.replace by_address address con;
+    Hashtbl.replace by_index con.idx con;
+
+    (* Recreate the in-memory tables of watch registrations *)
+    Watch_registrations.fold (fun acc w -> w :: acc) [] watch_registrations >>= fun watches ->
+    Lwt_list.iter_s (watch con None) watches >>= fun () ->
+
+    return con
+  end
 
 module Introspect = struct
 	include Tree.Unsupported
