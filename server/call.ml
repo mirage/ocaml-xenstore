@@ -96,21 +96,22 @@ let transaction_replay store limits c t =
 		Logging.response ~tid ~con response';
 		if response <> response' then begin
 			raise Transaction_again
-		end in
+                end;
+                side_effects in
         let tid = Connection.register_transaction limits c store in
 	let t = Transaction.make tid store in
 	try
                 (* Perform a test replay on a throwaway copy of the store *)
 		Logging.start_transaction ~con ~tid;
-		List.iter (perform_exn t) ops;
+		List.iter (fun op -> let (_: Transaction.side_effects) = perform_exn t op in ()) ops;
                 (* Replay on the live store *)
                 let t = Transaction.make Transaction.none store in
-		List.iter (perform_exn t) ops; (* XXX side effects? *)
-                true
+                List.fold_left (fun side_effects op -> Transaction.merge side_effects (perform_exn t op)) (Transaction.no_side_effects ()) ops
 	with e ->
 		error "transaction_replay caught: %s" (Printexc.to_string e);
                 Connection.unregister_transaction c tid;
-		false
+		Logging.conflict ~tid ~con:c.Connection.domstr;
+                raise e
 
 let reply_exn store limits c hdr (request: Request.t) : Response.t * Transaction.side_effects =
 	let tid = hdr.Header.tid in
@@ -130,12 +131,9 @@ let reply_exn store limits c hdr (request: Request.t) : Response.t * Transaction
 			Connection.unregister_transaction c tid;
 			if commit then begin
 				Logging.end_transaction ~tid ~con:c.Connection.domstr;
-				if not(transaction_replay store limits c t) then begin
-                                        Logging.conflict ~tid ~con:c.Connection.domstr;
-                                        raise Transaction_again
-                                end;
+                                let side_effects = transaction_replay store limits c t in
                                 Logging.commit ~tid ~con:c.Connection.domstr;
-				Response.Transaction_end, Transaction.get_side_effects t
+				Response.Transaction_end, side_effects
 			end else begin
 				(* Don't log an explicit abort *)
 				Response.Transaction_end, Transaction.no_side_effects ()

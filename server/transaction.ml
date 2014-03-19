@@ -38,6 +38,14 @@ type side_effects = {
 
 let no_side_effects () = { updates = []; watches = []; domains = []; watch = []; unwatch = [] }
 
+let merge a b = {
+  updates = a.updates @ b.updates;
+  watches = a.watches @ b.watches;
+  domains = a.domains @ b.domains;
+  watch   = a.watch   @ b.watch;
+  unwatch = a.unwatch @ b.unwatch;
+}
+
 let get_watches side_effects = side_effects.watches
 let get_updates side_effects = side_effects.updates
 let get_domains side_effects = side_effects.domains
@@ -71,10 +79,18 @@ let get_immediate t = t.immediate
 let get_store t = t.store
 let get_side_effects t = t.side_effects
 
-let watchevent t ty path = t.side_effects.watches <- (ty, Protocol.Name.Absolute path) :: t.side_effects.watches
-let add_operation t request response = t.operations <- (request, response) :: t.operations
-let watch t name token = t.side_effects.watch <- (name, token) :: t.side_effects.watch
-let unwatch t name token = t.side_effects.unwatch <- (name, token) :: t.side_effects.unwatch
+let watchevent t ty path =
+  if t.immediate then t.side_effects.watches <- (ty, Protocol.Name.Absolute path) :: t.side_effects.watches
+
+let add_operation t request response =
+  if not t.immediate then t.operations <- (request, response) :: t.operations
+
+let watch t name token =
+  if t.immediate then t.side_effects.watch <- (name, token) :: t.side_effects.watch
+
+let unwatch t name token =
+  if t.immediate then t.side_effects.unwatch <- (name, token) :: t.side_effects.unwatch
+
 let get_operations t = List.rev t.operations
 
 let mkdir t limits creator perm path =
@@ -82,7 +98,7 @@ let mkdir t limits creator perm path =
                 Protocol.Path.iter (fun prefix ->
                         if not(Store.exists t.store prefix) then begin
                                 let update = Store.mkdir t.store limits creator perm prefix in
-                                t.side_effects.updates <- update :: t.side_effects.updates;
+                                if t.immediate then t.side_effects.updates <- update :: t.side_effects.updates;
                                 (* no watches for implicitly created directories *)
                         end
                 ) path;
@@ -92,17 +108,17 @@ let mkdir t limits creator perm path =
 let write t limits creator perm path value =
         mkdir t limits creator perm (Protocol.Path.dirname path);
         let update = Store.write t.store limits creator perm path value in
-        t.side_effects.updates <- update :: t.side_effects.updates;
+        if t.immediate then t.side_effects.updates <- update :: t.side_effects.updates;
         watchevent t Protocol.Op.Write path
 
 let setperms t perm path perms =
         let update = Store.setperms t.store perm path perms in
-        t.side_effects.updates <- update :: t.side_effects.updates;
+        if t.immediate then t.side_effects.updates <- update :: t.side_effects.updates;
 	watchevent t Protocol.Op.Setperms path
 
 let rm t perm path =
         let updates = Store.rm t.store perm path in
-        t.side_effects.updates <- updates @ t.side_effects.updates;
+        if t.immediate then t.side_effects.updates <- updates @ t.side_effects.updates;
 	watchevent t Protocol.Op.Rm path
 
 let exists t perms path = Store.exists t.store path
