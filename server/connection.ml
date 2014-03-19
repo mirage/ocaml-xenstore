@@ -60,8 +60,6 @@ let w_create ~con ~name ~token = {
   count = 0;
 }
 
-let get_con w = w.con
- 
 let number_of_transactions con =
 	Hashtbl.length con.transactions
 
