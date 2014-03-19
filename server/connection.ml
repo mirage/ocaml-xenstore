@@ -60,9 +60,6 @@ let w_create ~con ~name ~token = {
   count = 0;
 }
 
-let number_of_transactions con =
-	Hashtbl.length con.transactions
-
 let anon_id_next = ref 1
 
 let destroy address =
