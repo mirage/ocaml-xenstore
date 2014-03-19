@@ -45,25 +45,29 @@ let get_watch   side_effects = side_effects.watch
 let get_unwatch side_effects = side_effects.unwatch
 
 type t = {
-        id: int32;
-	store: Store.t;
-        (* Side-effects which should be generated when the transaction is committed. *)
-        side_effects: side_effects;
-        (* A log of all the requests and responses during this transaction. When
-           committing a transaction to a modified store, we replay the requests and
-           abort the transaction if any of the responses would now be different. *)
-	mutable operations: (Protocol.Request.t * Protocol.Response.t) list;
+  (* True if all side-effects are published immediately, false if we're
+     in a throwaway transaction context. *)
+  immediate: bool;
+  id: int32;
+  store: Store.t;
+  (* Side-effects which should be generated when the transaction is committed. *)
+  side_effects: side_effects;
+  (* A log of all the requests and responses during this transaction. When
+     committing a transaction to a modified store, we replay the requests and
+     abort the transaction if any of the responses would now be different. *)
+  mutable operations: (Protocol.Request.t * Protocol.Response.t) list;
 }
 
 let make id store =
 	{
-                id;
+                id; immediate = id = none;
 		store = if id = none then store else Store.copy store;
                 side_effects = no_side_effects ();
 		operations = [];
 	}
 
 let get_id t = t.id
+let get_immediate t = t.immediate
 let get_store t = t.store
 let get_side_effects t = t.side_effects
 

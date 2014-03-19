@@ -36,7 +36,7 @@ let op_exn store limits c t (payload: Request.t) : Response.t * Transaction.side
            immediately (if not in a transaction context) or upon commit (if
            in a transaction context) *)
         let has_side_effects () =
-                if Transaction.get_id t = Transaction.none
+                if Transaction.get_immediate t
                 then Transaction.get_side_effects t
                 else Transaction.no_side_effects () in
 	match payload with
