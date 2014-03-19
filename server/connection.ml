@@ -246,16 +246,6 @@ let mark_symbols con =
 let stats con =
 	Hashtbl.length con.ws, con.stat_nb_ops
 
-let debug con =
-	let list_watches con =
-		let ll = Hashtbl.fold 
-			(fun _ watches acc -> List.map (fun watch -> watch.watch) watches :: acc)
-			con.ws [] in
-		List.concat ll in
-
-	let watches = List.map (fun (name, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Protocol.Name.to_string name) token) (list_watches con) in
-	String.concat "" watches
-
 module Introspect = struct
 	include Tree.Unsupported
 
