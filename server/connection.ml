@@ -207,26 +207,12 @@ let fire limits (op, name) =
 	let key = key_of_name name in
         let ws = Trie.fold_path (fun acc _ w -> match w with None -> acc | Some ws -> acc @ ws) !watches [] key in
         Lwt_list.iter_s (fire_one limits (Some name)) ws >>= fun () ->
-        (*
-	Trie.iter_path
-		(fun _ w -> match w with
-		| None -> ()
-		| Some ws -> List.iter (fire_one (Some name)) ws
-		) !watches key;
-	*)
 	if op = Protocol.Op.Rm
 	then
           let ws = Trie.fold (fun acc _ w -> match w with None -> acc | Some ws -> acc @ ws) (Trie.sub !watches key) [] in
           Lwt_list.iter_s (fire_one limits None) ws
         else
           return ()
-          (*
-        Trie.iter
-		(fun _ w -> match w with
-		| None -> ()
-		| Some ws -> List.iter (fire_one None) ws
-                ) (Trie.sub !watches key)
-        *)
 
 let register_transaction limits con store =
   begin match limits with
