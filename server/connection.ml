@@ -21,16 +21,15 @@ let error fmt = Logging.debug "connection" fmt
 
 exception End_of_file
 
-module Watch_event = struct
+module Watch = struct
   type t = Protocol.Name.t * string with sexp
 end
-module Watch_events = PQueue.Make(Watch_event)
+module Watch_events = PQueue.Make(Watch)
 
-type watch = {
-	con: t;
-	token: string;
-	name: Protocol.Name.t;
-	mutable count: int;
+type w = {
+  con: t;
+  watch: Watch.t;
+  mutable count: int;
 }
 
 and t = {
@@ -40,7 +39,7 @@ and t = {
 	idx: int; (* unique counter *)
 	transactions: (int32, Transaction.t) Hashtbl.t;
 	mutable next_tid: int32;
-	watches: (Protocol.Name.t, watch list) Hashtbl.t;
+	ws: (Protocol.Name.t, w list) Hashtbl.t;
 	mutable nb_watches: int;
 	mutable nb_dropped_watches: int;
 	mutable stat_nb_ops: int;
@@ -53,7 +52,7 @@ and t = {
 let by_address : (Uri.t, t) Hashtbl.t = Hashtbl.create 128
 let by_index   : (int,   t) Hashtbl.t = Hashtbl.create 128
 
-let watches : (string, watch list) Trie.t ref = ref (Trie.create ())
+let watches : (string, w list) Trie.t ref = ref (Trie.create ())
 
 let list_of_watches () =
 	Trie.fold (fun acc path v_opt ->
@@ -62,11 +61,10 @@ let list_of_watches () =
 		| Some vs -> Printf.sprintf "%s <- %s" path (String.concat ", " (List.map (fun v -> v.con.domstr) vs)) :: acc
 	) !watches []
 
-let watch_create ~con ~name ~token = { 
-	con = con; 
-	token = token; 
-	name = name;
-	count = 0;
+let w_create ~con ~name ~token = { 
+  con = con;
+  watch = name, token;
+  count = 0;
 }
 
 let get_con w = w.con
@@ -111,7 +109,7 @@ let create (address, dom) =
 		domstr = Uri.to_string address;
 		transactions = Hashtbl.create 5;
 		next_tid = 1l;
-		watches = Hashtbl.create 8;
+		ws = Hashtbl.create 8;
 		nb_watches = 0;
 		nb_dropped_watches = 0;
 		stat_nb_ops = 0;
@@ -130,8 +128,8 @@ let restrict con domid =
 	con.perm <- Perms.restrict con.perm domid
 
 let get_watches (con: t) name =
-	if Hashtbl.mem con.watches name
-	then Hashtbl.find con.watches name
+	if Hashtbl.mem con.ws name
+	then Hashtbl.find con.ws name
 	else []
 
 let key_of_name x =
@@ -145,30 +143,31 @@ let fire_one limits name watch =
   let name = match name with
   | None ->
     (* If no specific path was modified then we fire the generic watch *)
-    watch.name
+    fst watch.watch
   | Some name ->
     (* If the watch was registered as a relative path, then we make
        all the watch events relative too *)
-    if Protocol.Name.is_relative watch.name
+    if Protocol.Name.is_relative (fst watch.watch)
     then Protocol.Name.(relative name watch.con.domainpath)
     else name in
+  let token = snd watch.watch in
   let open Xenstore.Protocol in
-  Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, watch.token));
+  Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, token));
   watch.count <- watch.count + 1;
   begin match limits with
   | Some limits ->
     Watch_events.length watch.con.watch_events >>= fun w ->
     if w >= limits.Limits.number_of_queued_watch_events then begin
-      error "domain %u reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid w limits.Limits.number_of_queued_watch_events (Protocol.Name.to_string name) watch.token;
+      error "domain %u reached watch event quota (%d >= %d): dropping watch %s:%s" watch.con.domid w limits.Limits.number_of_queued_watch_events (Protocol.Name.to_string name) token;
       watch.con.nb_dropped_watches <- watch.con.nb_dropped_watches + 1;
       return ()
     end else begin
-      Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
+      Watch_events.add (name, token) watch.con.watch_events >>= fun () ->
       Lwt_condition.signal watch.con.cvar ();
       return ()
     end
   | None ->
-      Watch_events.add (name, watch.token) watch.con.watch_events >>= fun () ->
+      Watch_events.add (name, token) watch.con.watch_events >>= fun () ->
       Lwt_condition.signal watch.con.cvar ();
       return ()
   end
@@ -183,14 +182,14 @@ let watch con limits (name, token) =
     | None -> return () ) >>= fun () ->
 
   let l = get_watches con name in
-  ( if List.exists (fun w -> w.token = token) l
+  ( if List.exists (fun w -> snd w.watch = token) l
     then fail (Store.Already_exists (Printf.sprintf "%s:%s" (Protocol.Name.to_string name) token))
     else return () ) >>= fun () ->
 
-  let watch = watch_create ~con ~token ~name in
+  let watch = w_create ~con ~token ~name in
   fire_one limits None watch >>= fun () ->
   
-  Hashtbl.replace con.watches name (watch :: l);
+  Hashtbl.replace con.ws name (watch :: l);
   con.nb_watches <- con.nb_watches + 1;
 
   watches :=
@@ -201,16 +200,16 @@ let watch con limits (name, token) =
   return ()
 
 let unwatch con (name, token) =
-  ( if Hashtbl.mem con.watches name
-    then return (Hashtbl.find con.watches name)
+  ( if Hashtbl.mem con.ws name
+    then return (Hashtbl.find con.ws name)
     else fail (Protocol.Enoent (Protocol.Name.to_string name)) ) >>= fun ws ->
-  ( try return (List.find (fun w -> w.token = token) ws)
+  ( try return (List.find (fun w -> snd w.watch = token) ws)
     with Not_found -> fail (Protocol.Enoent (Protocol.Name.to_string name)) ) >>= fun w ->
 
   let filtered = List.filter (fun e -> e != w) ws in
   if List.length filtered > 0
-  then Hashtbl.replace con.watches name filtered
-  else Hashtbl.remove con.watches name;
+  then Hashtbl.replace con.ws name filtered
+  else Hashtbl.remove con.ws name;
 
   con.nb_watches <- con.nb_watches - 1;
 
@@ -279,13 +278,13 @@ let mark_symbols con =
 	Hashtbl.iter (fun _ t -> Store.mark_symbols (Transaction.get_store t)) con.transactions
 
 let stats con =
-	Hashtbl.length con.watches, con.stat_nb_ops
+	Hashtbl.length con.ws, con.stat_nb_ops
 
 let debug con =
 	let list_watches con =
 		let ll = Hashtbl.fold 
-			(fun _ watches acc -> List.map (fun watch -> watch.name, watch.token) watches :: acc)
-			con.watches [] in
+			(fun _ watches acc -> List.map (fun watch -> watch.watch) watches :: acc)
+			con.ws [] in
 		List.concat ll in
 
 	let watches = List.map (fun (name, token) -> Printf.sprintf "watch %s: %s %s\n" con.domstr (Protocol.Name.to_string name) token) (list_watches con) in
@@ -309,22 +308,22 @@ module Introspect = struct
 			""
 		| "watch" :: n :: [] ->
 			let n = int_of_string n in
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
 			if n > (List.length all) then raise (Node.Doesnt_exist path);
 			""
 		| "watch" :: n :: "name" :: [] ->
 			let n = int_of_string n in
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
 			if n > (List.length all) then raise (Node.Doesnt_exist path);
-			Protocol.Name.to_string (List.nth all n).name
+			Protocol.Name.to_string (fst (List.nth all n).watch)
 		| "watch" :: n :: "token" :: [] ->
 			let n = int_of_string n in
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
 			if n > (List.length all) then raise (Node.Doesnt_exist path);
-			(List.nth all n).token
+			snd (List.nth all n).watch
 		| "watch" :: n :: "total-events" :: [] ->
 			let n = int_of_string n in
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
 			if n > (List.length all) then raise (Node.Doesnt_exist path);
 			string_of_int (List.nth all n).count
 		| _ -> raise (Node.Doesnt_exist path)
@@ -348,7 +347,7 @@ module Introspect = struct
 		| [] ->
 			[ "address"; "current-transactions"; "total-operations"; "watch"; "total-dropped-watches" ]
 		| [ "watch" ] ->
-			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
+			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.ws [] in
 			List.map string_of_int (between 0 (List.length all - 1))
 		| [ "watch"; n ] -> [ "name"; "token"; "total-events" ]
 		| _ -> []
