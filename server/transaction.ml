@@ -20,8 +20,6 @@ open Xenstore
 let none = 0l
 let test_eagain = ref false
 
-type ty = No | Full of (int32 * Node.t * Store.t)
-
 type side_effects = {
         (* A log of all the store updates in this transaction. When the transaction
            is committed, these paths need to be committed to stable storage. *) 
@@ -47,7 +45,7 @@ let get_watch   side_effects = side_effects.watch
 let get_unwatch side_effects = side_effects.unwatch
 
 type t = {
-	ty: ty;
+        id: int32;
 	store: Store.t;
         (* Side-effects which should be generated when the transaction is committed. *)
         side_effects: side_effects;
@@ -58,15 +56,14 @@ type t = {
 }
 
 let make id store =
-	let ty = if id = none then No else Full(id, store.Store.root, store) in
 	{
-		ty = ty;
+                id;
 		store = if id = none then store else Store.copy store;
                 side_effects = no_side_effects ();
 		operations = [];
 	}
 
-let get_id t = match t.ty with No -> none | Full (id, _, _) -> id
+let get_id t = t.id
 let get_store t = t.store
 let get_side_effects t = t.side_effects
 
