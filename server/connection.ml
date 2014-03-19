@@ -19,8 +19,6 @@ let debug fmt = Logging.debug "connection" fmt
 let info  fmt = Logging.info  "connection" fmt
 let error fmt = Logging.debug "connection" fmt
 
-exception End_of_file
-
 module Watch = struct
   type t = Protocol.Name.t * string with sexp
 end
