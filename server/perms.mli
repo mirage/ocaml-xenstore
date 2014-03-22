@@ -14,7 +14,7 @@
 
 open Xenstore
 
-type t
+type t with sexp
 (** A role containing a set of privileges *)
 
 val superuser: t
