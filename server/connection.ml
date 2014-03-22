@@ -25,6 +25,8 @@ end
 module Watch_events = PQueue.Make(Watch)
 module Watch_registrations = PSet.Make(Watch)
 
+module PInt32 = PRef.Make(struct type t = int32 with sexp end)
+
 type w = {
   con: t;
   watch: Watch.t;
@@ -37,7 +39,7 @@ and t = {
 	domstr: string;
 	idx: int; (* unique counter *)
 	transactions: (int32, Transaction.t) Hashtbl.t;
-	mutable next_tid: int32;
+        next_tid: PInt32.t;
 	ws: (Protocol.Name.t, w list) Hashtbl.t;
 	mutable nb_watches: int;
 	mutable nb_dropped_watches: int;
@@ -62,7 +64,7 @@ let w_create ~con ~name ~token = {
 
 let counter = ref 0
 
-let path_of_address thing address idx = [ "tool"; "xenstored"; thing; match Uri.scheme address with Some x -> x | None -> "unknown"; string_of_int idx ]
+let path_of_address thing address idx = [ "tool"; "xenstored"; thing; (match Uri.scheme address with Some x -> x | None -> "unknown"); string_of_int idx ]
 
 
 let restrict con domid =
@@ -171,21 +173,20 @@ let fire limits (op, name) =
           return ()
 
 let register_transaction limits con store =
-  begin match limits with
-  | Some limits ->
-    if Hashtbl.length con.transactions >= limits.Limits.number_of_active_transactions then begin
-      error "domain %u has reached the open transaction limit (%d >= %d)" con.domid (Hashtbl.length con.transactions) limits.Limits.number_of_active_transactions;
-      raise Limits.Limit_reached;
-    end
-  | None -> ()
-  end;
-  let id = con.next_tid in
-  con.next_tid <- Int32.succ con.next_tid;
-	let ntrans = Transaction.make id store in
-	Hashtbl.add con.transactions id ntrans;
-	Logging.start_transaction ~tid:id ~con:con.domstr;
-        id;
-        return ()
+  ( match limits with
+    | Some limits ->
+      if Hashtbl.length con.transactions >= limits.Limits.number_of_active_transactions then begin
+        error "domain %u has reached the open transaction limit (%d >= %d)" con.domid (Hashtbl.length con.transactions) limits.Limits.number_of_active_transactions;
+        fail Limits.Limit_reached;
+      end else return ()
+    | None -> return ()
+  ) >>= fun () ->
+  PInt32.get con.next_tid >>= fun id ->
+  PInt32.set (Int32.succ id) con.next_tid >>= fun () ->
+  let ntrans = Transaction.make id store in
+  Hashtbl.add con.transactions id ntrans;
+  Logging.start_transaction ~tid:id ~con:con.domstr;
+  return id
 
 let unregister_transaction con tid =
 	Hashtbl.remove con.transactions tid
@@ -219,7 +220,8 @@ let destroy address =
     Hashtbl.remove by_address address;
     Hashtbl.remove by_index c.idx;
     Watch_events.clear c.watch_events >>= fun () ->
-    Watch_registrations.clear c.watch_registrations
+    Watch_registrations.clear c.watch_registrations >>= fun () ->
+    PInt32.destroy c.next_tid
   end
 
 let create (address, domid) =
@@ -231,11 +233,11 @@ let create (address, domid) =
     incr counter;
     Watch_events.create (path_of_address "events" address idx) >>= fun watch_events ->
     Watch_registrations.create (path_of_address "registrations" address idx) >>= fun watch_registrations ->
+    PInt32.create (path_of_address "next-transaction-id" address idx) 1l >>= fun next_tid ->
     let con = {
-      address; domid; idx;
+      address; domid; idx; next_tid;
       domstr = Uri.to_string address;
       transactions = Hashtbl.create 5;
-      next_tid = 1l;
       ws = Hashtbl.create 8;
       nb_watches = 0;
       nb_dropped_watches = 0;

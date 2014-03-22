@@ -26,8 +26,6 @@ exception Parse_failure
 
 exception Transaction_again
 
-exception Transaction_nested
-
   (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
 let op_exn store limits c t (payload: Request.t) : Response.t * Transaction.side_effects =
@@ -111,9 +109,19 @@ let transaction_replay store limits c t =
 		error "transaction_replay caught: %s" (Printexc.to_string e);
                 Connection.unregister_transaction c tid;
 		Logging.conflict ~tid ~con:c.Connection.domstr;
-                raise e
+                raise Transaction_again
 
-let reply_exn store limits c hdr (request: Request.t) : Response.t * Transaction.side_effects =
+let gc store =
+  if Symbol.created () > 1000 || Symbol.used () > 20000 then begin
+    debug "Started symbol GC";
+    Symbol.mark_all_as_unused ();
+    Store.mark_symbols store;
+    Hashtbl.iter (fun _ c -> Connection.mark_symbols c) Connection.by_address;
+    Symbol.garbage ()
+  end
+
+(* Compute a reply and set of side effects, or fail *)
+let reply_or_fail store limits c hdr (request: Request.t) : (Response.t * Transaction.side_effects) Lwt.t =
 	let tid = hdr.Header.tid in
 	let t =
 		if tid = Transaction.none
@@ -124,111 +132,118 @@ let reply_exn store limits c hdr (request: Request.t) : Response.t * Transaction
 
 	match request with
 		| Request.Transaction_start ->
-			if tid <> Transaction.none then raise Transaction_nested;
-			let tid = Connection.register_transaction limits c store in
-			Response.Transaction_start tid, Transaction.no_side_effects ()
+                        if tid <> Transaction.none
+                        then return (Response.Error "EBUSY", Transaction.no_side_effects ())
+                        else begin
+			  Connection.register_transaction limits c store >>= fun tid ->
+			  return (Response.Transaction_start tid, Transaction.no_side_effects ())
+                        end
 		| Request.Transaction_end commit ->
 			Connection.unregister_transaction c tid;
 			if commit then begin
 				Logging.end_transaction ~tid ~con:c.Connection.domstr;
-                                let side_effects = transaction_replay store limits c t in
-                                Logging.commit ~tid ~con:c.Connection.domstr;
-				Response.Transaction_end, side_effects
+                                try
+                                        let side_effects = transaction_replay store limits c t in
+                                        Logging.commit ~tid ~con:c.Connection.domstr;
+				        return (Response.Transaction_end, side_effects)
+                                with e -> fail e
 			end else begin
 				(* Don't log an explicit abort *)
-				Response.Transaction_end, Transaction.no_side_effects ()
+				return (Response.Transaction_end, Transaction.no_side_effects ())
 			end
 		| Request.Watch(path, token) ->
-                        Response.Watch, Transaction.( { no_side_effects () with watch = [ Protocol.Name.of_string path, token ] } )
+                        return (Response.Watch, Transaction.( { no_side_effects () with watch = [ Protocol.Name.of_string path, token ] } ))
 		| Request.Unwatch(path, token) ->
-                        Response.Unwatch, Transaction.( { no_side_effects () with unwatch = [ Protocol.Name.of_string path, token ] } )
+                        return (Response.Unwatch, Transaction.( { no_side_effects () with unwatch = [ Protocol.Name.of_string path, token ] } ))
 		| Request.Debug cmd ->
-			Perms.has c.Connection.perm Perms.DEBUG;
-			Response.Debug (
-				try match cmd with
-				| "print" :: msg :: _ ->
-					Logging.debug_print ~tid:0l ~con:c.Connection.domstr msg;
-					[]
-				| _ -> []
-				with _ -> []), Transaction.no_side_effects ()
+                        (try
+		        	Perms.has c.Connection.perm Perms.DEBUG;
+                                return (Response.Debug (try match cmd with
+				        | "print" :: msg :: _ ->
+				                Logging.debug_print ~tid:0l ~con:c.Connection.domstr msg;
+				        	[]
+			        	| _ ->
+                                                []
+			        	with _ -> []), Transaction.no_side_effects ())
+                        with e -> fail e)
 		| Request.Introduce(domid, mfn, remote_port) ->
-			Perms.has c.Connection.perm Perms.INTRODUCE;
-                        let address = { Domain.domid; mfn; remote_port } in
-                        let side_effects = {
-                          Transaction.no_side_effects () with
-                          Transaction.domains = [ address ];
-                          watches = [ Op.Write, Protocol.Name.(Predefined IntroduceDomain) ]
-                        } in
-			Response.Introduce, side_effects
+                        (try
+		        	Perms.has c.Connection.perm Perms.INTRODUCE;
+                                let address = { Domain.domid; mfn; remote_port } in
+                                let side_effects = {
+                                  Transaction.no_side_effects () with
+                                  Transaction.domains = [ address ];
+                                  watches = [ Op.Write, Protocol.Name.(Predefined IntroduceDomain) ]
+                                } in
+			        return (Response.Introduce, side_effects)
+                        with e -> fail e)
 		| Request.Resume(domid) ->
-			Perms.has c.Connection.perm Perms.RESUME;
-			(* register domain *)
-			Response.Resume, Transaction.no_side_effects ()
+                        (try
+			        Perms.has c.Connection.perm Perms.RESUME;
+			        (* register domain *)
+			        return (Response.Resume, Transaction.no_side_effects ())
+                        with e -> fail e)
 		| Request.Release(domid) ->
-			Perms.has c.Connection.perm Perms.RELEASE;
+                        (try Perms.has c.Connection.perm Perms.RELEASE; return () with e -> fail e) >>= fun () ->
 			(* unregister domain *)
-			Connection.fire limits (Op.Write, Protocol.Name.(Predefined ReleaseDomain));
-			Response.Release, Transaction.no_side_effects ()
+			Connection.fire limits (Op.Write, Protocol.Name.(Predefined ReleaseDomain)) >>= fun () ->
+			return (Response.Release, Transaction.no_side_effects ())
 		| Request.Set_target(mine, yours) ->
-			Perms.has c.Connection.perm Perms.SET_TARGET;
-			Hashtbl.iter
-				(fun address c ->
-					if c.Connection.domid = mine
-					then c.Connection.perm <- Perms.set_target c.Connection.perm yours;
-				) Connection.by_address;
-			Response.Set_target, Transaction.no_side_effects ()
+                        (try
+			        Perms.has c.Connection.perm Perms.SET_TARGET;
+			        Hashtbl.iter
+				        (fun address c ->
+				        	if c.Connection.domid = mine
+				        	then c.Connection.perm <- Perms.set_target c.Connection.perm yours;
+				        ) Connection.by_address;
+			        return (Response.Set_target, Transaction.no_side_effects ())
+                        with e -> fail e)
 		| Request.Restrict domid ->
-			Perms.has c.Connection.perm Perms.RESTRICT;
-			c.Connection.perm <- Perms.restrict c.Connection.perm domid;
-			Response.Restrict, Transaction.no_side_effects ()
+                        (try
+			        Perms.has c.Connection.perm Perms.RESTRICT;
+			        c.Connection.perm <- Perms.restrict c.Connection.perm domid;
+			        return (Response.Restrict, Transaction.no_side_effects ())
+                        with e -> fail e)
 		| Request.Isintroduced domid ->
-			Perms.has c.Connection.perm Perms.ISINTRODUCED;
-			Response.Isintroduced false, Transaction.no_side_effects ()
+                        (try
+			        Perms.has c.Connection.perm Perms.ISINTRODUCED;
+			        return (Response.Isintroduced false, Transaction.no_side_effects ())
+                        with e -> fail e)
 		| op ->
-			let reply, side_effects = op_exn store limits c t op in
-			if tid <> Transaction.none then Transaction.add_operation t op reply;
-			reply, side_effects
+                        (try
+			        let reply, side_effects = op_exn store limits c t op in
+			        if tid <> Transaction.none then Transaction.add_operation t op reply;
+			        return (reply, side_effects)
+                        with e -> fail e)
 
-let gc store =
-	if Symbol.created () > 1000 || Symbol.used () > 20000
-	then begin
-		debug "Started symbol GC";
-		Symbol.mark_all_as_unused ();
-		Store.mark_symbols store;
-		Hashtbl.iter (fun _ c -> Connection.mark_symbols c) Connection.by_address;
-		Symbol.garbage ()
-	end
-
-let reply store limits c hdr request =
-	gc store;
-	c.Connection.stat_nb_ops <- c.Connection.stat_nb_ops + 1;
-	let (response_payload, side_effects), info =
-		try
-			reply_exn store limits c hdr request, None
-		with e ->
-			let default = Some (Printexc.to_string e) in
-                        let reply code = Response.Error code, Transaction.no_side_effects () in
-			begin match e with
-				| Store.Already_exists p           -> reply "EEXIST", Some p
-				| Node.Doesnt_exist p              -> reply "ENOENT", Some (Protocol.Path.to_string p)
-                                | Protocol.Path.Invalid_path(p, reason) -> reply "EINVAL", Some (Printf.sprintf "%s: %s" p reason)
-				| Perms.Permission_denied          -> reply "EACCES", default
-				| Not_found                        -> reply "ENOENT", default
-				| Parse_failure                    -> reply "EINVAL", default
-				| Invalid_argument i               -> reply "EINVAL", Some i
-				| Transaction_again                -> reply "EAGAIN", default
-				| Transaction_nested               -> reply "EBUSY",  default
-				| Limits.Limit_reached             -> reply "EQUOTA", default
-				| Limits.Data_too_big              -> reply "E2BIG",  default
-				| Limits.Transaction_opened        -> reply "EQUOTA", default
-				| (Failure "int_of_string")        -> reply "EINVAL", default
-				| Tree.Unsupported                 -> reply "ENOTSUP",default
-				| _                                ->
-                                                Printf.fprintf stderr "Uncaught exception: %s\n%!" (Printexc.to_string e);
-                                                Printexc.print_backtrace stderr;
-                                                (* quirk: Write <string> (no value) is one of several parse
-                                                   failures where EINVAL is expected instead of EIO *)
-                                                reply "EINVAL",    default
-			end in
-	Logging.response ~tid:hdr.Header.tid ~con:c.Connection.domstr ?info response_payload;
-        response_payload, side_effects
+let reply store limits c hdr request : (Response.t * Transaction.side_effects) Lwt.t =
+  gc store;
+  c.Connection.stat_nb_ops <- c.Connection.stat_nb_ops + 1;
+  Lwt.catch
+    (fun () ->
+      reply_or_fail store limits c hdr request >>= fun x ->
+      return (x, None))
+    (fun e ->
+      let default = Some (Printexc.to_string e) in
+      let reply code = Response.Error code, Transaction.no_side_effects () in
+      match e with
+      | Transaction_again                     -> return (reply "EAGAIN", default)
+      | Limits.Limit_reached                  -> return (reply "EQUOTA", default)
+      | Store.Already_exists p                -> return (reply "EEXIST", Some p)
+      | Node.Doesnt_exist p                   -> return (reply "ENOENT", Some (Protocol.Path.to_string p))
+      | Protocol.Path.Invalid_path(p, reason) -> return (reply "EINVAL", Some (Printf.sprintf "%s: %s" p reason))
+      | Perms.Permission_denied               -> return (reply "EACCES", default)
+      | Not_found                             -> return (reply "ENOENT", default)
+      | Parse_failure                         -> return (reply "EINVAL", default)
+      | Invalid_argument i                    -> return (reply "EINVAL", Some i)
+      | Limits.Data_too_big                   -> return (reply "E2BIG",  default)
+      | Limits.Transaction_opened             -> return (reply "EQUOTA", default)
+      | (Failure "int_of_string")             -> return (reply "EINVAL", default)
+      | Tree.Unsupported                      -> return (reply "ENOTSUP",default)
+      | _ ->
+        (* quirk: Write <string> (no value) is one of several parse
+           failures where EINVAL is expected instead of EIO *)
+        return (reply "EINVAL", default)
+    ) >>= fun ((response_payload, side_effects), info) ->
+    Logging.response ~tid:hdr.Header.tid ~con:c.Connection.domstr ?info response_payload;
+    return (response_payload, side_effects)

@@ -12,7 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val reply: Store.t -> Limits.t option -> Connection.t -> Xenstore.Protocol.Header.t -> Xenstore.Protocol.Request.t -> Xenstore.Protocol.Response.t * Transaction.side_effects
+val reply: Store.t -> Limits.t option -> Connection.t -> Xenstore.Protocol.Header.t -> Xenstore.Protocol.Request.t -> (Xenstore.Protocol.Response.t * Transaction.side_effects) Lwt.t
 (** [reply store limits con request] modifies [store] according to the request in
     [request] from connection [con] and returns the response to be sent to the client
     together with a description of the side-effects (watches, path writes, deletes). *)
