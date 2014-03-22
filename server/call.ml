@@ -53,7 +53,7 @@ let op_exn store limits perm c t (payload: Request.t) : Response.t * Transaction
 			let v = Store.getdomainpath domid |> Protocol.Name.to_string in
 			Response.Getdomainpath v, Transaction.no_side_effects ()
 		| PathOp(path, op) ->
-			let path = Protocol.Name.(to_path (resolve (of_string path) c.Connection.domainpath)) in
+			let path = Protocol.Name.(to_path (resolve (of_string path) (Connection.domainpath c))) in
                         let module Impl = Mount.Tree in
 			begin match op with
 			| Read ->
@@ -66,10 +66,10 @@ let op_exn store limits perm c t (payload: Request.t) : Response.t * Transaction
 				let v = Impl.getperms t perm path in
 				Response.Getperms v, Transaction.no_side_effects ()
 			| Write value ->
-				Impl.write t limits c.Connection.domid perm path value;
+				Impl.write t limits (Connection.domid c) perm path value;
 				Response.Write, has_side_effects ()
 			| Mkdir ->
-				Impl.mkdir t limits c.Connection.domid perm path;
+				Impl.mkdir t limits (Connection.domid c) perm path;
 				Response.Mkdir, has_side_effects ()
 			| Rm ->
 				Impl.rm t perm path;
@@ -84,13 +84,14 @@ let op_exn store limits perm c t (payload: Request.t) : Response.t * Transaction
    the client. *)
 let transaction_replay store limits perm c t =
 	let ops = Transaction.get_operations t in
-	let con = "replay request:" ^ c.Connection.domstr in
+        let address = Uri.to_string (Connection.address c) in
+	let con = "replay request:" ^ address in
 	let perform_exn t (request, response) =
                 let tid = Transaction.get_id t in
-		Logging.request ~tid ~con:("replay request:" ^ c.Connection.domstr) request;
-		Logging.response ~tid ~con:("replay reply1: " ^ c.Connection.domstr) response;
+		Logging.request ~tid ~con:("replay request:" ^ address) request;
+		Logging.response ~tid ~con:("replay reply1: " ^ address) response;
 		let response', side_effects = op_exn store limits perm c t request in
-		Logging.response ~tid ~con:("replay reply2: " ^ c.Connection.domstr) response';
+		Logging.response ~tid ~con:("replay reply2: " ^ address) response';
 		Logging.response ~tid ~con response';
 		if response <> response' then begin
 			raise Transaction_again
@@ -108,7 +109,7 @@ let transaction_replay store limits perm c t =
 	with e ->
 		error "transaction_replay caught: %s" (Printexc.to_string e);
                 Connection.unregister_transaction c tid;
-		Logging.conflict ~tid ~con:c.Connection.domstr;
+                Logging.conflict ~tid ~con:address;
                 raise Transaction_again
 
 let gc store =
@@ -128,7 +129,8 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 		then Transaction.make tid store
 		else Connection.get_transaction c tid in
 
-	Logging.request ~tid ~con:c.Connection.domstr request;
+        let address = Uri.to_string (Connection.address c) in
+	Logging.request ~tid ~con:address request;
 
 	match request with
 		| Request.Transaction_start ->
@@ -141,10 +143,10 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 		| Request.Transaction_end commit ->
 			Connection.unregister_transaction c tid;
 			if commit then begin
-				Logging.end_transaction ~tid ~con:c.Connection.domstr;
+				Logging.end_transaction ~tid ~con:address;
                                 try
                                         let side_effects = transaction_replay store limits perm c t in
-                                        Logging.commit ~tid ~con:c.Connection.domstr;
+                                        Logging.commit ~tid ~con:address;
 				        return (Response.Transaction_end, side_effects)
                                 with e -> fail e
 			end else begin
@@ -160,7 +162,7 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 		        	Perms.has perm Perms.DEBUG;
                                 return (Response.Debug (try match cmd with
 				        | "print" :: msg :: _ ->
-				                Logging.debug_print ~tid:0l ~con:c.Connection.domstr msg;
+				                Logging.debug_print ~tid:0l ~con:address msg;
 				        	[]
 			        	| _ ->
                                                 []
@@ -191,19 +193,18 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 		| Request.Set_target(mine, yours) ->
                         (try Perms.has perm Perms.SET_TARGET; return () with e -> fail e) >>= fun () ->
                         let cs = Hashtbl.fold (fun _ c acc ->
-                                if c.Connection.domid = mine then c :: acc else acc
+                                if (Connection.domid c) = mine then c :: acc else acc
                         ) Connection.by_address [] in
                         Lwt_list.iter_s (fun c ->
                                 let open Connection in
-                                PPerms.get c.perm >>= fun current ->
-                                PPerms.set (Perms.set_target current yours) c.perm
+                                PPerms.get (perm c) >>= fun current ->
+                                PPerms.set (Perms.set_target current yours) (perm c)
                         ) cs >>= fun () ->
 			return (Response.Set_target, Transaction.no_side_effects ())
 		| Request.Restrict domid ->
                         (try Perms.has perm Perms.RESTRICT; return () with e -> fail e) >>= fun () ->
-                        let open Connection in
-                        PPerms.get c.perm >>= fun current ->
-                        PPerms.set (Perms.restrict current domid) c.perm >>= fun () ->
+                        Connection.PPerms.get (Connection.perm c) >>= fun current ->
+                        Connection.PPerms.set (Perms.restrict current domid) (Connection.perm c) >>= fun () ->
 			return (Response.Restrict, Transaction.no_side_effects ())
 		| Request.Isintroduced domid ->
                         (try
@@ -219,7 +220,8 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 
 let reply store limits perm c hdr request : (Response.t * Transaction.side_effects) Lwt.t =
   gc store;
-  c.Connection.stat_nb_ops <- c.Connection.stat_nb_ops + 1;
+  let address = Uri.to_string (Connection.address c) in
+  Connection.incr_nb_ops c;
   Lwt.catch
     (fun () ->
       reply_or_fail store limits perm c hdr request >>= fun x ->
@@ -246,5 +248,5 @@ let reply store limits perm c hdr request : (Response.t * Transaction.side_effec
            failures where EINVAL is expected instead of EIO *)
         return (reply "EINVAL", default)
     ) >>= fun ((response_payload, side_effects), info) ->
-    Logging.response ~tid:hdr.Header.tid ~con:c.Connection.domstr ?info response_payload;
+    Logging.response ~tid:hdr.Header.tid ~con:address ?info response_payload;
     return (response_payload, side_effects)

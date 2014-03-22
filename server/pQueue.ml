@@ -11,6 +11,34 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+
+module type S = sig
+  type v
+  (** An item in the persistent queue *)
+
+  type t
+  (** A persistent queue *)
+
+  val create: string list -> t Lwt.t
+  (** [create name]: loads the queue at [name] *)
+
+  val length: t -> int Lwt.t
+  (** [length t]: the number of elements in queue *)
+
+  val add: v -> t -> unit Lwt.t
+  (** [add elem t]: adds the element [elem] to the queue [t].
+      When the thread completes the element will be in the persistent
+      store and will survive a crash. *)
+
+  val clear: t -> unit Lwt.t
+  (** [clear t]: deletes all elements in queue [t] *)
+
+  val fold: ('b -> v -> 'b) -> 'b -> t -> 'b Lwt.t
+  (** [fold f initial t]: folds [f] across [t] starting with [initial] *)
+
+end
+(** A persistent FIFO queue which stores v. *)
+
 open Sexplib
 open Xenstore
 
@@ -22,6 +50,8 @@ open Lwt
 
 module Make(T: S.SEXPABLE) = struct
   module M = PMap.Make(Int64)(T)
+
+  type v = T.t
 
   type t = {
     mutable next_id: int64;

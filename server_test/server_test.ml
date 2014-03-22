@@ -47,8 +47,8 @@ let rpc store c tid request =
         let hdr = { Protocol.Header.tid; rid = 0l; ty = Protocol.Request.get_ty request; len = 0 } in
         debug "store = %s" (Sexp.to_string (Store.sexp_of_t store));
         try
-                Quota.limits_of_domain c.Connection.domid >>= fun limits ->
-                Connection.PPerms.get c.Connection.perm >>= fun perm ->
+                Quota.limits_of_domain (Connection.domid c) >>= fun limits ->
+                Connection.PPerms.get (Connection.perm c) >>= fun perm ->
                 Call.reply store (Some limits) perm c hdr request >>= fun (response, side_effects) ->
                 debug "request = %s response = %s side_effects = %s" (Sexp.to_string (Protocol.Request.sexp_of_t request)) (Sexp.to_string (Protocol.Response.sexp_of_t response)) (Sexp.to_string (Transaction.sexp_of_side_effects side_effects));
                 Transaction.get_watch side_effects |> List.rev |> Lwt_list.iter_s (Connection.watch c (Some limits)) >>= fun () ->
@@ -74,10 +74,9 @@ let interdomain domid = Uri.make ~scheme:"domain" ~path:(string_of_int domid) ()
 
 let connect domid =
         let t =
-                let open Connection in
                 let open Lwt in
-                destroy (interdomain domid) >>= fun conn ->
-                create (interdomain domid, domid) >>= fun conn ->
+                Connection.destroy (interdomain domid) >>= fun () ->
+                Connection.create (interdomain domid, domid) >>= fun conn ->
                 return conn in
         Lwt_main.run t
 
@@ -332,13 +331,14 @@ let string_of_watch_events watch_events =
 	String.concat "; " (List.map (fun (k, v) -> Protocol.Name.to_string k ^ ", " ^ v) watch_events)
 
 let assert_watches c expected =
-	let got = List.rev (Lwt_main.run (Connection.Watch_events.fold (fun acc x -> x :: acc) [] c.Connection.watch_events)) in
+	let got = List.rev (Lwt_main.run (Connection.Watch_events.fold (fun acc x -> x :: acc) [] (Connection.watch_events c))) in
 	assert_equal ~msg:"watches" ~printer:string_of_watch_events (List.map (fun (k, v) -> Protocol.Name.of_string k, v) expected) got
 
 let test_watch_event_quota () =
 	(* Check that we can't exceed the per-domain watch event quota *)
         let dom0 = connect 0 in
         let dom1 = connect 1 in
+        let idx = Connection.index dom1 in
 	let store = empty_store () in
         let open Protocol in
 	let open Protocol.Request in
@@ -353,19 +353,25 @@ let test_watch_event_quota () =
 		dom1, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom1 [ ("/a", "token") ];
-	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 0 dom1.Connection.nb_dropped_watches;
+        run store [
+                dom0, none, PathOp(Printf.sprintf "/tool/xenstored/connection/domain/%d/total-dropped-watches" idx, Read), Response.Read "0";
+        ];
 	(* This watch will be dropped *)
 	run store [
 		dom0, none, PathOp("/a", Write "hello"), Response.Write;
 	];
-	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 1 dom1.Connection.nb_dropped_watches;
+        run store [
+                dom0, none, PathOp(Printf.sprintf "/tool/xenstored/connection/domain/%d/total-dropped-watches" idx, Read), Response.Read "1";
+        ];
 	assert_watches dom1 [ ("/a", "token") ];
 	run store [
 		dom0, none, PathOp("/tool/xenstored/quota/default/number-of-queued-watch-events", Write "2"), Response.Write;
 		dom0, none, PathOp("/a", Write "there"), Response.Write;
 	];
 	assert_watches dom1 [ ("/a", "token"); ("/a", "token") ];
-	assert_equal ~msg:"nb_dropped_watches" ~printer:string_of_int 1 dom1.Connection.nb_dropped_watches;
+        run store [
+                dom0, none, PathOp(Printf.sprintf "/tool/xenstored/connection/domain/%d/total-dropped-watches" idx, Read), Response.Read "1";
+        ];
 	run store [
 		dom0, none, PathOp("/tool/xenstored/quota/default/number-of-queued-watch-events", Write "256"), Response.Write;
 	]
@@ -387,21 +393,21 @@ let test_simple_watches () =
 		dom0, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
-        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
+        Lwt_main.run (Connection.Watch_events.clear (Connection.watch_events dom0));
 	assert_watches dom0 [];
 	(* dom0 can see its own write via watches *)
 	run store [
 		dom0, none, PathOp("/a", Write "foo"), Response.Write;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
-        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
+        Lwt_main.run (Connection.Watch_events.clear (Connection.watch_events dom0));
 	assert_watches dom0 [];
 	(* dom0 can see dom1's writes via watches *)
 	run store [
 		dom1, none, PathOp("/a", Write "foo"), Response.Write;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
-        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
+        Lwt_main.run (Connection.Watch_events.clear (Connection.watch_events dom0));
 	assert_watches dom0 [];
 	(* reads don't generate watches *)
 	run store [
@@ -425,7 +431,7 @@ let test_relative_watches () =
 		dom0, none, Watch("device", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ "device", "token" ];
-        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
+        Lwt_main.run (Connection.Watch_events.clear (Connection.watch_events dom0));
 	assert_watches dom0 [];
 	run store [
 		dom0, none, PathOp("/local/domain/0/device/vbd", Write "hello"), Response.Write;
@@ -444,7 +450,7 @@ let test_watches_read_perm () =
 		dom1, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom1 [ ("/a", "token") ];
-        Lwt_main.run (Connection.Watch_events.clear dom1.Connection.watch_events);
+        Lwt_main.run (Connection.Watch_events.clear (Connection.watch_events dom1));
 	assert_watches dom1 [];
 	run store [
 		dom0, none, PathOp("/a", Write "hello"), Response.Write;
@@ -463,7 +469,7 @@ let test_transaction_watches () =
 		dom0, none, Watch ("/a", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("/a", "token") ];
-        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
+        Lwt_main.run (Connection.Watch_events.clear (Connection.watch_events dom0));
 	assert_watches dom0 [];
 	(* PathOp( Writes in a transaction don't generate watches immediately *)
         let tid = begin_transaction store dom0 in
@@ -494,7 +500,7 @@ let test_introduce_watches () =
 		dom0, none, Watch ("@introduceDomain", "token"), Response.Watch;
 	];
 	assert_watches dom0 [ ("@introduceDomain", "token") ];
-        Lwt_main.run (Connection.Watch_events.clear dom0.Connection.watch_events);
+        Lwt_main.run (Connection.Watch_events.clear (Connection.watch_events dom0));
 	assert_watches dom0 [];
 	run store [
 		dom0, none, Introduce(5, 5n, 5), Response.Introduce;

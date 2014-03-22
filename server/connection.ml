@@ -37,7 +37,6 @@ type w = {
 and t = {
 	address: Uri.t;
 	domid: int;
-	domstr: string;
 	idx: int; (* unique counter *)
 	transactions: (int32, Transaction.t) Hashtbl.t;
         next_tid: PInt32.t;
@@ -48,9 +47,43 @@ and t = {
         perm: PPerms.t;
         watch_registrations: Watch_registrations.t;
 	watch_events: Watch_events.t;
+        m: Lwt_mutex.t;
 	cvar: unit Lwt_condition.t;
 	domainpath: Protocol.Name.t;
 }
+
+let index t = t.idx
+let domainpath t = t.domainpath
+let domid t = t.domid
+let address t = t.address
+let watch_events t = t.watch_events
+let perm t = t.perm
+
+let incr_nb_ops t = t.stat_nb_ops <- t.stat_nb_ops + 1
+
+let pop_watch_events_nowait_nolock t =
+  Watch_events.fold (fun acc x -> x :: acc) [] (watch_events t) >>= fun q ->
+  Watch_events.clear (watch_events t) >>= fun () ->
+  return (List.rev q)
+
+let pop_watch_events t =
+  Lwt_mutex.with_lock t.m
+    (fun () ->
+      let rec wait () =
+        Watch_events.length (watch_events t) >>= fun l ->
+        if l = 0 then begin
+          Lwt_condition.wait ~mutex:t.m t.cvar >>= fun () ->
+          wait ()
+        end else return () in
+      wait () >>= fun () ->
+      pop_watch_events_nowait_nolock t
+    )
+
+let pop_watch_events_nowait t =
+  Lwt_mutex.with_lock t.m
+    (fun () ->
+      pop_watch_events_nowait_nolock t
+    )
 
 let by_address : (Uri.t, t) Hashtbl.t = Hashtbl.create 128
 let by_index   : (int,   t) Hashtbl.t = Hashtbl.create 128
@@ -87,7 +120,7 @@ let fire_one limits name watch =
     else name in
   let token = snd watch.watch in
   let open Xenstore.Protocol in
-  Logging.response ~tid:0l ~con:watch.con.domstr (Response.Watchevent(name, token));
+  Logging.response ~tid:0l ~con:(Uri.to_string watch.con.address) (Response.Watchevent(name, token));
   watch.count <- watch.count + 1;
   begin match limits with
   | Some limits ->
@@ -182,7 +215,7 @@ let register_transaction limits con store =
   PInt32.set (Int32.succ id) con.next_tid >>= fun () ->
   let ntrans = Transaction.make id store in
   Hashtbl.add con.transactions id ntrans;
-  Logging.start_transaction ~tid:id ~con:con.domstr;
+  Logging.start_transaction ~tid:id ~con:(Uri.to_string con.address);
   return id
 
 let unregister_transaction con tid =
@@ -192,14 +225,11 @@ let get_transaction con tid =
 	try
 		Hashtbl.find con.transactions tid
 	with Not_found as e ->
-		error "Failed to find transaction %lu on %s" tid con.domstr;
+		error "Failed to find transaction %lu on %s" tid (Uri.to_string con.address);
 		raise e
 
 let mark_symbols con =
 	Hashtbl.iter (fun _ t -> Store.mark_symbols (Transaction.get_store t)) con.transactions
-
-let stats con =
-	Hashtbl.length con.ws, con.stat_nb_ops
 
 let destroy address =
   if not(Hashtbl.mem by_address address) then begin
@@ -207,7 +237,7 @@ let destroy address =
     return ()
   end else begin
     let c = Hashtbl.find by_address address in
-    Logging.end_connection ~tid:Transaction.none ~con:c.domstr;
+    Logging.end_connection ~tid:Transaction.none ~con:(Uri.to_string c.address);
     watches := Trie.map
       (fun watches ->
         match List.filter (fun w -> w.con != c) watches with
@@ -235,17 +265,17 @@ let create (address, domid) =
     PPerms.create (path_of_address "permissions" address idx) (Perms.of_domain domid) >>= fun perm ->
     let con = {
       address; domid; idx; next_tid; perm;
-      domstr = Uri.to_string address;
       transactions = Hashtbl.create 5;
       ws = Hashtbl.create 8;
       nb_watches = 0;
       nb_dropped_watches = 0;
       stat_nb_ops = 0;
       watch_events; watch_registrations;
+      m = Lwt_mutex.create ();
       cvar = Lwt_condition.create ();
       domainpath = Store.getdomainpath domid;
     } in
-    Logging.new_connection ~tid:Transaction.none ~con:con.domstr;
+    Logging.new_connection ~tid:Transaction.none ~con:(Uri.to_string con.address);
     Hashtbl.replace by_address address con;
     Hashtbl.replace by_index con.idx con;
 

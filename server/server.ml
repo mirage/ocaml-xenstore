@@ -54,12 +54,10 @@ module Make = functor(T: S.TRANSPORT) -> struct
                 let dom = T.domain_of t in
 		let interface = introspect t in
 		Connection.create (address, dom) >>= fun c ->
-                let connection_path = Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/transport/%s/%d" (match Uri.scheme address with Some x -> x | None -> "unknown") c.Connection.idx) in
+                let connection_path = Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/transport/%s/%d" (match Uri.scheme address with Some x -> x | None -> "unknown") (Connection.index c)) in
+                (* Hold this mutex only when marshalling to the buffers and writing
+                   to the channel to prevent corruption *)
 		let m = Lwt_mutex.create () in
-		let take_watch_events () =
-			Connection.Watch_events.fold (fun acc x -> x :: acc) [] c.Connection.watch_events >>= fun q ->
-			Connection.Watch_events.clear c.Connection.watch_events >>= fun () ->
-			return (List.rev q) in
 		let flush_watch_events header_buf payload_buf q =
 			Lwt_list.iter_s
 				(fun (path, token) ->
@@ -77,16 +75,9 @@ module Make = functor(T: S.TRANSPORT) -> struct
 			while_lwt true do
                                 let header_buf = Cstruct.create Protocol.Header.sizeof in
                                 let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
+                                Connection.pop_watch_events c >>= fun w ->
 				Lwt_mutex.with_lock m
 					(fun () ->
-                                                let rec wait () =
-                                                        Connection.Watch_events.length c.Connection.watch_events >>= fun l ->
-                                                        if l = 0 then begin
-                                                                Lwt_condition.wait ~mutex:m c.Connection.cvar >>= fun () ->
-                                                                wait ()
-                                                        end else return () in
-                                                wait () >>= fun () ->
-                                                take_watch_events () >>= fun w ->
 						flush_watch_events header_buf payload_buf w
 					)
 			done in
@@ -101,10 +92,10 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 fail_on_error (Protocol.Header.unmarshal header_buf) >>= fun hdr ->
                                 let payload_buf' = Cstruct.sub payload_buf 0 hdr.Protocol.Header.len in
                                 T.read t payload_buf' >>= fun () ->
-				take_watch_events () >>= fun events ->
+				Connection.pop_watch_events_nowait c >>= fun events ->
                                 Database.store >>= fun store ->
                                 Quota.limits_of_domain dom >>= fun limits ->
-                                Connection.PPerms.get c.Connection.perm >>= fun perm ->
+                                Connection.PPerms.get (Connection.perm c) >>= fun perm ->
 				( match Protocol.Request.unmarshal hdr payload_buf' with
                                   | `Ok request -> Call.reply store (Some limits) perm c hdr request
                                   | `Error msg ->
