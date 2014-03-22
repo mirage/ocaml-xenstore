@@ -48,7 +48,8 @@ let rpc store c tid request =
         debug "store = %s" (Sexp.to_string (Store.sexp_of_t store));
         try
                 Quota.limits_of_domain c.Connection.domid >>= fun limits ->
-                Call.reply store (Some limits) c hdr request >>= fun (response, side_effects) ->
+                Connection.PPerms.get c.Connection.perm >>= fun perm ->
+                Call.reply store (Some limits) perm c hdr request >>= fun (response, side_effects) ->
                 debug "request = %s response = %s side_effects = %s" (Sexp.to_string (Protocol.Request.sexp_of_t request)) (Sexp.to_string (Protocol.Response.sexp_of_t response)) (Sexp.to_string (Transaction.sexp_of_side_effects side_effects));
                 Transaction.get_watch side_effects |> List.rev |> Lwt_list.iter_s (Connection.watch c (Some limits)) >>= fun () ->
                 Transaction.get_unwatch side_effects |> List.rev |> Lwt_list.iter_s (Connection.unwatch c) >>= fun () ->
