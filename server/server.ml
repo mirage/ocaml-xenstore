@@ -104,8 +104,9 @@ module Make = functor(T: S.TRANSPORT) -> struct
 				take_watch_events () >>= fun events ->
                                 Database.store >>= fun store ->
                                 Quota.limits_of_domain dom >>= fun limits ->
+                                Connection.PPerms.get c.Connection.perm >>= fun perm ->
 				( match Protocol.Request.unmarshal hdr payload_buf' with
-                                  | `Ok request -> Call.reply store (Some limits) c hdr request
+                                  | `Ok request -> Call.reply store (Some limits) perm c hdr request
                                   | `Error msg ->
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
 					return (Protocol.Response.Error "EINVAL", Transaction.no_side_effects ())

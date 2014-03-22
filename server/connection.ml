@@ -26,6 +26,7 @@ module Watch_events = PQueue.Make(Watch)
 module Watch_registrations = PSet.Make(Watch)
 
 module PInt32 = PRef.Make(struct type t = int32 with sexp end)
+module PPerms = PRef.Make(Perms)
 
 type w = {
   con: t;
@@ -44,7 +45,7 @@ and t = {
 	mutable nb_watches: int;
 	mutable nb_dropped_watches: int;
 	mutable stat_nb_ops: int;
-	mutable perm: Perms.t;
+        perm: PPerms.t;
         watch_registrations: Watch_registrations.t;
 	watch_events: Watch_events.t;
 	cvar: unit Lwt_condition.t;
@@ -65,10 +66,6 @@ let w_create ~con ~name ~token = {
 let counter = ref 0
 
 let path_of_address thing address idx = [ "tool"; "xenstored"; thing; (match Uri.scheme address with Some x -> x | None -> "unknown"); string_of_int idx ]
-
-
-let restrict con domid =
-	con.perm <- Perms.restrict con.perm domid
 
 let key_of_name x =
   let open Protocol.Name in match x with
@@ -221,7 +218,8 @@ let destroy address =
     Hashtbl.remove by_index c.idx;
     Watch_events.clear c.watch_events >>= fun () ->
     Watch_registrations.clear c.watch_registrations >>= fun () ->
-    PInt32.destroy c.next_tid
+    PInt32.destroy c.next_tid >>= fun () ->
+    PPerms.destroy c.perm
   end
 
 let create (address, domid) =
@@ -234,15 +232,15 @@ let create (address, domid) =
     Watch_events.create (path_of_address "events" address idx) >>= fun watch_events ->
     Watch_registrations.create (path_of_address "registrations" address idx) >>= fun watch_registrations ->
     PInt32.create (path_of_address "next-transaction-id" address idx) 1l >>= fun next_tid ->
+    PPerms.create (path_of_address "permissions" address idx) (Perms.of_domain domid) >>= fun perm ->
     let con = {
-      address; domid; idx; next_tid;
+      address; domid; idx; next_tid; perm;
       domstr = Uri.to_string address;
       transactions = Hashtbl.create 5;
       ws = Hashtbl.create 8;
       nb_watches = 0;
       nb_dropped_watches = 0;
       stat_nb_ops = 0;
-      perm = Perms.of_domain domid;
       watch_events; watch_registrations;
       cvar = Lwt_condition.create ();
       domainpath = Store.getdomainpath domid;

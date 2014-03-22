@@ -21,11 +21,13 @@ type domid = int
 
 (* permission of connections *)
 open Protocol.ACL
+open Sexplib.Std
 
-type elt = domid * (perm list)
-type t =
-	{ main: elt;
-	  target: elt option; }
+type elt = domid * (perm list) with sexp
+type t = {
+  main: elt;
+  target: elt option
+} with sexp
 
 let superuser : t =
 	{ main = 0, [READ; WRITE];
@@ -57,15 +59,6 @@ let restrict (connection:t) domid =
 		info "restricting connection from domid %d to domid %d" 0 domid;
 		{ connection with main = (domid, perms) }
 	| _                -> raise Permission_denied
-
-let elt_to_string (i,p) =
-	Printf.sprintf "%i%S" i (String.concat "" (List.map (String.make 1) (List.map char_of_perm p)))
-
-let to_string connection =
-	Printf.sprintf "%s%s" (elt_to_string connection.main)
-                (match connection.target with
-                | None -> ""
-                | Some x -> elt_to_string x)
 
 type permission =
 	| READ
