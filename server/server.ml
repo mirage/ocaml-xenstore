@@ -104,11 +104,12 @@ module Make = functor(T: S.TRANSPORT) -> struct
 				take_watch_events () >>= fun events ->
                                 Database.store >>= fun store ->
                                 Quota.limits_of_domain dom >>= fun limits ->
-				let reply, side_effects = match Protocol.Request.unmarshal hdr payload_buf' with
-                                | `Ok request -> Call.reply store (Some limits) c hdr request
-                                | `Error msg ->
+				( match Protocol.Request.unmarshal hdr payload_buf' with
+                                  | `Ok request -> Call.reply store (Some limits) c hdr request
+                                  | `Error msg ->
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
-					Protocol.Response.Error "EINVAL", Transaction.no_side_effects () in
+					return (Protocol.Response.Error "EINVAL", Transaction.no_side_effects ())
+                                ) >>= fun (reply, side_effects) ->
                                 Transaction.get_watch side_effects |> List.rev |> Lwt_list.iter_s (Connection.watch c (Some limits)) >>= fun () ->
                                 Transaction.get_unwatch side_effects |> List.rev |> Lwt_list.iter_s (Connection.unwatch c) >>= fun () ->
                                 Transaction.get_watches side_effects |> List.rev |> Lwt_list.iter_s (Connection.fire (Some limits)) >>= fun () ->
@@ -131,7 +132,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
 			return ()
 		with e ->
 			Lwt.cancel background_watch_event_flusher;
-			Connection.destroy address;
+			Connection.destroy address >>= fun () ->
                         Mount.unmount connection_path >>= fun () ->
                         Quota.remove dom >>= fun () ->
                         T.destroy t

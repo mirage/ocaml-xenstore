@@ -18,7 +18,6 @@ exception Already_exists of string
 
 type t =
 {
-	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
         created: (int, int) Hashtbl.t;
 } with sexp
@@ -30,8 +29,6 @@ with sexp
 
 val getdomainpath: int -> Protocol.Name.t
 (** [getdomainpath domid] returns the default directory for [domid] *)
-
-val set_root: t -> Node.t -> unit
 
 val create: unit -> t
 

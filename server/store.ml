@@ -24,7 +24,6 @@ let getdomainpath domid =
 
 type t =
 {
-	mutable stat_transaction_abort: int;
 	mutable root: Node.t;
         created: (int, int) Hashtbl.t;
 } with sexp
@@ -33,11 +32,6 @@ type update =
 | Write of Protocol.Path.t * Protocol.ACL.t * string
 | Rm of Protocol.Path.t
 with sexp
-
-let get_root store = store.root
-let set_root store root =
-	debug "Updating root of store";
-	store.root <- root
 
 let get store creator =
   if Hashtbl.mem store.created creator then Hashtbl.find store.created creator else 0
@@ -173,18 +167,13 @@ let getperms store perm path = match Node.lookup store.root path with
   Node.get_perms node
 
 let create () = {
-	stat_transaction_abort = 0;
 	root = Node.create "" 0 (Protocol.ACL.({ owner = 0; other = NONE; acl = [] })) "";
         created = Hashtbl.create 100;
 }
 let copy store = {
-	stat_transaction_abort = store.stat_transaction_abort;
 	root = store.root;
         created = Hashtbl.copy store.created;
 }
 
 let mark_symbols store =
 	Node.fold (fun () node -> Symbol.mark_as_used (Node.get_symbol node)) store.root ()
-
-let incr_transaction_abort store =
-	store.stat_transaction_abort <- store.stat_transaction_abort + 1
