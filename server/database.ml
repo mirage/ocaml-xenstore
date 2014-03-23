@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-
+open Sexplib
 open Lwt
 open Xenstore
 open Protocol
@@ -57,10 +57,10 @@ let initialise = function
     suffix' <= x' && (String.sub x (x' - suffix') suffix' = suffix) in
 
   let p = function
-    | Store.Write(path, perm, value) ->
+    | Store.Write(path, contents) ->
       Printf.fprintf stderr "+ %s\n%!" (Protocol.Path.to_string path);
       (try_lwt
-        DB.update db (value_of_filename path) value
+        DB.update db (value_of_filename path) (Sexp.to_string (Node.sexp_of_contents contents))
       with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e)); return ())
     | Store.Rm path ->
       Printf.fprintf stderr "- %s\n%!" (Protocol.Path.to_string path);
@@ -86,7 +86,10 @@ let initialise = function
       | [] -> ()
       | file :: dir when endswith value_suffix file ->
         let element = remove_suffix value_suffix file in
-        Transaction.write t None 0 (Perms.of_domain 0) (Protocol.Path.of_string_list (List.rev (element :: dir))) value
+        let contents = Node.contents_of_sexp (Sexp.of_string value) in
+        let path = Protocol.Path.of_string_list (List.rev (element :: dir)) in
+        Transaction.write t None contents.Node.creator (Perms.of_domain 0) path contents.Node.value;
+        Transaction.setperms t (Perms.of_domain 0) path contents.Node.perms
       | _ -> ()
     ) contents;
   Lwt.wakeup persister_wakener p;
