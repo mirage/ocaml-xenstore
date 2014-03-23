@@ -108,9 +108,9 @@ module Make = functor(T: S.TRANSPORT) -> struct
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
 					return (Protocol.Response.Error "EINVAL", Transaction.no_side_effects ())
                                 ) >>= fun (reply, side_effects) ->
-                                Transaction.get_watch side_effects |> List.rev |> Lwt_list.iter_s (Connection.watch c (Some limits)) >>= fun () ->
-                                Transaction.get_unwatch side_effects |> List.rev |> Lwt_list.iter_s (Connection.unwatch c) >>= fun () ->
-                                Transaction.get_watches side_effects |> List.rev |> Lwt_list.iter_s (Connection.fire (Some limits)) >>= fun () ->
+                                Transaction.get_watch side_effects   |> Lwt_list.iter_s (Connection.watch c (Some limits)) >>= fun () ->
+                                Transaction.get_unwatch side_effects |> Lwt_list.iter_s (Connection.unwatch c)             >>= fun () ->
+                                Transaction.get_watches side_effects |> Lwt_list.iter_s (Connection.fire (Some limits))    >>= fun () ->
                                 Lwt_list.iter_s Introduce.introduce (Transaction.get_domains side_effects) >>= fun () ->
                                 (* XXX: need to update the store root *)
                                 Database.persist side_effects >>= fun () ->
