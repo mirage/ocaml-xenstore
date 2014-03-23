@@ -35,7 +35,7 @@ let empty_store () =
 
 let none = Transaction.none
 
-let _ = Database.no_persistence ()
+let _ = Database.initialise S.NoPersistence
 
 let enable_debug = ref false
 

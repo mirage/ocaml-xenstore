@@ -136,9 +136,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
                         T.destroy t
 
 	let serve_forever persistence =
-                let (_: unit Lwt.t) = match persistence with
-                | S.NoPersistence -> Database.no_persistence ()
-                | S.Git filename -> Database.git_persistence filename in
+                Database.initialise persistence >>= fun () ->
 		lwt server = T.listen () in
 		T.accept_forever server handle_connection
 end
