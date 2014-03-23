@@ -11,6 +11,45 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
+
+module type S = sig
+  type v
+  (** The type of values within the set *)
+
+  type t
+  (** A persistent set of values of type v *)
+
+  val create: string list -> t Lwt.t
+  (** [create name]: loads the set at [name] *)
+
+  val name: t -> string list
+  (** [name t]: returns the [name] associated with the set *)
+
+  val cardinal: t -> int Lwt.t
+  (** [cardinal t]: the number of elements in the set *)
+
+  val add: v -> t -> unit Lwt.t
+  (** [add v t]: adds [v] to set [t].
+      When the thread completes the update will be in the persistent
+      store and will survive a crash. *)
+
+  val remove: v -> t -> unit Lwt.t
+  (** [remove v t]: removes [v] from the set [t].
+      When the thread completes the update will be in the persistent
+      store and will survive a crash. *)
+
+  val mem: v-> t -> bool Lwt.t
+  (** [mem v t]: true if [v] is in [t], false otherwise *)
+
+  val clear: t -> unit Lwt.t
+  (** [clear t]: deletes all bindings from map [t] *)
+
+  val fold: ('b -> v -> 'b) -> 'b -> t -> 'b Lwt.t
+  (** [fold f initial t]: folds [f] across all the elements in
+      [t] starting with [initial] *)
+end
+(** A persistent set which contains values of type v *)
+
 open Sexplib
 open Xenstore
 

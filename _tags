@@ -239,6 +239,7 @@ true: annot
 <server/symbol.ml>: pkg_sexplib.syntax
 <server/symbol.mli>: pkg_sexplib.syntax
 <server/connection.ml>: pkg_sexplib.syntax
+<server/connection.mli>: pkg_sexplib.syntax
 <server/transaction.ml{,i}>: pkg_sexplib.syntax
 <server/domain.ml{,i}>: pkg_sexplib.syntax
 <server/pRef.ml>: pkg_sexplib.syntax
