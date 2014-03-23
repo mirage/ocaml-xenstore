@@ -120,7 +120,6 @@ let fire_one limits name watch =
     else name in
   let token = snd watch.watch in
   let open Xenstore.Protocol in
-  Logging.response ~tid:0l ~con:(Uri.to_string watch.con.address) (Response.Watchevent(name, token));
   watch.count <- watch.count + 1;
   begin match limits with
   | Some limits ->
@@ -215,7 +214,6 @@ let register_transaction limits con store =
   PInt32.set (Int32.succ id) con.next_tid >>= fun () ->
   let ntrans = Transaction.make id store in
   Hashtbl.add con.transactions id ntrans;
-  Logging.start_transaction ~tid:id ~con:(Uri.to_string con.address);
   return id
 
 let unregister_transaction con tid =
@@ -237,7 +235,7 @@ let destroy address =
     return ()
   end else begin
     let c = Hashtbl.find by_address address in
-    Logging.end_connection ~tid:Transaction.none ~con:(Uri.to_string c.address);
+    info "Destroying connection to %s" (Uri.to_string c.address);
     watches := Trie.map
       (fun watches ->
         match List.filter (fun w -> w.con != c) watches with
@@ -275,7 +273,7 @@ let create (address, domid) =
       cvar = Lwt_condition.create ();
       domainpath = Store.getdomainpath domid;
     } in
-    Logging.new_connection ~tid:Transaction.none ~con:(Uri.to_string con.address);
+    info "New connection from %s" (Uri.to_string con.address);
     Hashtbl.replace by_address address con;
     Hashtbl.replace by_index con.idx con;
 
