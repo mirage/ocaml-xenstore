@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-
+open Sexplib
 open Lwt
 open Xenstore
 open Protocol
@@ -84,15 +84,8 @@ let op_exn store limits perm c t (payload: Request.t) : Response.t * Transaction
    the client. *)
 let transaction_replay store limits perm c t =
 	let ops = Transaction.get_operations t in
-        let address = Uri.to_string (Connection.address c) in
-	let con = "replay request:" ^ address in
 	let perform_exn t (request, response) =
-                let tid = Transaction.get_id t in
-		Logging.request ~tid ~con:("replay request:" ^ address) request;
-		Logging.response ~tid ~con:("replay reply1: " ^ address) response;
 		let response', side_effects = op_exn store limits perm c t request in
-		Logging.response ~tid ~con:("replay reply2: " ^ address) response';
-		Logging.response ~tid ~con response';
 		if response <> response' then begin
 			raise Transaction_again
                 end;
@@ -101,7 +94,6 @@ let transaction_replay store limits perm c t =
         let tid = Transaction.none in
 	try
                 (* Perform a test replay on a throwaway copy of the store *)
-		Logging.start_transaction ~con ~tid;
 		List.iter (fun op -> let (_: Transaction.side_effects) = perform_exn t op in ()) ops;
                 (* Replay on the live store *)
                 let t = Transaction.make Transaction.none store in
@@ -109,7 +101,6 @@ let transaction_replay store limits perm c t =
 	with e ->
 		error "transaction_replay caught: %s" (Printexc.to_string e);
                 Connection.unregister_transaction c tid;
-                Logging.conflict ~tid ~con:address;
                 raise Transaction_again
 
 let gc store =
@@ -129,8 +120,12 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 		then Transaction.make tid store
 		else Connection.get_transaction c tid in
 
-        let address = Uri.to_string (Connection.address c) in
-	Logging.request ~tid ~con:address request;
+        ( Logging_interface.request request >>= function
+          | true ->
+                debug "<-  %s %ld %s" (Uri.to_string (Connection.address c)) tid (Sexp.to_string (Request.sexp_of_t request));
+                return ()
+          | false ->
+                return () ) >>= fun () ->
 
 	match request with
 		| Request.Transaction_start ->
@@ -143,14 +138,11 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 		| Request.Transaction_end commit ->
 			Connection.unregister_transaction c tid;
 			if commit then begin
-				Logging.end_transaction ~tid ~con:address;
                                 try
                                         let side_effects = transaction_replay store limits perm c t in
-                                        Logging.commit ~tid ~con:address;
 				        return (Response.Transaction_end, side_effects)
                                 with e -> fail e
 			end else begin
-				(* Don't log an explicit abort *)
 				return (Response.Transaction_end, Transaction.no_side_effects ())
 			end
 		| Request.Watch(path, token) ->
@@ -158,16 +150,8 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 		| Request.Unwatch(path, token) ->
                         return (Response.Unwatch, Transaction.( { no_side_effects () with unwatch = [ Protocol.Name.of_string path, token ] } ))
 		| Request.Debug cmd ->
-                        (try
-		        	Perms.has perm Perms.DEBUG;
-                                return (Response.Debug (try match cmd with
-				        | "print" :: msg :: _ ->
-				                Logging.debug_print ~tid:0l ~con:address msg;
-				        	[]
-			        	| _ ->
-                                                []
-			        	with _ -> []), Transaction.no_side_effects ())
-                        with e -> fail e)
+                        (try Perms.has perm Perms.DEBUG; return () with e -> fail e) >>= fun () ->
+                        return (Response.Debug [], Transaction.no_side_effects ())
 		| Request.Introduce(domid, mfn, remote_port) ->
                         (try
 		        	Perms.has perm Perms.INTRODUCE;
@@ -207,10 +191,8 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
                         Connection.PPerms.set (Perms.restrict current domid) (Connection.perm c) >>= fun () ->
 			return (Response.Restrict, Transaction.no_side_effects ())
 		| Request.Isintroduced domid ->
-                        (try
-			        Perms.has perm Perms.ISINTRODUCED;
-			        return (Response.Isintroduced false, Transaction.no_side_effects ())
-                        with e -> fail e)
+                        (try Perms.has perm Perms.ISINTRODUCED; return () with e -> fail e) >>= fun () ->
+			return (Response.Isintroduced false, Transaction.no_side_effects ())
 		| op ->
                         (try
 			        let reply, side_effects = op_exn store limits perm c t op in
@@ -220,7 +202,6 @@ let reply_or_fail store limits perm c hdr (request: Request.t) : (Response.t * T
 
 let reply store limits perm c hdr request : (Response.t * Transaction.side_effects) Lwt.t =
   gc store;
-  let address = Uri.to_string (Connection.address c) in
   Connection.incr_nb_ops c;
   Lwt.catch
     (fun () ->
@@ -248,5 +229,10 @@ let reply store limits perm c hdr request : (Response.t * Transaction.side_effec
            failures where EINVAL is expected instead of EIO *)
         return (reply "EINVAL", default)
     ) >>= fun ((response_payload, side_effects), info) ->
-    Logging.response ~tid:hdr.Header.tid ~con:address ?info response_payload;
+    ( Logging_interface.response response_payload >>= function
+      | true ->
+        debug "-> out  %s %ld %s" (Uri.to_string (Connection.address c)) hdr.Header.tid (Sexp.to_string (Response.sexp_of_t response_payload));
+        return ()
+      | false ->
+        return () ) >>= fun () ->
     return (response_payload, side_effects)

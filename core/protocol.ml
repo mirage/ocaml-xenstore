@@ -69,6 +69,9 @@ module Op = struct
   | Restrict
   with sexp
 
+  let to_string t = Sexp.to_string (sexp_of_t t)
+  let of_string s = t_of_sexp (Sexp.of_string s)
+
   (* The index of the value in the array is the integer representation used
      by the wire protocol. Every element of t exists exactly once in the array. *)
   let on_the_wire =

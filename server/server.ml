@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-
+open Sexplib
 open Lwt
 open Xenstore
 open Protocol
@@ -62,6 +62,12 @@ module Make = functor(T: S.TRANSPORT) -> struct
 			Lwt_list.iter_s
 				(fun (path, token) ->
                                         let reply = Protocol.Response.Watchevent(path, token) in
+                                        ( Logging_interface.response reply >>= function
+                                          | true ->
+                                            debug "-> out  %s %ld %s" (Uri.to_string address) 0l (Sexp.to_string (Response.sexp_of_t reply));
+                                            return ()
+                                          | false ->
+                                            return () ) >>= fun () ->
                                         let next = Protocol.Response.marshal reply payload_buf in
                                         let len = next.Cstruct.off in
                                         let payload_buf' = Cstruct.sub payload_buf 0 len in
