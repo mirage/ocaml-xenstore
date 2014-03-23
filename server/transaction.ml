@@ -22,7 +22,8 @@ let test_eagain = ref false
 
 type side_effects = {
         (* A log of all the store updates in this transaction. When the transaction
-           is committed, these paths need to be committed to stable storage. *) 
+           is committed, these paths need to be committed to stable storage.
+           The list is stored in reverse order for constant-{time,space} append. *)
         mutable updates: Store.update list;
         (* A log of updates which should generate a watch events. Note this can't
            be derived directly from [updates] above because implicit directory

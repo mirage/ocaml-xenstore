@@ -27,12 +27,15 @@ let persister, persister_wakener = Lwt.task ()
 
 let persist side_effects =
   persister >>= fun p ->
-  Lwt_list.iter_s p side_effects.Transaction.updates
+  Lwt_list.iter_s p (List.rev side_effects.Transaction.updates)
 
 let initialise = function
 | S.NoPersistence ->
   let s = Store.create () in
-  Lwt.wakeup persister_wakener (fun _ -> return ());
+  Lwt.wakeup persister_wakener (fun u ->
+    debug "Not persisting %s" (Sexp.to_string (Store.sexp_of_update u));
+    return ()
+  );
   Lwt.wakeup store_wakener s;
   return ()
 | S.Git filename ->
@@ -71,26 +74,22 @@ let initialise = function
   let store = Store.create () in
   let t = Transaction.make Transaction.none store in
   DB.contents db >>= fun contents ->
+  (* Sort into order of path length, so we create directories before we need them *)
+  let contents = List.sort (fun (path, _) (path', _) -> compare (List.length path) (List.length path')) contents in
   List.iter
     (fun (path, value) ->
-     match List.fold_left
-        (fun path element ->
-          if endswith dir_suffix element then begin
-            let element = remove_suffix dir_suffix element in
-            let path' = Protocol.Path.of_string_list (List.rev (element :: path)) in
-            if not(Transaction.exists t (Perms.of_domain 0) path')
-            then Transaction.mkdir t None 0 (Perms.of_domain 0) path';
-            element :: path
-          end else element :: path
-        ) [] path with
-      | [] -> ()
-      | file :: dir when endswith value_suffix file ->
-        let element = remove_suffix value_suffix file in
-        let contents = Node.contents_of_sexp (Sexp.of_string value) in
-        let path = Protocol.Path.of_string_list (List.rev (element :: dir)) in
-        Transaction.write t None contents.Node.creator (Perms.of_domain 0) path contents.Node.value;
-        Transaction.setperms t (Perms.of_domain 0) path contents.Node.perms
-      | _ -> ()
+     debug "%s <- %s" (String.concat "/" path) value;
+     (* The keys are always of the form foo.dir/bar.dir/baz.value
+        The List.sort guarantees that foo.value will have been processed before foo.dir/bar.value *)
+     let path = List.map (fun element ->
+        if endswith dir_suffix element then remove_suffix dir_suffix element
+        else if endswith value_suffix element then remove_suffix value_suffix element
+        else element (* should never happen *)
+     ) path in
+     let contents = Node.contents_of_sexp (Sexp.of_string value) in
+     let path = Protocol.Path.of_string_list path in
+     Transaction.write t None contents.Node.creator (Perms.of_domain 0) path contents.Node.value;
+     Transaction.setperms t (Perms.of_domain 0) path contents.Node.perms
     ) contents;
   Lwt.wakeup persister_wakener p;
   Lwt.wakeup store_wakener store;
