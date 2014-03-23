@@ -48,6 +48,9 @@ module Op : sig
   with sexp
   (** The type of xenstore operation. *)
 
+  val to_string: t -> string
+  val of_string: string -> t
+
   val all: t list
   (** All known operations *)
 

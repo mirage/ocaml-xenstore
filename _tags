@@ -246,6 +246,7 @@ true: annot
 <server/limits.ml{,i}>: pkg_sexplib.syntax
 <server/perms.ml>: pkg_sexplib.syntax
 <server/perms.mli>: pkg_sexplib.syntax
+<server/logging_interface.ml>: pkg_sexplib.syntax
 <cli/*.ml>: pkg_lwt.syntax
 <bench/*.ml>: pkg_lwt.syntax
 <core>: include
