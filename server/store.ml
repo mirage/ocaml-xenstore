@@ -29,7 +29,7 @@ type t =
 } with sexp
 
 type update =
-| Write of Protocol.Path.t * Protocol.ACL.t * string
+| Write of Protocol.Path.t * Node.contents
 | Rm of Protocol.Path.t
 with sexp
 
@@ -48,7 +48,7 @@ let exists store path = match Node.lookup store.root path with
 | Some _ -> true
 
 let update_of_path store path = match Node.lookup store.root path with
-| Some n -> Write(path, Node.get_perms n, Node.get_value n)
+| Some n -> Write(path, Node.get_contents n)
 | None -> assert false
 
 let mkdir store limits creator perm path =

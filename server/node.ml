@@ -14,32 +14,38 @@
 open Sexplib.Std
 open Xenstore
 
+type contents = {
+  creator: int;
+  perms: Protocol.ACL.t;
+  value: string;
+} with sexp
+
 type t = {
-	name: Symbol.t;
-	creator: int;
-	perms: Protocol.ACL.t;
-	value: string;
-	children: t list;
+  name: Symbol.t;
+  contents: contents;
+  children: t list;
 } with sexp
 
 let create _name _creator _perms _value =
-	{ name = Symbol.of_string _name; creator = _creator; perms = _perms; value = _value; children = []; }
+        { name = Symbol.of_string _name; contents = { creator = _creator; perms = _perms; value = _value }; children = []; }
 
-let get_creator node = node.creator
+let get_contents node = node.contents
+
+let get_creator node = node.contents.creator
 
 let get_name node = Symbol.to_string node.name
 
 let get_symbol node = node.name
 
-let get_value node = node.value
+let get_value node = node.contents.value
 
 let set_value node nvalue = 
-	if node.value = nvalue
+	if node.contents.value = nvalue
 	then node
-	else { node with value = nvalue }
+        else { node with contents = { node.contents with value = nvalue } }
 
-let set_perms node nperms = { node with perms = nperms }
-let get_perms node = node.perms
+let set_perms node nperms = { node with contents = { node.contents with perms = nperms } }
+let get_perms node = node.contents.perms
 
 let get_children node = node.children
 
@@ -80,7 +86,7 @@ let del_all_children node =
 let rec fold f node acc =
   List.fold_left (fun acc node -> fold f node acc) (f acc node) node.children
 
-let unpack node = (Symbol.to_string node.name, node.perms, node.value)
+let unpack node = (Symbol.to_string node.name, node.contents.perms, node.contents.value)
 
 open Protocol.Path
 

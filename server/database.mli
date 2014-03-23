@@ -14,16 +14,15 @@
 
 open Xenstore
 
-val no_persistence: unit -> unit Lwt.t
-(** a thread which throws all side-effects away *)
-
-val git_persistence: string -> unit Lwt.t
-(** [git_persistence filename]: a thread which persists all side-effects
-    to the database at [filename] *)
-
 val persist: Transaction.side_effects -> unit Lwt.t
 (** Persists the given side-effects. Make sure you start exactly one
     persistence thread *)
 
 val store: Store.t Lwt.t
 (** The in-memory copy of the database *)
+
+val initialise: S.persistence -> unit Lwt.t
+(** [initialise persistence-policy] initialises the database. If
+    [persistence-policy] is [NoPersistence] then all updates are discarded.
+    If [persistence-policy] is [Git path] then all updates are
+    stored in a git database located at [path] *)

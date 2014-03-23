@@ -16,6 +16,13 @@ open Xenstore
 type t with sexp
 (** A Node in the main xenstore tree *)
 
+type contents = {
+  creator: int;
+  perms: Protocol.ACL.t;
+  value: string;
+} with sexp
+(** The data contained within a Node in the tree *)
+
 val create : string -> int -> Protocol.ACL.t -> string -> t
 (** [create name creator perms value] returns fresh Node.t *)
 
@@ -25,6 +32,9 @@ val fold: ('a -> t -> 'a) -> t -> 'a -> 'a
 
 val get_name: t -> string
 (** [get_name t] returns the string name associated with [t] *)
+
+val get_contents: t -> contents
+(** [get_contents t] returns the contents within node [t] *)
 
 val get_symbol: t -> Symbol.t
 (** [get_symbol t] returns the symbol representing the name associated with [t] *)

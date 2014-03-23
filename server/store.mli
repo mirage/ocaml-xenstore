@@ -23,7 +23,7 @@ type t =
 } with sexp
 
 type update =
-| Write of Protocol.Path.t * Protocol.ACL.t * string
+| Write of Protocol.Path.t * Node.contents
 | Rm of Protocol.Path.t
 with sexp
 
