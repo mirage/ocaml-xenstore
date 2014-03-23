@@ -66,16 +66,9 @@ let get (logger: logger) =
 (* General system logging *)
 let logger = create 512
 
-(* Operation logging *)
-let access_logger = create 512
-
 type level = Debug | Info | Warn | Error | Null
 
 let log_level = ref Warn
-
-let int_of_level = function
-	| Debug -> 0 | Info -> 1 | Warn -> 2
-	| Error -> 3 | Null -> max_int
 
 let string_of_level = function
 	| Debug -> "debug" | Info -> "info" | Warn -> "warn"

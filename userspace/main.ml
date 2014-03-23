@@ -75,7 +75,6 @@ let program_thread daemon path pidfile enable_xen enable_unix irmin_path =
 
   info "User-space xenstored version %s starting" Version.version;
   let (_: 'a) = logging_thread daemon Logging.logger in
-  let (_: 'a) = logging_thread daemon Logging.access_logger in
 
   let persistence = match irmin_path with
   | None ->
