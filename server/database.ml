@@ -49,6 +49,13 @@ let initialise = function
   let dir_of_filename path =
     List.rev (List.map (fun x -> x ^ dir_suffix) (List.rev (Protocol.Path.to_string_list path))) in
 
+  let remove_suffix suffix x =
+    let suffix' = String.length suffix and x' = String.length x in
+    String.sub x 0 (x' - suffix') in
+  let endswith suffix x =
+    let suffix' = String.length suffix and x' = String.length x in
+    suffix' <= x' && (String.sub x (x' - suffix') suffix' = suffix) in
+
   let p = function
     | Store.Write(path, perm, value) ->
       Printf.fprintf stderr "+ %s\n%!" (Protocol.Path.to_string path);
@@ -61,7 +68,27 @@ let initialise = function
         DB.remove db (dir_of_filename path) >>= fun () ->
         DB.remove db (value_of_filename path)
       with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e)); return ()) in
-  let s = Store.create () in
+  let store = Store.create () in
+  let t = Transaction.make Transaction.none store in
+  DB.contents db >>= fun contents ->
+  List.iter
+    (fun (path, value) ->
+     match List.fold_left
+        (fun path element ->
+          if endswith dir_suffix element then begin
+            let element = remove_suffix dir_suffix element in
+            let path' = Protocol.Path.of_string_list (List.rev (element :: path)) in
+            if not(Transaction.exists t (Perms.of_domain 0) path')
+            then Transaction.mkdir t None 0 (Perms.of_domain 0) path';
+            element :: path
+          end else element :: path
+        ) [] path with
+      | [] -> ()
+      | file :: dir when endswith value_suffix file ->
+        let element = remove_suffix value_suffix file in
+        Transaction.write t None 0 (Perms.of_domain 0) (Protocol.Path.of_string_list (List.rev (element :: dir))) value
+      | _ -> ()
+    ) contents;
   Lwt.wakeup persister_wakener p;
-  Lwt.wakeup store_wakener s;
+  Lwt.wakeup store_wakener store;
   return ()
