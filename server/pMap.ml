@@ -103,4 +103,10 @@ module Make(K: S.STRINGABLE)(T: S.SEXPABLE) = struct
           | None -> Some(k, v)
           | Some (k', v') when k' < k -> Some (k, v)
           | x -> x) None t
+
+  let min_binding t =
+    fold (fun best k v -> match best with
+          | None -> Some(k, v)
+          | Some (k', v') when k' > k -> Some (k, v)
+          | x -> x) None t
 end
