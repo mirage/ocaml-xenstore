@@ -29,7 +29,22 @@ let return x = return x
 let ( >>= ) m f = m >>= f
 
 (* Individual connections *)
-type channel = Lwt_unix.file_descr * Lwt_unix.sockaddr
+type channel = {
+  fd: Lwt_unix.file_descr;
+  sockaddr: Lwt_unix.sockaddr;
+  in_buffer: Cstruct.t;
+  mutable in_seq: int32;
+  out_buffer: Cstruct.t;
+  mutable out_seq: int32;
+}
+
+let alloc (fd, sockaddr) =
+  let in_buffer = Cstruct.create 4096 in
+  let out_buffer = Cstruct.create 4096 in
+  let in_seq = 0l in
+  let out_seq = 0l in
+  return { fd; sockaddr; in_buffer; in_seq; out_buffer; out_seq }
+
 let create () =
   let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
   let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
@@ -43,9 +58,10 @@ let create () =
       with _ ->
         lwt () = Lwt_unix.sleep interval in
         retry (n + 1) (interval +. 0.1) in
-  lwt () = retry 0 initial_retry_interval in
-  return (fd, sockaddr)
-let destroy (fd, _) = Lwt_unix.close fd
+  retry 0 initial_retry_interval >>= fun () ->
+  alloc (fd, sockaddr)
+
+let destroy { fd } = Lwt_unix.close fd
 
 let complete op fd buf =
   let ofs = buf.Cstruct.off in
@@ -63,15 +79,39 @@ let complete op fd buf =
   then fail End_of_file
   else return ()
 
-let read (fd, _) = complete Lwt_bytes.read fd
-let write (fd, _) = complete Lwt_bytes.write fd
+module Reader = struct
+  type t = channel
+
+  let next t =
+    Lwt_bytes.read t.fd t.in_buffer.Cstruct.buffer t.in_buffer.Cstruct.off t.in_buffer.Cstruct.len >>= fun n ->
+    return (t.in_seq, Cstruct.sub t.in_buffer 0 n)
+
+  let ack t seq =
+    t.in_seq <- seq;
+    return ()
+end
+
+module Writer = struct
+  type t = channel
+
+  let next t =
+    return (t.out_seq, t.out_buffer)
+
+  let ack t seq =
+    complete Lwt_bytes.write t.fd (Cstruct.sub t.out_buffer 0 Int32.(to_int (sub seq t.out_seq))) >>= fun () ->
+    t.out_seq <- seq;
+    return ()
+end
+
+let read { fd } = complete Lwt_bytes.read fd
+let write { fd } = complete Lwt_bytes.write fd
 
 let int_of_file_descr fd =
 	let fd = Lwt_unix.unix_file_descr fd in
 	let (fd: int) = Obj.magic fd in
 	fd
 
-let address_of (fd, _) =
+let address_of { fd } =
 	let creds = Lwt_unix.get_credentials fd in
 	let pid = creds.Lwt_unix.cred_pid in
 	lwt cmdline =
@@ -112,11 +152,11 @@ let listen () =
 
 let rec accept_forever fd process =
   lwt conns, _ (*exn_option*) = Lwt_unix.accept_n fd 16 in
-  let (_: unit Lwt.t list) = List.map process conns in
+  let (_: unit Lwt.t list) = List.map (fun x -> alloc x >>= process) conns in
   accept_forever fd process
 
 module Introspect = struct
-  let read (fd, _) = function
+  let read { fd } = function
     | [ "readable" ] -> Some (string_of_bool (Lwt_unix.readable fd))
     | [ "writable" ] -> Some (string_of_bool (Lwt_unix.writable fd))
     | _ -> None

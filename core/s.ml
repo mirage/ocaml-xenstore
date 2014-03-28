@@ -31,6 +31,19 @@ module type IO = sig
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 end
 
+module type SHARED_MEMORY_CHANNEL = sig
+  type t
+  (** a one-directional shared-memory channel *)
+
+  val next: t -> (int32 * Cstruct.t) Lwt.t
+  (** [next s] returns [ofs, chunk] where [chunk] is the data
+      starting at offset [ofs]. *)
+
+  val ack: t -> int32 -> unit Lwt.t
+  (** [ack s ofs] acknowledges that data before [ofs] has
+      been processed. *)
+end
+
 module type TRANSPORT = sig
   include IO
 
@@ -39,6 +52,10 @@ module type TRANSPORT = sig
 
   type channel
   val create: unit -> channel t
+
+  module Reader: SHARED_MEMORY_CHANNEL with type t = channel
+  module Writer: SHARED_MEMORY_CHANNEL with type t = channel
+
   val read: channel -> Cstruct.t -> unit t
   val write: channel -> Cstruct.t -> unit t
   val destroy: channel -> unit t

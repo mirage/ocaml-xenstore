@@ -12,19 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 
-module type STREAM_READER = sig
-  type s
-  (** a stream of data *)
-
-  val next: s -> (int32 * Cstruct.t) Lwt.t
-  (** [next s] returns [ofs, chunk] where [chunk] is the data
-      starting at offset [ofs]. *)
-
-  val ack: s -> int32 -> unit Lwt.t
-  (** [ack s ofs] acknowledges that data before [ofs] has
-      been processed. *)
-end
-
 module type S = sig
   type s
   (** a stream of data *)
@@ -57,23 +44,23 @@ let error fmt = Logging.debug "pBinStream" fmt
 
 open Lwt
 
-module Make(S: STREAM_READER) = struct
+module Make(C: S.SHARED_MEMORY_CHANNEL) = struct
   module M = PMap.Make(Int32)(struct type t = string with sexp end)
 
   type t = {
-    s: S.s;
+    c: C.t;
     mutable root: M.t;
   }
 
-  let create name s =
+  let create name c =
     M.create name >>= fun root ->
-    return { s; root }
+    return { c; root }
 
   let read_one t =
-    S.next t.s >>= fun (offset, buffer) ->
+    C.next t.c >>= fun (offset, buffer) ->
     let string = Cstruct.to_string buffer in
     M.add offset string t.root >>= fun () ->
-    S.ack t.s offset >>= fun () ->
+    C.ack t.c offset >>= fun () ->
     return (offset, string)
 
   let read t buffer ofs =

@@ -164,6 +164,24 @@ let create_domU address =
 let create () =
   failwith "It's not possible to directly 'create' an interdomain ring."
 
+module Reader = struct
+  type t = channel
+
+  let rec next t =
+    let seq, available = Xenstore_ring.Ring.Back.read_prepare t.ring in
+    let available_bytes = Cstruct.len available in
+    if available_bytes = 0 then begin
+      Lwt_condition.wait t.c >>= fun () ->
+      next t
+    end else return (seq, available) 
+
+  let ack t seq =
+    Xenstore_ring.Ring.Back.read_commit t.ring seq;
+    Eventchn.(notify (init ()) (of_int t.port));
+    return ()
+end
+
+
 let read t buf =
   let rec loop buf =
     if Cstruct.len buf = 0
@@ -184,6 +202,22 @@ let read t buf =
         loop (Cstruct.shift buf consumable)
       end in
   loop buf
+
+module Writer = struct
+  type t = channel
+  let rec next t =
+    let seq, available = Xenstore_ring.Ring.Back.write_prepare t.ring in
+    let available_bytes = Cstruct.len available in
+    if available_bytes = 0 then begin
+      Lwt_condition.wait t.c >>= fun () ->
+      next t
+    end else return (seq, available)
+
+  let ack t seq =
+    Xenstore_ring.Ring.Back.write_commit t.ring seq;
+    Eventchn.(notify (init ()) (of_int t.port));
+    return ()
+end
 
 let write t buf =
   let rec loop buf =
