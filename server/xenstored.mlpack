@@ -1,11 +1,12 @@
 # OASIS_START
-# DO NOT EDIT (digest: b7ec18cb21a7757ab4415cf806e9a4d9)
+# DO NOT EDIT (digest: fef2cf9290e1529715fedd5c0aa82bce)
 Logging
 PRef
 PSet
 PMap
 PQueue
-PBinStream
+PBinReader
+PBinWriter
 Logging_interface
 Connection
 Call

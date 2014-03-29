@@ -49,8 +49,8 @@ module Make = functor(T: S.TRANSPORT) -> struct
     end in
     (module Interface: Tree.S)
 
-  module PReader = PBinStream.Make(T.Reader)
-  module PWriter = PBinStream.Make(T.Writer)
+  module PReader = PBinReader.Make(T.Reader)
+  module PWriter = PBinWriter.Make(T.Writer)
 
 	let handle_connection t =
 		lwt address = T.address_of t in
