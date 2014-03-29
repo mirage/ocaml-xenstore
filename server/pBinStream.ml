@@ -56,6 +56,8 @@ module Make(C: S.SHARED_MEMORY_CHANNEL) = struct
     M.create name >>= fun root ->
     return { c; root }
 
+  let destroy t = M.clear t.root
+
   let read_one t =
     C.next t.c >>= fun (offset, buffer) ->
     let string = Cstruct.to_string buffer in

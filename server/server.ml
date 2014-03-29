@@ -57,7 +57,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
                 let dom = T.domain_of t in
 		let interface = introspect t in
 		Connection.create (address, dom) >>= fun c ->
-                let connection_path = Protocol.Path.of_string (Printf.sprintf "/tool/xenstored/transport/%s/%d" (match Uri.scheme address with Some x -> x | None -> "unknown") (Connection.index c)) in
+                let special_path name = [ "tool"; "xenstored"; name; (match Uri.scheme address with Some x -> x | None -> "unknown"); string_of_int (Connection.index c) ] in
                 (* Hold this mutex only when marshalling to the buffers and writing
                    to the channel to prevent corruption *)
 		let m = Lwt_mutex.create () in
@@ -90,8 +90,10 @@ module Make = functor(T: S.TRANSPORT) -> struct
 						flush_watch_events header_buf payload_buf w
 					)
 			done in
-
+                let connection_path = Protocol.Path.of_string_list (special_path "transport") in
                 Mount.mount connection_path interface >>= fun () ->
+                PReader.create (special_path "reader") t >>= fun reader ->
+                PWriter.create (special_path "writer") t >>= fun writer ->
 		try_lwt
 			lwt () =
                         let header_buf = Cstruct.create Protocol.Header.sizeof in
@@ -135,6 +137,8 @@ module Make = functor(T: S.TRANSPORT) -> struct
 			Lwt.cancel background_watch_event_flusher;
 			Connection.destroy address >>= fun () ->
                         Mount.unmount connection_path >>= fun () ->
+                        PReader.destroy reader >>= fun () ->
+                        PWriter.destroy writer >>= fun () ->
                         Quota.remove dom >>= fun () ->
                         T.destroy t
 
