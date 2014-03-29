@@ -67,9 +67,10 @@ module Make(C: S.SHARED_MEMORY_CHANNEL) = (struct
 
   let read_one t =
     C.next t.c >>= fun (offset, buffer) ->
+    ( if Cstruct.len buffer = 0 then fail End_of_file else return () ) >>= fun () ->
     let string = Cstruct.to_string buffer in
     M.add offset string t.root >>= fun () ->
-    C.ack t.c offset >>= fun () ->
+    C.ack t.c (Int64.(add offset (of_int (Cstruct.len buffer)))) >>= fun () ->
     return (offset, string)
 
   let read t buffer ofs =
