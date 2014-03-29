@@ -19,8 +19,11 @@ module type S = sig
   type t
   (** A persistent binary stream of data *)
 
-  val create: string list -> t Lwt.t
-  (** [create name]: loads the buffer at [name] *)
+  val create: string list -> s -> t Lwt.t
+  (** [create name]: loads the stream at [name] *)
+
+  val destroy: t -> unit Lwt.t
+  (** [destroy t]: permanently deletes the persistent stream *)
 
   val read: t -> Cstruct.t -> int32 -> Cstruct.t option Lwt.t
   (** [read t buffer ofs]: returns a chunk of data starting
@@ -44,8 +47,10 @@ let error fmt = Logging.debug "pBinStream" fmt
 
 open Lwt
 
-module Make(C: S.SHARED_MEMORY_CHANNEL) = struct
+module Make(C: S.SHARED_MEMORY_CHANNEL) = (struct
   module M = PMap.Make(Int32)(struct type t = string with sexp end)
+
+  type s = C.t
 
   type t = {
     c: C.t;
@@ -116,4 +121,4 @@ module Make(C: S.SHARED_MEMORY_CHANNEL) = struct
         then M.remove offset t.root
         else return ()
       ) all
-end
+end: S with type s = C.t)
