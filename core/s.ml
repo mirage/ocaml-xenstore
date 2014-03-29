@@ -35,11 +35,11 @@ module type SHARED_MEMORY_CHANNEL = sig
   type t
   (** a one-directional shared-memory channel *)
 
-  val next: t -> (int32 * Cstruct.t) Lwt.t
+  val next: t -> (int64 * Cstruct.t) Lwt.t
   (** [next s] returns [ofs, chunk] where [chunk] is the data
       starting at offset [ofs]. *)
 
-  val ack: t -> int32 -> unit Lwt.t
+  val ack: t -> int64 -> unit Lwt.t
   (** [ack s ofs] acknowledges that data before [ofs] has
       been processed. *)
 end

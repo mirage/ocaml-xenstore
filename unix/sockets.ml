@@ -33,16 +33,16 @@ type channel = {
   fd: Lwt_unix.file_descr;
   sockaddr: Lwt_unix.sockaddr;
   in_buffer: Cstruct.t;
-  mutable in_seq: int32;
+  mutable in_seq: int64;
   out_buffer: Cstruct.t;
-  mutable out_seq: int32;
+  mutable out_seq: int64;
 }
 
 let alloc (fd, sockaddr) =
   let in_buffer = Cstruct.create 4096 in
   let out_buffer = Cstruct.create 4096 in
-  let in_seq = 0l in
-  let out_seq = 0l in
+  let in_seq = 0L in
+  let out_seq = 0L in
   return { fd; sockaddr; in_buffer; in_seq; out_buffer; out_seq }
 
 let create () =
@@ -98,7 +98,7 @@ module Writer = struct
     return (t.out_seq, t.out_buffer)
 
   let ack t seq =
-    complete Lwt_bytes.write t.fd (Cstruct.sub t.out_buffer 0 Int32.(to_int (sub seq t.out_seq))) >>= fun () ->
+    complete Lwt_bytes.write t.fd (Cstruct.sub t.out_buffer 0 Int64.(to_int (sub seq t.out_seq))) >>= fun () ->
     t.out_seq <- seq;
     return ()
 end

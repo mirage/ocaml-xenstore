@@ -173,10 +173,10 @@ module Reader = struct
     if available_bytes = 0 then begin
       Lwt_condition.wait t.c >>= fun () ->
       next t
-    end else return (seq, available) 
+    end else return (Int64.of_int32 seq, available) 
 
   let ack t seq =
-    Xenstore_ring.Ring.Back.read_commit t.ring seq;
+    Xenstore_ring.Ring.Back.read_commit t.ring (Int64.to_int32 seq);
     Eventchn.(notify (init ()) (of_int t.port));
     return ()
 end
@@ -211,10 +211,10 @@ module Writer = struct
     if available_bytes = 0 then begin
       Lwt_condition.wait t.c >>= fun () ->
       next t
-    end else return (seq, available)
+    end else return (Int64.of_int32 seq, available)
 
   let ack t seq =
-    Xenstore_ring.Ring.Back.write_commit t.ring seq;
+    Xenstore_ring.Ring.Back.write_commit t.ring (Int64.to_int32 seq);
     Eventchn.(notify (init ()) (of_int t.port));
     return ()
 end
