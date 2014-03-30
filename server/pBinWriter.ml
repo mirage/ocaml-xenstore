@@ -25,12 +25,12 @@ module type S = sig
   val destroy: t -> unit Lwt.t
   (** [destroy t]: permanently deletes the persistent stream *)
 
-  val write: t -> Cstruct.t -> int64 -> unit Lwt.t
+  val write: t -> Cstruct.t -> int64 -> int64 Lwt.t
   (** [write t buffer ofs]: inserts a chunk of data at offset [ofs]
       into the output stream. For simplicity we assume the chunks
       are all non-overlapping. *)
 
-  val sync: t -> unit Lwt.t
+  val sync: t -> int64 option Lwt.t
   (** [sync t]: ensures that as much queued data as possible is
       written. *)
 end
@@ -79,7 +79,8 @@ module Make(C: S.SHARED_MEMORY_CHANNEL) = (struct
   let destroy t = M.clear t.root
 
   let write t buf ofs =
-    M.add ofs (Cstruct.to_string buf) t.root
+    M.add ofs (Cstruct.to_string buf) t.root >>= fun () ->
+    return Int64.(add ofs (of_int (Cstruct.len buf)))
 
   let sync t =
     C.next t.c >>= fun (offset, buffer) ->
@@ -87,16 +88,19 @@ module Make(C: S.SHARED_MEMORY_CHANNEL) = (struct
     List.iter (blit_fragment (offset, buffer)) all;
     (* acknowledge the data we successfully wrote *)
     ( match List.sort (fun (a, _) (b, _) -> compare b a) all with
-      | [] -> return ()
+      | [] -> return None
       | (ofs, string) :: _ ->
         let max_data_avail = Int64.(add ofs (of_int (String.length string))) in
-        let written = min (Int64.of_int (Cstruct.len buffer)) (Int64.sub max_data_avail offset) in
-        C.ack t.c written ) >>= fun () ->
+        let written_relative_to_buffer = min (Int64.of_int (Cstruct.len buffer)) (Int64.sub max_data_avail offset) in
+        let written_offset = Int64.add offset written_relative_to_buffer in
+        C.ack t.c written_offset >>= fun () ->
+        return (Some written_offset) ) >>= fun written_offset ->
     (* clear uneeded data *)
     Lwt_list.iter_s
       (fun (ofs, buf) ->
         if Int64.(add ofs (of_int (String.length buf))) <= Int64.(add offset (of_int (Cstruct.len buffer)))
         then M.remove ofs t.root
         else return ()
-      ) all
+      ) all >>= fun () ->
+    return written_offset
 end: S with type s = C.t)

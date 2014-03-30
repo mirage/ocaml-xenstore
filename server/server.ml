@@ -97,7 +97,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
 		try_lwt
                         let header_buf = Cstruct.create Protocol.Header.sizeof in
                         let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
-                        let rec loop ofs =
+                        let rec loop ofs write_ofs =
                                 PReader.read reader header_buf ofs >>= fun ok ->
                                 (if not ok then fail End_of_file else return ()) >>= fun () ->
                                 fail_on_error (Protocol.Header.unmarshal header_buf) >>= fun hdr ->
@@ -132,12 +132,18 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                                 let ty = Protocol.Response.get_ty reply in
                                                 let hdr = { hdr with Protocol.Header.ty; len } in
                                                 ignore(Protocol.Header.marshal hdr header_buf);
-                                                T.write t header_buf >>= fun () ->
-                                                T.write t payload_buf'
-					) >>= fun () ->
+                                                PWriter.write writer header_buf write_ofs >>= fun write_ofs ->
+                                                PWriter.write writer payload_buf' write_ofs >>= fun write_ofs ->
+                                                PWriter.sync writer >>= function
+                                                | None ->
+                                                        error "PWriter.sync failed: closing channel";
+                                                        fail End_of_file
+                                                | Some write_ofs ->
+                                                        return write_ofs
+					) >>= fun write_ofs ->
                                 PReader.ack reader ofs >>= fun () ->
-                                loop ofs in
-			loop 0L
+                                loop ofs write_ofs in
+			loop 0L 0L
 		with e ->
 			Lwt.cancel background_watch_event_flusher;
 			Connection.destroy address >>= fun () ->
