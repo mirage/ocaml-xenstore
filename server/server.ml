@@ -58,29 +58,41 @@ module Make = functor(T: S.TRANSPORT) -> struct
 		let interface = introspect t in
 		Connection.create (address, dom) >>= fun c ->
                 let special_path name = [ "tool"; "xenstored"; name; (match Uri.scheme address with Some x -> x | None -> "unknown"); string_of_int (Connection.index c) ] in
+                PReader.create (special_path "reader") t >>= fun reader ->
+                PWriter.create (special_path "writer") t >>= fun writer ->
                 (* Hold this mutex only when marshalling to the buffers and writing
                    to the channel to prevent corruption *)
 		let m = Lwt_mutex.create () in
-		let flush_watch_events header_buf payload_buf q =
-			Lwt_list.iter_s
-				(fun (path, token) ->
-                                        let reply = Protocol.Response.Watchevent(path, token) in
-                                        ( Logging_interface.response reply >>= function
-                                          | true ->
-                                            debug "-> out  %s %ld %s" (Uri.to_string address) 0l (Sexp.to_string (Response.sexp_of_t reply));
-                                            return ()
-                                          | false ->
-                                            return () ) >>= fun () ->
-                                        let next = Protocol.Response.marshal reply payload_buf in
-                                        let len = next.Cstruct.off in
-                                        let payload_buf' = Cstruct.sub payload_buf 0 len in
-                                        let hdr = { Header.tid = 0l; rid = 0l; ty = Protocol.Op.Watchevent; len } in
-                                        ignore (Protocol.Header.marshal hdr header_buf);
-                                        T.write t header_buf >>= fun () ->
-                                        T.write t payload_buf' >>= fun () ->
-                                        return ()
-				) q in
+                let reply_buf = Cstruct.create (Protocol.Header.sizeof + Protocol.xenstore_payload_max) in
+                let write write_ofs response =
+                  Lwt_mutex.with_lock m
+                    (fun () ->
+                      ( Logging_interface.response response >>= function
+                        | true ->
+                          debug "-> out  %s %ld %s" (Uri.to_string address) 0l (Sexp.to_string (Response.sexp_of_t response));
+                          return ()
+                        | false ->
+                          return () ) >>= fun () ->
+                      let next = Protocol.Response.marshal response (Cstruct.shift reply_buf Protocol.Header.sizeof) in
+                      let len = next.Cstruct.off in
+                      let reply_buf' = Cstruct.sub reply_buf 0 len in
+                      let hdr = { Header.tid = 0l; rid = 0l; ty = Protocol.Op.Watchevent; len } in
+                      ignore (Protocol.Header.marshal hdr reply_buf);
+                      PWriter.write writer reply_buf' write_ofs >>= fun write_ofs ->
+                      PWriter.sync writer >>= function
+                      | None ->
+                        error "PWriter.sync failed: closing channel";
+                        fail End_of_file
+                      | Some write_ofs ->
+                        return write_ofs
+                    ) in
+
+		let flush_watch_events write_ofs q =
+                        q |> List.map (fun (path, token) -> Protocol.Response.Watchevent(path, token))
+                          |> Lwt_list.fold_left_s write write_ofs in
 		let (background_watch_event_flusher: unit Lwt.t) =
+                        return ()
+                        (*
 			while_lwt true do
                                 let header_buf = Cstruct.create Protocol.Header.sizeof in
                                 let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
@@ -89,14 +101,10 @@ module Make = functor(T: S.TRANSPORT) -> struct
 					(fun () ->
 						flush_watch_events header_buf payload_buf w
 					)
-			done in
-                let connection_path = Protocol.Path.of_string_list (special_path "transport") in
+			done *) in
+        let connection_path = Protocol.Path.of_string_list (special_path "transport") in
                 Mount.mount connection_path interface >>= fun () ->
-                PReader.create (special_path "reader") t >>= fun reader ->
-                PWriter.create (special_path "writer") t >>= fun writer ->
 		try_lwt
-                        let header_buf = Cstruct.create Protocol.Header.sizeof in
-                        let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
                         let rec loop ofs write_ofs =
                                 PReader.read reader header_buf ofs >>= fun ok ->
                                 (if not ok then fail End_of_file else return ()) >>= fun () ->
@@ -123,24 +131,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                 Lwt_list.iter_s Introduce.introduce (Transaction.get_domains side_effects) >>= fun () ->
                                 (* XXX: need to update the store root *)
                                 Database.persist side_effects >>= fun () ->
-				Lwt_mutex.with_lock m
-					(fun () ->
-						lwt () = flush_watch_events header_buf payload_buf events in
-                                                let next = Protocol.Response.marshal reply payload_buf in
-                                                let len = next.Cstruct.off in
-                                                let payload_buf' = Cstruct.sub payload_buf 0 len in
-                                                let ty = Protocol.Response.get_ty reply in
-                                                let hdr = { hdr with Protocol.Header.ty; len } in
-                                                ignore(Protocol.Header.marshal hdr header_buf);
-                                                PWriter.write writer header_buf write_ofs >>= fun write_ofs ->
-                                                PWriter.write writer payload_buf' write_ofs >>= fun write_ofs ->
-                                                PWriter.sync writer >>= function
-                                                | None ->
-                                                        error "PWriter.sync failed: closing channel";
-                                                        fail End_of_file
-                                                | Some write_ofs ->
-                                                        return write_ofs
-					) >>= fun write_ofs ->
+                                write write_ofs reply >>= fun write_ofs ->
                                 PReader.ack reader ofs >>= fun () ->
                                 loop ofs write_ofs in
 			loop 0L 0L
