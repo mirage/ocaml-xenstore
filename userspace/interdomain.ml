@@ -121,45 +121,53 @@ let service_domain d =
   loop Unix_activations.program_start
 
 let create_dom0 () =
-  lwt remote_port = read_port () in
-  let eventchn = Eventchn.init () in
-  let page = map_page xenstored_proc_kva in
-  let port = Eventchn.(bind_interdomain eventchn 0 remote_port) in
-  Eventchn.notify eventchn port;
-  let port = Eventchn.to_int port in
-  let d = {
-    address = {
-      domid = 0;
-      mfn = Nativeint.zero;
-      remote_port = remote_port;
-    };
-    page = page;
-    ring = Cstruct.of_bigarray page;
-    port = port;
-    c = Lwt_condition.create ();
-    shutdown = false;
-  } in
-  let (_: unit Lwt.t) = service_domain d in
-  Hashtbl.add domains 0 d;
-  Hashtbl.add by_port port d;
-  return (Some d)
+  (* this function should be idempotent *)
+  if Hashtbl.mem domains 0
+  then return (Some (Hashtbl.find domains 0))
+  else
+    lwt remote_port = read_port () in
+    let eventchn = Eventchn.init () in
+    let page = map_page xenstored_proc_kva in
+    let port = Eventchn.(bind_interdomain eventchn 0 remote_port) in
+    Eventchn.notify eventchn port;
+    let port = Eventchn.to_int port in
+    let d = {
+      address = {
+        domid = 0;
+        mfn = Nativeint.zero;
+        remote_port = remote_port;
+      };
+      page = page;
+      ring = Cstruct.of_bigarray page;
+      port = port;
+      c = Lwt_condition.create ();
+      shutdown = false;
+    } in
+    let (_: unit Lwt.t) = service_domain d in
+    Hashtbl.add domains 0 d;
+    Hashtbl.add by_port port d;
+    return (Some d)
 
 let create_domU address =
-  let page = Domains.map_foreign address.domid address.mfn in
-  let eventchn = Eventchn.init () in
-  let port = Eventchn.(to_int (bind_interdomain eventchn address.domid address.remote_port)) in
-  let d = {
-    address = address;
-    page = page;
-    ring = Cstruct.of_bigarray page;
-    port = port;
-    c = Lwt_condition.create ();
-    shutdown = false;
-  } in
-  let (_: unit Lwt.t) = service_domain d in
-  Hashtbl.add domains address.domid d;
-  Hashtbl.add by_port port d;
-  return (Some d)
+  (* this function should be idempotent *)
+  if Hashtbl.mem domains address.domid
+  then return (Some (Hashtbl.find domains address.domid))
+  else
+    let page = Domains.map_foreign address.domid address.mfn in
+    let eventchn = Eventchn.init () in
+    let port = Eventchn.(to_int (bind_interdomain eventchn address.domid address.remote_port)) in
+    let d = {
+      address = address;
+      page = page;
+      ring = Cstruct.of_bigarray page;
+      port = port;
+      c = Lwt_condition.create ();
+      shutdown = false;
+    } in
+    let (_: unit Lwt.t) = service_domain d in
+    Hashtbl.add domains address.domid d;
+    Hashtbl.add by_port port d;
+    return (Some d)
 
 let create () =
   failwith "It's not possible to directly 'create' an interdomain ring."
