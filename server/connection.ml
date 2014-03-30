@@ -173,25 +173,32 @@ let watch con limits (name, token) =
   Watch_registrations.add (name, token) con.watch_registrations
 
 let unwatch con (name, token) =
-  ( if Hashtbl.mem con.ws name
-    then return (Hashtbl.find con.ws name)
-    else fail (Protocol.Enoent (Protocol.Name.to_string name)) ) >>= fun ws ->
-  ( try return (List.find (fun w -> snd w.watch = token) ws)
-    with Not_found -> fail (Protocol.Enoent (Protocol.Name.to_string name)) ) >>= fun w ->
+  match (
+    try
+      let ws = Hashtbl.find con.ws name in
+      let w = List.find (fun w -> snd w.watch = token) ws in
+      Some (ws, w)
+    with Not_found ->
+      None
+  ) with
+  | None ->
+    info "unwatch: watch %s not currently registered" (Protocol.Name.to_string name);
+    (* unwatch should be idempotent *)
+    return ()
+  | Some (ws, w) ->
+    let filtered = List.filter (fun e -> e != w) ws in
+    if List.length filtered > 0
+    then Hashtbl.replace con.ws name filtered
+    else Hashtbl.remove con.ws name;
 
-  let filtered = List.filter (fun e -> e != w) ws in
-  if List.length filtered > 0
-  then Hashtbl.replace con.ws name filtered
-  else Hashtbl.remove con.ws name;
+    con.nb_watches <- con.nb_watches - 1;
 
-  con.nb_watches <- con.nb_watches - 1;
+    watches :=
+      (let key = key_of_name (Protocol.Name.(resolve name con.domainpath)) in
+       let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
+       if ws = [] then Trie.unset !watches key else Trie.set !watches key ws);
 
-  watches :=
-    (let key = key_of_name (Protocol.Name.(resolve name con.domainpath)) in
-     let ws = List.filter (fun x -> x != w) (Trie.find !watches key) in
-     if ws = [] then Trie.unset !watches key else Trie.set !watches key ws);
-
-  Watch_registrations.remove (name, token) con.watch_registrations
+    Watch_registrations.remove (name, token) con.watch_registrations
 
 let fire limits (op, name) =
 	let key = key_of_name name in
