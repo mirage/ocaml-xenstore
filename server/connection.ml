@@ -140,6 +140,17 @@ let fire_one limits name watch =
   end
 
 let watch con limits (name, token) =
+  let l =
+    if Hashtbl.mem con.ws name
+    then Hashtbl.find con.ws name
+    else [] in
+
+  ( if List.exists (fun w -> snd w.watch = token) l then begin
+      info "watch %s:%s already exists" (Protocol.Name.to_string name) token;
+      (* registering a watch needs to be idempotent to allow crashes *)
+      return ()
+    end else return () ) >>= fun () ->
+
   ( match limits with
     | Some limits ->
       if con.nb_watches >= limits.Limits.number_of_registered_watches then begin
@@ -147,14 +158,6 @@ let watch con limits (name, token) =
         fail Limits.Limit_reached;
       end else return ()
     | None -> return () ) >>= fun () ->
-
-  let l =
-    if Hashtbl.mem con.ws name
-    then Hashtbl.find con.ws name
-    else [] in
-  ( if List.exists (fun w -> snd w.watch = token) l
-    then fail (Store.Already_exists (Printf.sprintf "%s:%s" (Protocol.Name.to_string name) token))
-    else return () ) >>= fun () ->
 
   let watch = w_create ~con ~token ~name in
   fire_one limits None watch >>= fun () ->
