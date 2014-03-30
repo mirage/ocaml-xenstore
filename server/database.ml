@@ -59,6 +59,7 @@ let initialise = function
     let suffix' = String.length suffix and x' = String.length x in
     suffix' <= x' && (String.sub x (x' - suffix') suffix' = suffix) in
 
+  (* These must all be idempotent *)
   let p = function
     | Store.Write(path, contents) ->
       Printf.fprintf stderr "+ %s\n%!" (Protocol.Path.to_string path);
