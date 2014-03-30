@@ -92,7 +92,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
                       let next = Protocol.Response.marshal response (Cstruct.shift reply_buf Protocol.Header.sizeof) in
                       let len = next.Cstruct.off in
                       let reply_buf' = Cstruct.sub reply_buf 0 len in
-                      let hdr = { Header.tid = 0l; rid = 0l; ty = Protocol.Op.Watchevent; len = len - Protocol.Header.sizeof} in
+                      let hdr = { Header.tid = 0l; rid = 0l; ty = Protocol.Response.get_ty response; len = len - Protocol.Header.sizeof} in
                       ignore (Protocol.Header.marshal hdr reply_buf);
                       PWriter.write writer reply_buf' write_ofs >>= fun write_ofs ->
                       PWriter.sync writer >>= function
