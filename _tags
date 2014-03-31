@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6e0d64ae7e9fba73e087a967d9ff89af)
+# DO NOT EDIT (digest: 9dfe27447a701512a832bf8ed63d10ee)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -31,6 +31,8 @@
 "server/pSet.cmx": for-pack(Xenstored)
 "server/pMap.cmx": for-pack(Xenstored)
 "server/pQueue.cmx": for-pack(Xenstored)
+"server/pBinReader.cmx": for-pack(Xenstored)
+"server/pBinWriter.cmx": for-pack(Xenstored)
 "server/logging_interface.cmx": for-pack(Xenstored)
 "server/connection.cmx": for-pack(Xenstored)
 "server/call.cmx": for-pack(Xenstored)
@@ -243,10 +245,13 @@ true: annot
 <server/transaction.ml{,i}>: pkg_sexplib.syntax
 <server/domain.ml{,i}>: pkg_sexplib.syntax
 <server/pRef.ml>: pkg_sexplib.syntax
+<server/pBinReader.ml>: pkg_sexplib.syntax
+<server/pBinWriter.ml>: pkg_sexplib.syntax
 <server/limits.ml{,i}>: pkg_sexplib.syntax
 <server/perms.ml>: pkg_sexplib.syntax
 <server/perms.mli>: pkg_sexplib.syntax
 <server/logging_interface.ml>: pkg_sexplib.syntax
+<server/server.ml>: pkg_sexplib.syntax
 <cli/*.ml>: pkg_lwt.syntax
 <bench/*.ml>: pkg_lwt.syntax
 <core>: include

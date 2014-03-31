@@ -50,6 +50,9 @@ module Make(K: S.STRINGABLE)(V: S.SEXPABLE) : sig
 
   val max_binding: t -> (K.t * V.t) option Lwt.t
   (** [max_binding t]: returns the largest binding of the given map *)
+
+  val min_binding: t -> (K.t * V.t) option Lwt.t
+  (** [min_binding t]: returns the smallest binding of the given map *)
 end
 (** Create a persistent map which associates strings with values of
     type V.t. *)

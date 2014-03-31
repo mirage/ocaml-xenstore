@@ -47,11 +47,11 @@ let merge a b = {
   unwatch = a.unwatch @ b.unwatch;
 }
 
-let get_watches side_effects = side_effects.watches
-let get_updates side_effects = side_effects.updates
-let get_domains side_effects = side_effects.domains
-let get_watch   side_effects = side_effects.watch
-let get_unwatch side_effects = side_effects.unwatch
+let get_watches side_effects = List.rev side_effects.watches
+let get_updates side_effects = List.rev side_effects.updates
+let get_domains side_effects = List.rev side_effects.domains
+let get_watch   side_effects = List.rev side_effects.watch
+let get_unwatch side_effects = List.rev side_effects.unwatch
 
 type t = {
   (* True if all side-effects are published immediately, false if we're
