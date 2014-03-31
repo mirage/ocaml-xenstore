@@ -124,22 +124,22 @@ module Make = functor(T: S.TRANSPORT) -> struct
                     match Protocol.Request.unmarshal hdr payload_buf' with
                     | `Ok r -> return (ofs, `Ok (hdr, r))
                     | `Error e -> return (ofs, `Error e) in
+                let write_m = Lwt_mutex.create () in
+                Lwt_mutex.lock write_m >>= fun () ->
 
 		let flush_watch_events write_ofs q =
                         q |> List.map (fun (path, token) -> Protocol.Response.Watchevent(path, token))
                           |> Lwt_list.fold_left_s write write_ofs in
 		let (background_watch_event_flusher: unit Lwt.t) =
-                        return ()
-                        (*
 			while_lwt true do
-                                let header_buf = Cstruct.create Protocol.Header.sizeof in
-                                let payload_buf = Cstruct.create Protocol.xenstore_payload_max in
                                 Connection.pop_watch_events c >>= fun w ->
-				Lwt_mutex.with_lock m
-					(fun () ->
-						flush_watch_events header_buf payload_buf w
-					)
-			done *) in
+                                Lwt_mutex.lock write_m >>= fun () ->
+                                PResponse.get presponse >>= fun r ->
+                                flush_watch_events r.write_ofs w >>= fun write_ofs ->
+                                PResponse.set {r with write_ofs } presponse >>= fun () ->
+                                Lwt_mutex.unlock write_m;
+                                return ()
+			done in
         let connection_path = Protocol.Path.of_string_list (special_path "transport") in
                 Mount.mount connection_path interface >>= fun () ->
 		try_lwt
@@ -162,6 +162,7 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                   | Some response -> write r.write_ofs response
                                 ) >>= fun write_ofs ->
                                 PReader.ack reader r.read_ofs >>= fun () ->
+                                Lwt_mutex.unlock write_m;
 
                                 (* Read the next request, parse, and compute the response actions.
                                    The transient in-memory store is updated. Other side-effects are
@@ -172,27 +173,43 @@ module Make = functor(T: S.TRANSPORT) -> struct
                                         Database.store >>= fun store ->
                                         Quota.limits_of_domain dom >>= fun limits ->
                                         Connection.PPerms.get (Connection.perm c) >>= fun perm ->
-                                        (* This will 'commit' updates to the in-memory store: *)
-                                        Call.reply store (Some limits) perm c hdr request >>= fun (response, side_effects) ->
-                                        return { response = Some response; side_effects; read_ofs; write_ofs }
+                                        Lwt_mutex.lock write_m >>= fun () ->
+                                        (* Check to see if the watch event thread has enqueued a response *)
+                                        PResponse.get presponse >>= fun r2 ->
+                                        if r.write_ofs <> r2.write_ofs
+                                        then return None
+                                        else begin
+                                                (* This will 'commit' updates to the in-memory store: *)
+                                                Call.reply store (Some limits) perm c hdr request >>= fun (response, side_effects) ->
+                                                return (Some { response = Some response; side_effects; read_ofs; write_ofs })
+                                        end
                                   | read_ofs, `Error msg ->
 					(* quirk: if this is a NULL-termination error then it should be EINVAL *)
                                         let response = Protocol.Response.Error "EINVAL" in
                                         let side_effects = Transaction.no_side_effects () in
-                                        return { response = Some response; side_effects; read_ofs; write_ofs }
-                                ) >>= fun response ->
 
-                                (* If we crash here then future iterations of the loop will read
-                                   the same request packet. However since every connection is processed
-                                   concurrently we don't expect to compute the same response each time.
-                                   Therefore the choice of which transaction to commit may be made
-                                   differently each time, however the client should be unaware of this. *)
+                                        Lwt_mutex.lock write_m >>= fun () ->
+                                        (* Check to see fi the watch event thread has enqueued a response *)
+                                        PResponse.get presponse >>= fun r2 ->
+                                        if r.write_ofs <> r2.write_ofs
+                                        then return None
+                                        else return (Some { response = Some response; side_effects; read_ofs; write_ofs })
+                                ) >>= function
+                                | None ->
+                                        (* The background event thread has emitted some packets *)
+                                        loop ()
+                                | Some response ->
+                                        (* If we crash here then future iterations of the loop will read
+                                           the same request packet. However since every connection is processed
+                                           concurrently we don't expect to compute the same response each time.
+                                           Therefore the choice of which transaction to commit may be made
+                                           differently each time, however the client should be unaware of this. *)
 
-                                PResponse.set response presponse >>= fun () ->
-                                (* Record the full set of response actions. They'll be executed
-                                   (possibly multiple times) on future loop iterations. *)
+                                        PResponse.set response presponse >>= fun () ->
+                                        (* Record the full set of response actions. They'll be executed
+                                           (possibly multiple times) on future loop iterations. *)
 
-                                loop () in
+                                        loop () in
 			loop ()
 		with e ->
 			Lwt.cancel background_watch_event_flusher;
