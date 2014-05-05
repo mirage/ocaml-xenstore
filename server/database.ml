@@ -39,7 +39,8 @@ let initialise = function
   Lwt.wakeup store_wakener s;
   return ()
 | S.Git filename ->
-  let module DB = (val IrminGit.local ~bare:false filename) in
+  let module Git = IrminGit.Make(IrminKey.SHA1)(IrminContents.String)(IrminReference.String) in
+  let module DB = (val Git.create ~bare:true ~kind:`Disk ~root:filename ()) in
   DB.create () >>= fun db ->
 
   let dir_suffix = ".dir" in
@@ -74,7 +75,7 @@ let initialise = function
       with e -> (Printf.fprintf stderr "ERR %s\n%!" (Printexc.to_string e)); return ()) in
   let store = Store.create () in
   let t = Transaction.make Transaction.none store in
-  DB.contents db >>= fun contents ->
+  DB.dump db >>= fun contents ->
   (* Sort into order of path length, so we create directories before we need them *)
   let contents = List.sort (fun (path, _) (path', _) -> compare (List.length path) (List.length path')) contents in
   List.iter
