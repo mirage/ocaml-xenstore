@@ -31,6 +31,25 @@
 #include <caml/callback.h>
 #include <caml/bigarray.h>
 
+/* Can't use the standard library function because the file has size '0' which
+   causes the stdlib to attempt to extend it. */
+CAMLprim value stub_mmap(value fd, value len)
+{
+  CAMLparam2(fd, len);
+  CAMLlocal2(result, some);
+
+  void *buf = mmap(NULL, Int_val(len), PROT_READ | PROT_WRITE, MAP_SHARED, Int_val(fd), 0);
+  if (buf == MAP_FAILED) {
+       syslog(LOG_ERR, "mmap(NULL, %d, PROT_READ | PROT_WRITE, MAP_SHARED, %d, 0) = %d:%s", Int_val(len), Int_val(fd), errno, strerror(errno));
+       result = Val_int(0);
+  } else {
+       result = caml_alloc_tuple(1);
+       some = alloc_bigarray_dims(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, buf, Int_val(len));
+       Store_field(result, 0, some);
+  };
+  CAMLreturn(result);
+}
+
 static xc_interface *get_xc_interface() {
   static xc_interface *xch = NULL;
   if (!xch) {
