@@ -14,8 +14,7 @@
 
 external map_foreign: int -> nativeint -> Io_page.t = "stub_map_foreign"
 external unmap_foreign: Io_page.t -> unit           = "stub_unmap_foreign"
-
-let map_fd fd len = Bigarray.Array1.map_file fd Bigarray.char Bigarray.c_layout true len
+external map_fd: Unix.file_descr -> int -> Io_page.t = "stub_mmap"
 
 type domain = {
   domid: int;
