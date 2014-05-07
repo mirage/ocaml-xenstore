@@ -78,9 +78,13 @@ let fold_over_packets f init c =
 		match Protocol.Header.unmarshal remaining with
 		| `Error _ -> acc
 		| `Ok hdr ->
-			let data = Cstruct.sub remaining Protocol.Header.sizeof hdr.Protocol.Header.len in
-			let remaining = Cstruct.shift remaining (Protocol.Header.sizeof + hdr.Protocol.Header.len) in
-			loop remaining (f acc (hdr, data)) in
+			let remaining = Cstruct.shift remaining Protocol.Header.sizeof in
+			if Cstruct.len remaining < hdr.Protocol.Header.len
+			then acc
+			else
+				let data = Cstruct.sub remaining 0 hdr.Protocol.Header.len in
+				let remaining = Cstruct.shift remaining hdr.Protocol.Header.len in
+				loop remaining (f acc (hdr, data)) in
 	loop c init	
 
 let count_packets c = List.length (fold_over_packets (fun acc p -> p :: acc) [] c)

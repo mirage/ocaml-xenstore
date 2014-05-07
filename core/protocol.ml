@@ -125,17 +125,21 @@ module Header = struct
     Cstruct.shift buf sizeof_hdr
 
   let unmarshal buf =
-    let ty = get_hdr_ty buf in
-    Op.of_int32 ty >>= fun ty ->
-    let rid = get_hdr_rid buf in
-    let tid = get_hdr_tid buf in
-    let len = get_hdr_len buf in
-    let len = Int32.to_int len in
-    if len > xenstore_payload_max
-    then `Error(Printf.sprintf "Packet is too large: %d > %d (see xen/include/public/io/xs_wire.h)" len xenstore_payload_max)
-    else if len < 0
-    then `Error(Printf.sprintf "Packet is too small: %d < 0" len)
-    else `Ok { tid; rid; ty; len }
+    if Cstruct.len buf < sizeof
+    then `Error(Printf.sprintf "Packet header is too small: %d < %d" (Cstruct.len buf) sizeof)
+    else begin
+      let ty = get_hdr_ty buf in
+      Op.of_int32 ty >>= fun ty ->
+      let rid = get_hdr_rid buf in
+      let tid = get_hdr_tid buf in
+      let len = get_hdr_len buf in
+      let len = Int32.to_int len in
+      if len > xenstore_payload_max
+      then `Error(Printf.sprintf "Packet is too large: %d > %d (see xen/include/public/io/xs_wire.h)" len xenstore_payload_max)
+      else if len < 0
+      then `Error(Printf.sprintf "Packet is too small: %d < 0" len)
+      else `Ok { tid; rid; ty; len }
+    end
 end
 
 module Token = struct
