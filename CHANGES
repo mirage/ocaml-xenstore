@@ -7,6 +7,7 @@ trunk (unreleased)
 * build both userspace and kernelspace (via mirage) xenstore servers
 * revamp the module namespace, removing modules with names like Xs_foo_bar_baz
   and replacing them with Xenstore.Server.Make etc
+* add ring diagnostics tool
 
 1.2.5 (04-Oct-2013):
 * Add Travis continuous integration scripts

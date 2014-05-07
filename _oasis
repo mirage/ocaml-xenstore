@@ -109,6 +109,16 @@ Executable bench
   Install:            false
   BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
 
+Executable dbgring
+  CompiledObject:     best
+  Path:               userspace
+  MainIs:             dbgring.ml
+  Custom:             true
+  Install:            false
+  CSources:           domains_stubs.c
+  CClib:              -lxenctrl
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix, xenstored, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
+
 #Document api
 #  Title: Documentation and API reference
 #  Type: ocamlbuild (0.3)
