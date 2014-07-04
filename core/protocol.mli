@@ -17,8 +17,8 @@
 (** XenStore protocol. *)
 
 type ('a, 'b) result = [
-| `Ok of 'a
-| `Error of 'b
+  | `Ok of 'a
+  | `Error of 'b
 ]
 
 val xenstore_payload_max: int
@@ -173,14 +173,14 @@ end
 
 module Name : sig
   type predefined =
-  | IntroduceDomain
-  | ReleaseDomain
+    | IntroduceDomain
+    | ReleaseDomain
   with sexp
 
   type t =
-  | Predefined of predefined
-  | Absolute of Path.t
-  | Relative of Path.t
+    | Predefined of predefined
+    | Absolute of Path.t
+    | Relative of Path.t
   with sexp
   (** a Name.t refers to something which can be watched, read or
       written via the protocol. *)
@@ -246,28 +246,28 @@ end
 
 module Response : sig
   type t =
-  | Read of string
-  | Directory of string list
-  | Getperms of ACL.t
-  | Getdomainpath of string
-  | Transaction_start of int32
-  | Write
-  | Mkdir
-  | Rm
-  | Setperms
-  | Watch
-  | Unwatch
-  | Transaction_end
-  | Debug of string list
-  | Introduce
-  | Resume
-  | Release
-  | Set_target
-  | Restrict
-  | Isintroduced of bool
-  | Error of string
-  | Watchevent of Name.t * string
-  | Reset_watches
+    | Read of string
+    | Directory of string list
+    | Getperms of ACL.t
+    | Getdomainpath of string
+    | Transaction_start of int32
+    | Write
+    | Mkdir
+    | Rm
+    | Setperms
+    | Watch
+    | Unwatch
+    | Transaction_end
+    | Debug of string list
+    | Introduce
+    | Resume
+    | Release
+    | Set_target
+    | Restrict
+    | Isintroduced of bool
+    | Error of string
+    | Watchevent of Name.t * string
+    | Reset_watches
   with sexp
   (** the body of a response *)
 
@@ -289,30 +289,30 @@ end
 module Request : sig
 
   type path_op =
-  | Read
-  | Directory
-  | Getperms
-  | Write of string
-  | Mkdir
-  | Rm
-  | Setperms of ACL.t
+    | Read
+    | Directory
+    | Getperms
+    | Write of string
+    | Mkdir
+    | Rm
+    | Setperms of ACL.t
   with sexp
 
   type t =
-  | PathOp of string * path_op
-  | Getdomainpath of int
-  | Transaction_start
-  | Watch of string * string
-  | Unwatch of string * string
-  | Transaction_end of bool
-  | Debug of string list
-  | Introduce of int * Nativeint.t * int
-  | Resume of int
-  | Release of int
-  | Set_target of int * int
-  | Restrict of int
-  | Isintroduced of int
-  | Reset_watches
+    | PathOp of string * path_op
+    | Getdomainpath of int
+    | Transaction_start
+    | Watch of string * string
+    | Unwatch of string * string
+    | Transaction_end of bool
+    | Debug of string list
+    | Introduce of int * Nativeint.t * int
+    | Resume of int
+    | Release of int
+    | Set_target of int * int
+    | Restrict of int
+    | Isintroduced of int
+    | Reset_watches
   with sexp
   (** the payload of a request *)
 
