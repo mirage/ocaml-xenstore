@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 3ac64e043d6f90120c7e6030b9a4ce85) *)
+(* DO NOT EDIT (digest: f1d3158079ca1ed69b30941d5e2c7db7) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -598,7 +598,7 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml = [("xenstore", ["core"], [])];
      lib_c = [];
      flags = [];
-     includes = []
+     includes = [("core_test", ["core"])]
   }
   ;;
 
