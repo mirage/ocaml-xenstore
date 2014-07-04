@@ -1,55 +1,12 @@
 # OASIS_START
-# DO NOT EDIT (digest: d95c0ec612c82ae4c01b9f5ca65a1cf4)
+# DO NOT EDIT (digest: 48496c59ea69e969dd5b39975269d0e6)
 version = "1.2.5"
 description = "Xenstore protocol library"
-requires = "cstruct cstruct.syntax"
+requires = "cstruct cstruct.syntax lwt uri sexplib sexplib.syntax stringext"
 archive(byte) = "xenstore.cma"
 archive(byte, plugin) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
 archive(native, plugin) = "xenstore.cmxs"
 exists_if = "xenstore.cma"
-package "unix" (
- version = "1.2.5"
- description = "Xenstore protocol library"
- requires = "lwt lwt.unix xenstore"
- archive(byte) = "xenstore_unix.cma"
- archive(byte, plugin) = "xenstore_unix.cma"
- archive(native) = "xenstore_unix.cmxa"
- archive(native, plugin) = "xenstore_unix.cmxs"
- exists_if = "xenstore_unix.cma"
-)
-
-package "server" (
- version = "1.2.5"
- description = "Xenstore protocol library"
- requires = "lwt xenstore"
- archive(byte) = "xenstore_server.cma"
- archive(byte, plugin) = "xenstore_server.cma"
- archive(native) = "xenstore_server.cmxa"
- archive(native, plugin) = "xenstore_server.cmxs"
- exists_if = "xenstore_server.cma"
-)
-
-package "legacy_unix" (
- version = "1.2.5"
- description = "Xenstore protocol library"
- requires = "unix threads xenstore"
- archive(byte) = "xenstore_legacy_unix.cma"
- archive(byte, plugin) = "xenstore_legacy_unix.cma"
- archive(native) = "xenstore_legacy_unix.cmxa"
- archive(native, plugin) = "xenstore_legacy_unix.cmxs"
- exists_if = "xenstore_legacy_unix.cma"
-)
-
-package "client" (
- version = "1.2.5"
- description = "Xenstore protocol library"
- requires = "lwt xenstore"
- archive(byte) = "xenstore_client.cma"
- archive(byte, plugin) = "xenstore_client.cma"
- archive(native) = "xenstore_client.cmxa"
- archive(native, plugin) = "xenstore_client.cmxs"
- exists_if = "xenstore_client.cma"
-)
 # OASIS_STOP
 

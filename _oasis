@@ -3,7 +3,7 @@ Name:        xenstore
 Version:     1.2.5
 Synopsis:    Xenstore protocol library
 Authors:     see CREDITS.md
-License:     LGPL-2.1 with OCaml linking exception
+License:     ISC
 Plugins:     META (0.3)
 BuildTools:  ocamlbuild
 
@@ -11,92 +11,5 @@ Library xenstore
   CompiledObject:     best
   Path:               core
   Findlibname:        xenstore
-  Modules:            Xs_protocol, Xs_handle
-  BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax
-
-Library xenstore_client
-  CompiledObject:     best
-  Path:               client
-  Findlibname:        client
-  Findlibparent:      xenstore
-  Modules:            Xs_client_lwt
-  BuildDepends:       lwt, xenstore
-
-Library xenstore_server
-  CompiledObject:     best
-  Pack:               true
-  Path:               server
-  Findlibname:        server
-  FindlibParent:      xenstore
-  Modules:            Logging, Logging_interface, Connection, Call, Trie, Symbol, Namespace, Quota, Quota_interface, Perms, Store, Transaction, Xs_server, Junk, Introduce, Heap_debug_interface
-  BuildDepends:       lwt, xenstore
-
-Library xenstore_unix
-  CompiledObject:     best
-  Path:               unix
-  Findlibname: 	      unix
-  FindlibParent:      xenstore
-  Modules:            Xs_server_lwt_unix, Xs_transport, Xs_transport_lwt_unix_client
-  BuildDepends:       lwt, lwt.unix, xenstore
-
-Library xenstore_legacy_unix
-  CompiledObject:     best
-  Path:               legacy_unix
-  Findlibname: 	      legacy_unix
-  FindlibParent:      xenstore
-  Modules:            Xs_client_unix
-  BuildDepends:       unix, threads, xenstore
-
-Executable xs_test
-  CompiledObject:     best
-  Path:               core_test
-  MainIs:             xs_test.ml
-  Build$:             flag(tests)
-  Custom:             true
-  Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, oUnit
-
-#Executable xstest
-#  CompiledObject:     best
-#  Path:               core_test
-#  MainIs:             xstest.ml
-#  Build$:             flag(tests)
-#  Custom:             true
-#  Install:            false
-#  BuildDepends:       xenbus, stdext, threads
-
-Executable server_test
-  CompiledObject:     best
-  Path:               server_test
-  MainIs:             server_test.ml
-  Build$:             flag(tests)
-  Custom:             true
-  Install:            false
-  BuildDepends:       lwt, xenstore, xenstore.server, oUnit
-
-Executable server_binary_test
-  CompiledObject:     best
-  Path:               server_test
-  MainIs:             binary.ml
-  Build$:             flag(tests)
-  Custom:             true
-  Install:            false
-  BuildDepends:       lwt, xenstore, xenstore.server, xenstore.unix, oUnit
-
-Test xs_test
-  Run$:               flag(tests)
-  Command:            $xs_test
-  WorkingDirectory:   core_test
-
-Test server_test
-  Run$:               flag(tests)
-  Command:            $server_test
-  WorkingDirectory:   server_test
-
-#Document api
-#  Title: Documentation and API reference
-#  Type: ocamlbuild (0.3)
-#  BuildTools+: ocamldoc
-#  XOcamlbuildPath: doc
-#  XOcamlbuildModules: Xs_protocol, Xs_handle, Xs_client_lwt, Xs_client_unix
-#  Install: false
+  Modules:            Protocol
+  BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax, lwt, uri, sexplib, sexplib.syntax, stringext
