@@ -7,10 +7,6 @@ J=4
 export OCAMLRUNPARAM=b
 
 TESTS ?= --enable-tests
-ifneq "$(MIRAGE_OS)" ""
-TESTS := --disable-tests
-endif
-
 
 setup.bin: setup.ml
 	@ocamlopt.opt -o $@ $< || ocamlopt -o $@ $< || ocamlc -o $@ $<
@@ -32,9 +28,7 @@ install: setup.bin
 #test: setup.bin build
 #	@./setup.bin -test
 test:
-	_build/core_test/xs_test.native
-	_build/server_test/server_test.native
-	_build/server_test/binary.native
+	_build/core_test/core_test.native
 
 
 reinstall: setup.bin

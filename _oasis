@@ -13,3 +13,17 @@ Library xenstore
   Findlibname:        xenstore
   Modules:            Protocol
   BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax, lwt, uri, sexplib, sexplib.syntax, stringext
+
+Executable core_test
+  CompiledObject:     best
+  Path:               core_test
+  MainIs:             core_test.ml
+  Build$:             flag(tests)
+  Custom:             true
+  Install:            false
+  BuildDepends:       lwt, lwt.unix, xenstore, oUnit
+
+Test core_test
+  Run$:               flag(tests)
+  Command:            $core_test
+  WorkingDirectory:   core_test
