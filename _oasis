@@ -9,9 +9,10 @@ BuildTools:  ocamlbuild
 
 Library xenstore
   CompiledObject:     best
+  Pack:               true
   Path:               core
   Findlibname:        xenstore
-  Modules:            Protocol
+  Modules:            Protocol, S
   BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax, lwt, uri, sexplib, sexplib.syntax, stringext
 
 Executable core_test
@@ -27,3 +28,11 @@ Test core_test
   Run$:               flag(tests)
   Command:            $core_test
   WorkingDirectory:   core_test
+
+Library xenstore_unix
+  CompiledObject:     best
+  Path:               unix
+  Findlibname:        unix
+  FindlibParent:      xenstore
+  Modules:            Sockets
+  BuildDepends:       lwt, lwt.unix, xenstore

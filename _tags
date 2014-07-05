@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 184d2b5726e4036248948c33b904c1a3)
+# DO NOT EDIT (digest: a28dadce82df297ae7f3eb0a5b1b6b09)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -15,6 +15,8 @@
 "_darcs": not_hygienic
 # Library xenstore
 "core/xenstore.cmxs": use_xenstore
+"core/protocol.cmx": for-pack(Xenstore)
+"core/s.cmx": for-pack(Xenstore)
 <core/*.ml{,i}>: pkg_cstruct
 <core/*.ml{,i}>: pkg_cstruct.syntax
 <core/*.ml{,i}>: pkg_lwt
@@ -44,6 +46,17 @@
 <core_test/*.ml{,i}>: pkg_uri
 <core_test/*.ml{,i}>: use_xenstore
 <core_test/core_test.{native,byte}>: custom
+# Library xenstore_unix
+"unix/xenstore_unix.cmxs": use_xenstore_unix
+<unix/*.ml{,i}>: pkg_cstruct
+<unix/*.ml{,i}>: pkg_cstruct.syntax
+<unix/*.ml{,i}>: pkg_lwt
+<unix/*.ml{,i}>: pkg_lwt.unix
+<unix/*.ml{,i}>: pkg_sexplib
+<unix/*.ml{,i}>: pkg_sexplib.syntax
+<unix/*.ml{,i}>: pkg_stringext
+<unix/*.ml{,i}>: pkg_uri
+<unix/*.ml{,i}>: use_xenstore
 # OASIS_STOP
 true: annot
 <*/*.ml>: syntax_camlp4o

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 48496c59ea69e969dd5b39975269d0e6)
+# DO NOT EDIT (digest: 36c29758d6327e0aebab5c3762856fb8)
 version = "1.2.5"
 description = "Xenstore protocol library"
 requires = "cstruct cstruct.syntax lwt uri sexplib sexplib.syntax stringext"
@@ -8,5 +8,15 @@ archive(byte, plugin) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
 archive(native, plugin) = "xenstore.cmxs"
 exists_if = "xenstore.cma"
+package "unix" (
+ version = "1.2.5"
+ description = "Xenstore protocol library"
+ requires = "lwt lwt.unix xenstore"
+ archive(byte) = "xenstore_unix.cma"
+ archive(byte, plugin) = "xenstore_unix.cma"
+ archive(native) = "xenstore_unix.cmxa"
+ archive(native, plugin) = "xenstore_unix.cmxs"
+ exists_if = "xenstore_unix.cma"
+)
 # OASIS_STOP
 
