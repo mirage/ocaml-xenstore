@@ -36,3 +36,11 @@ Library xenstore_unix
   FindlibParent:      xenstore
   Modules:            Sockets
   BuildDepends:       lwt, lwt.unix, xenstore
+
+Executable xs
+  CompiledObject:     best
+  Path:               xs
+  MainIs:             xs.ml
+  Custom:             true
+  Install:            false
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix

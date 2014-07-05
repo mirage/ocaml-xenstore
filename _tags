@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 91626bcdc47d60a22eb76c1ded376f67)
+# DO NOT EDIT (digest: 66789cb317357ed6a7e845c755620e87)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -64,6 +64,30 @@
 <unix/*.ml{,i}>: pkg_stringext
 <unix/*.ml{,i}>: pkg_uri
 <unix/*.ml{,i}>: use_xenstore
+# Executable xs
+<xs/xs.{native,byte}>: pkg_cstruct
+<xs/xs.{native,byte}>: pkg_cstruct.syntax
+<xs/xs.{native,byte}>: pkg_lwt
+<xs/xs.{native,byte}>: pkg_lwt.syntax
+<xs/xs.{native,byte}>: pkg_lwt.unix
+<xs/xs.{native,byte}>: pkg_sexplib
+<xs/xs.{native,byte}>: pkg_sexplib.syntax
+<xs/xs.{native,byte}>: pkg_stringext
+<xs/xs.{native,byte}>: pkg_uri
+<xs/xs.{native,byte}>: use_xenstore
+<xs/xs.{native,byte}>: use_xenstore_unix
+<xs/*.ml{,i}>: pkg_cstruct
+<xs/*.ml{,i}>: pkg_cstruct.syntax
+<xs/*.ml{,i}>: pkg_lwt
+<xs/*.ml{,i}>: pkg_lwt.syntax
+<xs/*.ml{,i}>: pkg_lwt.unix
+<xs/*.ml{,i}>: pkg_sexplib
+<xs/*.ml{,i}>: pkg_sexplib.syntax
+<xs/*.ml{,i}>: pkg_stringext
+<xs/*.ml{,i}>: pkg_uri
+<xs/*.ml{,i}>: use_xenstore
+<xs/*.ml{,i}>: use_xenstore_unix
+<xs/xs.{native,byte}>: custom
 # OASIS_STOP
 true: annot
 <*/*.ml>: syntax_camlp4o
