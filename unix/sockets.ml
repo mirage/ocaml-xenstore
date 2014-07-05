@@ -13,24 +13,94 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open Lwt
 open Sexplib.Std
 open Xenstore
 
 (** A byte-level transport over the xenstore Unix domain socket *)
 
-(* The unix domain socket may not exist, or we may get a connection
-   refused error if the server is in the middle of restarting. *)
+type 'a t = 'a Lwt.t
+let return x = return x
+let ( >>= ) m f = m >>= f
+
+let debug fmt = Logging.debug "userspace" fmt
+let error fmt = Logging.error "userspace" fmt
+
+(* If we get a connection refused error it will be because the server
+ * is still starting up. *)
 let initial_retry_interval = 0.1 (* seconds *)
 let max_retry_interval = 5.0 (* seconds *)
 let retry_max = 100 (* attempts *)
 
+exception Connection_timeout
+
+(* Individual connections *)
+type connection = {
+  fd: Lwt_unix.file_descr;
+  sockaddr: Lwt_unix.sockaddr;
+  read_buffer: Cstruct.t;
+  write_buffer: Cstruct.t;
+}
+
+let alloc (fd, sockaddr) =
+  let read_buffer = Cstruct.create (Protocol.Header.sizeof + Protocol.xenstore_payload_max) in
+  let write_buffer = Cstruct.create (Protocol.Header.sizeof + Protocol.xenstore_payload_max) in
+  return { fd; sockaddr; read_buffer; write_buffer }
+
 let xenstored_socket = ref "/var/run/xenstored/socket"
 
-open Lwt
+(* We'll look for these paths in order: *)
+let get_xenstore_paths () =
+  let default = [
+    !xenstored_socket;
+    "/proc/xen/xenbus"; (* Linux *)
+    "/dev/xen/xenstore"; (* FreeBSD *)
+  ] in
+  try
+    Sys.getenv "XENSTORED_PATH" :: default
+  with Not_found -> default
 
-type 'a t = 'a Lwt.t
-let return x = return x
-let ( >>= ) m f = m >>= f
+let choose_xenstore_path () =
+  List.fold_left (fun acc possibility -> match acc with
+      | Some x -> Some x
+      | None ->
+        if Sys.file_exists possibility then Some possibility else None
+    ) None (get_xenstore_paths ())
+
+exception Could_not_find_xenstore
+
+let create () =
+  ( match choose_xenstore_path () with
+    | None ->
+      error "Failed to find xenstore socket. I tried the following:";
+      List.iter (fun x -> error "  %s" x) (get_xenstore_paths ());
+      error "On linux you might not have xenfs mounted:";
+      error "   sudo mount -t xenfs xenfs /proc/xen";
+      error "Or perhaps you just need to set the XENSTORED_PATH environment variable.";
+      fail Could_not_find_xenstore
+    | Some x -> return x ) >>= fun path ->
+  Lwt_unix.stat path >>= fun stats ->
+  let sockaddr = Lwt_unix.ADDR_UNIX(path) in
+  match stats.Lwt_unix.st_kind with
+  | Lwt_unix.S_SOCK ->
+    let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
+    let start = Unix.gettimeofday () in
+    let rec retry n interval =
+      if n > retry_max then begin
+        error "Failed to connect after %.0f seconds" (Unix.gettimeofday () -. start);
+        fail Connection_timeout
+      end else
+        try_lwt
+          Lwt_unix.connect fd sockaddr
+        with Unix.Unix_error(Unix.ECONNREFUSED, _, _) ->
+          Lwt_unix.sleep interval >>= fun () ->
+          retry (n + 1) (interval +. 0.1) in
+    retry 0 initial_retry_interval >>= fun () ->
+    alloc (fd, sockaddr)
+  | _ ->
+    let fd = Unix.openfile path [ Lwt_unix.O_RDWR ] 0o0 in
+    (* It looks like a file but behaves like a pipe: *)
+    alloc (Lwt_unix.of_unix_file_descr ~blocking:false fd, sockaddr)
 
 let complete op fd buf =
   let ofs = buf.Cstruct.off in
@@ -48,65 +118,36 @@ let complete op fd buf =
   then fail End_of_file
   else return ()
 
-(* Individual connections *)
-type connection = {
-  fd: Lwt_unix.file_descr;
-  sockaddr: Lwt_unix.sockaddr;
-  read_buffer: Cstruct.t;
-  write_buffer: Cstruct.t;
-}
-
-let alloc (fd, sockaddr) =
-  let read_buffer = Cstruct.create (Protocol.Header.sizeof + Protocol.xenstore_payload_max) in
-  let write_buffer = Cstruct.create (Protocol.Header.sizeof + Protocol.xenstore_payload_max) in
-  return { fd; sockaddr; read_buffer; write_buffer }
-
-let create () =
-  let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
-  let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
-  let start = Unix.gettimeofday () in
-  let rec retry n interval =
-    if n > retry_max
-    then fail (Failure (Printf.sprintf "Failed to connect to xenstore after %.0f seconds" (Unix.gettimeofday () -. start)))
-    else
-      try_lwt
-        Lwt_unix.connect fd sockaddr
-      with _ ->
-        lwt () = Lwt_unix.sleep interval in
-        retry (n + 1) (interval +. 0.1) in
-  retry 0 initial_retry_interval >>= fun () ->
-  alloc (fd, sockaddr)
-
 let destroy { fd } = Lwt_unix.close fd
 
 let read { fd } = complete Lwt_bytes.read fd
 let write { fd } = complete Lwt_bytes.write fd
 
 let int_of_file_descr fd =
-	let fd = Lwt_unix.unix_file_descr fd in
-	let (fd: int) = Obj.magic fd in
-	fd
+  let fd = Lwt_unix.unix_file_descr fd in
+  let (fd: int) = Obj.magic fd in
+  fd
 
 let address_of { fd } =
-	let creds = Lwt_unix.get_credentials fd in
-	let pid = creds.Lwt_unix.cred_pid in
-	lwt cmdline =
-			Lwt_io.with_file ~mode:Lwt_io.input
-				(Printf.sprintf "/proc/%d/cmdline" pid)
-				(fun ic ->
-					lwt cmdline = Lwt_io.read_line_opt ic in
-					match cmdline with
-						| Some x -> return x
-						| None -> return "unknown") in
-	(* Take only the binary name, stripped of directories *)
-	let filename =
-		try
-			let i = String.index cmdline '\000' in
-			String.sub cmdline 0 i
-		with Not_found -> cmdline in
-	let basename = Filename.basename filename in
-	let name = Printf.sprintf "%d:%s:%d" pid basename (int_of_file_descr fd) in
-	return (Uri.make ~scheme:"unix" ~path:name ())
+  let creds = Lwt_unix.get_credentials fd in
+  let pid = creds.Lwt_unix.cred_pid in
+  lwt cmdline =
+    Lwt_io.with_file ~mode:Lwt_io.input
+      (Printf.sprintf "/proc/%d/cmdline" pid)
+      (fun ic ->
+         lwt cmdline = Lwt_io.read_line_opt ic in
+         match cmdline with
+         | Some x -> return x
+         | None -> return "unknown") in
+  (* Take only the binary name, stripped of directories *)
+  let filename =
+    try
+      let i = String.index cmdline '\000' in
+      String.sub cmdline 0 i
+    with Not_found -> cmdline in
+  let basename = Filename.basename filename in
+  let name = Printf.sprintf "%d:%s:%d" pid basename (int_of_file_descr fd) in
+  return (Uri.make ~scheme:"unix" ~path:name ())
 
 let domain_of _ = 0
 
@@ -114,9 +155,9 @@ let domain_of _ = 0
 type server = Lwt_unix.file_descr
 
 let _ =
-	(* Make sure a write to a closed fd doesn't cause us to quit
-	   with SIGPIPE *)
-	Sys.set_signal Sys.sigpipe Sys.Signal_ignore
+  (* Make sure a write to a closed fd doesn't cause us to quit
+     	   with SIGPIPE *)
+  Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
 let listen () =
   let sockaddr = Lwt_unix.ADDR_UNIX(!xenstored_socket) in
@@ -156,8 +197,8 @@ let recv t _ =
     let payload = Cstruct.sub t.read_buffer Protocol.Header.sizeof x.Protocol.Header.len in
     read t payload >>= fun () ->
     begin match Protocol.Request.unmarshal x payload with
-    | `Error y -> return ((), `Error y)
-    | `Ok y -> return ((), `Ok (x, y))
+      | `Error y -> return ((), `Error y)
+      | `Ok y -> return ((), `Ok (x, y))
     end
 
 module Introspect = struct
