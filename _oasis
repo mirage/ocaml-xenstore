@@ -12,7 +12,7 @@ Library xenstore
   Pack:               true
   Path:               core
   Findlibname:        xenstore
-  Modules:            Protocol, S
+  Modules:            Protocol, Logging, S
   BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax, lwt, uri, sexplib, sexplib.syntax, stringext
 
 Executable core_test
