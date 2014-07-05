@@ -94,12 +94,12 @@ module type TRANSPORT = sig
     with type 'a t := 'a t
   include CHANNEL
     with type 'a t := 'a t
-    and  type connection := connection
-    and  type offset := offset
+     and  type connection := connection
+     and  type offset := offset
   include SERVER
     with type 'a t := 'a t
-    and  type connection := connection
-    and  type offset := offset
+     and  type connection := connection
+     and  type offset := offset
 
   module Introspect : INTROSPECTABLE with type t = connection
 end
@@ -131,4 +131,37 @@ module type CLIENT = sig
   val unwatch : handle -> string -> Protocol.Token.t -> unit t
   val introduce : handle -> int -> nativeint -> int -> unit t
   val set_target : handle -> int -> int -> unit t
+end
+
+module type ACTIVATIONS = sig
+  include IO
+
+  type channel
+  (** An entity which receives events, which we can wait for *)
+
+  type event
+  (** An individual event notification *)
+
+  val program_start: event
+  (** represents an event which 'fired' when the program started *)
+
+  val after: channel -> event -> event t
+  (** [next channel event] blocks until the system receives an event
+      newer than [event] on channel [channel]. If an event is received
+      while we aren't looking then this will be remembered and the
+      next call to [after] will immediately unblock. If the system
+      is suspended and then resumed, all event channel bindings are invalidated
+      and this function will fail with Generation.Invalid *)
+end
+
+module type DOMAIN_STATE = sig
+  type t = {
+    domid: int;     (** unique id for a given domain *)
+    dying: bool;    (** the domain is being cleaned up *)
+    shutdown: bool; (** the domain has stopped running *)
+  }
+  (** The state of a domain *)
+
+  val list: unit -> t list
+  (** [list ()] returns a list of known domains *)
 end
