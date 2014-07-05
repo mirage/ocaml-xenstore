@@ -161,6 +161,8 @@ let recv t _ =
     end
 
 module Introspect = struct
+  type t = connection
+
   let read { fd } = function
     | [ "readable" ] -> Some (string_of_bool (Lwt_unix.readable fd))
     | [ "writable" ] -> Some (string_of_bool (Lwt_unix.writable fd))

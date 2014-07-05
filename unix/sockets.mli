@@ -19,4 +19,4 @@ val xenstored_socket: string ref
 
 open Xenstore
 
-include S.SERVER
+include S.TRANSPORT

@@ -27,6 +27,13 @@ module type SEXPABLE = sig
   val t_of_sexp: Sexp.t -> t
 end
 
+module type INTROSPECTABLE = sig
+  type t
+  val ls: t -> string list -> string list
+  val read: t -> string list -> string option
+  val write: t -> string list -> string -> bool
+end
+
 module type IO = sig
   type 'a t = 'a Lwt.t
   val return: 'a -> 'a t
@@ -49,6 +56,24 @@ module type CONNECTION = sig
   val read: connection -> Cstruct.t -> unit t
 
   val write: connection -> Cstruct.t -> unit t
+
+  type offset with sexp
+
+  val get_read_offset: connection -> offset t
+
+  val get_write_offset: connection -> offset t
+end
+
+module type CHANNEL = sig
+  include IO
+  include CONNECTION
+    with type 'a t := 'a t
+
+  val flush: connection -> offset -> unit t
+
+  val enqueue: connection -> Protocol.Header.t -> Protocol.Response.t -> offset t
+
+  val recv: connection -> offset -> (offset * [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]) t
 end
 
 module type SERVER = sig
@@ -61,24 +86,22 @@ module type SERVER = sig
   val listen: unit -> server t
 
   val accept_forever: server -> (connection -> unit t) -> 'a t
+end
 
-  type offset with sexp
+module type TRANSPORT = sig
+  include IO
+  include CONNECTION
+    with type 'a t := 'a t
+  include CHANNEL
+    with type 'a t := 'a t
+    and  type connection := connection
+    and  type offset := offset
+  include SERVER
+    with type 'a t := 'a t
+    and  type connection := connection
+    and  type offset := offset
 
-  val get_read_offset: connection -> offset t
-
-  val get_write_offset: connection -> offset t
-
-  val flush: connection -> offset -> unit t
-
-  val enqueue: connection -> Protocol.Header.t -> Protocol.Response.t -> offset t
-
-  val recv: connection -> offset -> (offset * [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]) t
-
-  module Introspect : sig
-    val ls: connection -> string list -> string list
-    val read: connection -> string list -> string option
-    val write: connection -> string list -> string -> bool
-  end
+  module Introspect : INTROSPECTABLE with type t = connection
 end
 
 module type CLIENT = sig
