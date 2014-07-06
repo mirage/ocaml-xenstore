@@ -1,9 +1,7 @@
 trunk (unreleased)
-* add unix client and server I/O code (from ocaml-xenstore-{xen,clients})
-  The eventual aim is to make this repo standalone and conditionally compile
-  depending on the environment
 * fix a number of string NULL parse/printing errors (thanks to Jonathan Davies)
-* incorporate a binary RPC test from the origin xenstored (server_test/binary)
+* use the Mirage ISC license
+* Unix applications should link against 'xenstore.userspace' rather than 'xenstore.unix'
 
 1.2.5 (04-Oct-2013):
 * Add Travis continuous integration scripts
