@@ -22,7 +22,7 @@ Executable core_test
   Build$:             flag(tests)
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, oUnit
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.userspace, oUnit
 
 Test core_test
   Run$:               flag(tests)

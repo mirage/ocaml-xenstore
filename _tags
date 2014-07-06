@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2c94f27fe9e7b1628e0a85f52bd4cd8b)
+# DO NOT EDIT (digest: e6fa89f152aaf0989390a7b5f1f39a18)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -28,30 +28,6 @@
 <core/*.ml{,i}>: pkg_sexplib.syntax
 <core/*.ml{,i}>: pkg_stringext
 <core/*.ml{,i}>: pkg_uri
-# Executable core_test
-<core_test/core_test.{native,byte}>: pkg_cstruct
-<core_test/core_test.{native,byte}>: pkg_cstruct.syntax
-<core_test/core_test.{native,byte}>: pkg_lwt
-<core_test/core_test.{native,byte}>: pkg_lwt.syntax
-<core_test/core_test.{native,byte}>: pkg_lwt.unix
-<core_test/core_test.{native,byte}>: pkg_oUnit
-<core_test/core_test.{native,byte}>: pkg_sexplib
-<core_test/core_test.{native,byte}>: pkg_sexplib.syntax
-<core_test/core_test.{native,byte}>: pkg_stringext
-<core_test/core_test.{native,byte}>: pkg_uri
-<core_test/core_test.{native,byte}>: use_xenstore
-<core_test/*.ml{,i}>: pkg_cstruct
-<core_test/*.ml{,i}>: pkg_cstruct.syntax
-<core_test/*.ml{,i}>: pkg_lwt
-<core_test/*.ml{,i}>: pkg_lwt.syntax
-<core_test/*.ml{,i}>: pkg_lwt.unix
-<core_test/*.ml{,i}>: pkg_oUnit
-<core_test/*.ml{,i}>: pkg_sexplib
-<core_test/*.ml{,i}>: pkg_sexplib.syntax
-<core_test/*.ml{,i}>: pkg_stringext
-<core_test/*.ml{,i}>: pkg_uri
-<core_test/*.ml{,i}>: use_xenstore
-<core_test/core_test.{native,byte}>: custom
 # Library xenstore_userspace
 "userspace/xenstore_userspace.cmxs": use_xenstore_userspace
 <userspace/*.ml{,i}>: pkg_cstruct
@@ -64,6 +40,32 @@
 <userspace/*.ml{,i}>: pkg_stringext
 <userspace/*.ml{,i}>: pkg_uri
 <userspace/*.ml{,i}>: use_xenstore
+# Executable core_test
+<core_test/core_test.{native,byte}>: pkg_cstruct
+<core_test/core_test.{native,byte}>: pkg_cstruct.syntax
+<core_test/core_test.{native,byte}>: pkg_lwt
+<core_test/core_test.{native,byte}>: pkg_lwt.syntax
+<core_test/core_test.{native,byte}>: pkg_lwt.unix
+<core_test/core_test.{native,byte}>: pkg_oUnit
+<core_test/core_test.{native,byte}>: pkg_sexplib
+<core_test/core_test.{native,byte}>: pkg_sexplib.syntax
+<core_test/core_test.{native,byte}>: pkg_stringext
+<core_test/core_test.{native,byte}>: pkg_uri
+<core_test/core_test.{native,byte}>: use_xenstore
+<core_test/core_test.{native,byte}>: use_xenstore_userspace
+<core_test/*.ml{,i}>: pkg_cstruct
+<core_test/*.ml{,i}>: pkg_cstruct.syntax
+<core_test/*.ml{,i}>: pkg_lwt
+<core_test/*.ml{,i}>: pkg_lwt.syntax
+<core_test/*.ml{,i}>: pkg_lwt.unix
+<core_test/*.ml{,i}>: pkg_oUnit
+<core_test/*.ml{,i}>: pkg_sexplib
+<core_test/*.ml{,i}>: pkg_sexplib.syntax
+<core_test/*.ml{,i}>: pkg_stringext
+<core_test/*.ml{,i}>: pkg_uri
+<core_test/*.ml{,i}>: use_xenstore
+<core_test/*.ml{,i}>: use_xenstore_userspace
+<core_test/core_test.{native,byte}>: custom
 # Executable xs
 <xs/xs.{native,byte}>: pkg_cmdliner
 <xs/xs.{native,byte}>: pkg_cstruct

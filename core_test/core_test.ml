@@ -23,6 +23,27 @@ let failure_on_error = function
   | `Ok x -> x
   | `Error x -> failwith x
 
+(* This is the example in the README, check it typechecks: *)
+
+let check_readme_typechecks () =
+  let module Client = Xenstore.Client.Make(Userspace) in
+  let open Lwt in
+  Client.(transaction (
+    let open M in
+    write "a" "b" >>= fun () ->
+    write "c" "d" >>= fun () ->
+    return ()
+  )) >>= fun () ->
+  Client.(wait (
+    let open M in
+    read "hotplug-status" >>= fun status ->
+    read "hotplug-error" >>= fun error ->
+    match status, error with
+    | "", "" -> retry
+    | status, _ -> return (`Ok status)
+    | _, error -> return (`Error error)
+  ))
+
 let unbox = function
   | None -> failwith "unbox"
   | Some x -> x

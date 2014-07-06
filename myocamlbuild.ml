@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 4b68f36fb3aa16f466c03c0d2faeebf4) *)
+(* DO NOT EDIT (digest: f81b8ae2a5b7123681a85fe1bba8a16b) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -604,7 +604,7 @@ let package_default =
        [
           ("xs", ["core"; "userspace"]);
           ("userspace", ["core"]);
-          ("core_test", ["core"])
+          ("core_test", ["core"; "userspace"])
        ]
   }
   ;;

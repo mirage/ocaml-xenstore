@@ -20,6 +20,7 @@ and create a 'Client':
 #require "lwt.syntax";;
 #require "xenstore.userspace";;
 
+open Lwt
 module Client = Xenstore.Client.Make(Userspace)
 ```
 To perform a single non-transactional read or wrote:
@@ -45,4 +46,4 @@ Client.(wait (
   | "", "" -> retry
   | status, _ -> return (`Ok status)
   | _, error -> return (`Error error)
-)
+))
