@@ -314,6 +314,9 @@ let read path () =
   Client.(immediate (read path)) >>= fun v ->
   Lwt_io.write Lwt_io.stdout v
 
+let write path value () =
+  Client.(immediate (write path value))
+
 let read_cmd =
   let doc = "read the value at a particular path" in
   let man = [
@@ -326,13 +329,28 @@ let read_cmd =
   Term.(ret( (pure command) $ (pure read $ key) $ common_options_t )),
   Term.info "read" ~sdocs:_common_options ~doc ~man
 
+let write_cmd =
+  let doc = "write the value at a particular path" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Write the value at a particular path.";
+  ] @ help in
+  let key =
+    let doc = "The path to write" in
+    Arg.(value & pos 0 string "" & info [] ~docv:"PATH" ~doc) in
+  let value =
+    let doc = "The value to write" in
+    Arg.(value & pos 1 string "" & info [] ~docv:"VALUE" ~doc) in
+  Term.(ret( (pure command) $ (pure write $ key $ value) $ common_options_t )),
+  Term.info "write" ~sdocs:_common_options ~doc ~man
+
 let default_cmd =
   let doc = "manipulate XenStore" in
   let man = help in
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "xs" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
 
-let cmds = [ read_cmd ]
+let cmds = [ read_cmd; write_cmd ]
 
 let _ =
   match Term.eval_choice default_cmd cmds with
