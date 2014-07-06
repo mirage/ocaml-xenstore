@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9390ee4871a189e5ec4b6d5f8b2327c4)
+# DO NOT EDIT (digest: 2c94f27fe9e7b1628e0a85f52bd4cd8b)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -65,6 +65,7 @@
 <userspace/*.ml{,i}>: pkg_uri
 <userspace/*.ml{,i}>: use_xenstore
 # Executable xs
+<xs/xs.{native,byte}>: pkg_cmdliner
 <xs/xs.{native,byte}>: pkg_cstruct
 <xs/xs.{native,byte}>: pkg_cstruct.syntax
 <xs/xs.{native,byte}>: pkg_lwt
@@ -76,6 +77,7 @@
 <xs/xs.{native,byte}>: pkg_uri
 <xs/xs.{native,byte}>: use_xenstore
 <xs/xs.{native,byte}>: use_xenstore_userspace
+<xs/*.ml{,i}>: pkg_cmdliner
 <xs/*.ml{,i}>: pkg_cstruct
 <xs/*.ml{,i}>: pkg_cstruct.syntax
 <xs/*.ml{,i}>: pkg_lwt

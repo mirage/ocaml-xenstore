@@ -1,4 +1,4 @@
-OPAM_DEPENDS="lwt cstruct ounit stringext uri sexplib"
+OPAM_DEPENDS="lwt cstruct ounit stringext uri sexplib cmdliner"
 
 case "$OCAML_VERSION,$OPAM_VERSION" in
 3.12.1,1.0.0) ppa=avsm/ocaml312+opam10 ;;

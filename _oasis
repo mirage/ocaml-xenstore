@@ -43,4 +43,4 @@ Executable xs
   MainIs:             xs.ml
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.userspace
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.userspace, cmdliner

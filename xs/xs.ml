@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let project_url = "http://github.com/mirage/ocaml-xenstore"
+
 open Lwt
 open Xenstore
 open Protocol
@@ -84,7 +86,7 @@ let parse_expr s =
 let rec eval_expression expr xs = match expr with
   | Val path ->
     begin try_lwt
-      lwt k = read xs path in
+      lwt k = read path xs in
       return true
     with Enoent _ ->
       return false
@@ -100,13 +102,52 @@ let rec eval_expression expr xs = match expr with
     return (a' || b')
   | Eq (Val path, Val v) ->
     begin try_lwt
-      lwt v' = read xs path in
+      lwt v' = read path xs in
       return (v = v')
     with Enoent _ ->
       return false
     end
   | _ -> fail Invalid_expression
 
+open Cmdliner
+
+module Common = struct
+        type t = {
+        verbose: bool;
+        debug: bool;
+        }
+
+        let make verbose debug =
+                { verbose; debug }
+
+end
+
+let _common_options = "COMMON OPTIONS"
+
+(* Options common to all commands *)
+let common_options_t =
+  let docs = _common_options in
+  let debug =
+    let doc = "Give additional debug output." in
+    Arg.(value & flag & info ["debug"] ~docs ~doc) in
+  let verb =
+    let doc = "Give verbose output." in
+    let verbose = true, Arg.info ["v"; "verbose"] ~docs ~doc in
+    Arg.(last & vflag_all [false] [verbose]) in
+  Term.(pure Common.make $ debug $ verb)
+
+
+(* Help sections common to all commands *)
+let help = [
+ `S _common_options;
+ `P "These options are common to all commands.";
+ `S "MORE HELP";
+ `P "Use `$(mname) $(i,COMMAND) --help' for help on a single command."; `Noblank;
+ `S "BUGS"; `P (Printf.sprintf "Check bug reports at %s" project_url);
+]
+
+
+(*
 let usage () =
   let bin x = Sys.argv.(0) ^ x in
   let lines = [
@@ -228,3 +269,31 @@ let main () =
 
 let _ =
   Lwt_main.run (main ())
+*)
+
+let read common path = `Ok ()
+
+let read_cmd =
+  let doc = "read the value at a particular path" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Read the value at a particular path.";
+  ] @ help in
+  let path =
+    let doc = "The path to read" in
+    Arg.(value & opt string "" & info ["path"] ~docv:"PATH" ~doc) in
+  Term.(ret(pure read $ common_options_t $ path)),
+  Term.info "read" ~sdocs:_common_options ~doc ~man
+
+let default_cmd =
+  let doc = "manipulate XenStore" in
+  let man = help in
+  Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
+  Term.info "xs" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
+
+let cmds = [ read_cmd ]
+
+let _ =
+  match Term.eval_choice default_cmd cmds with
+  | `Error _ -> exit 1
+  | _ -> exit 0
