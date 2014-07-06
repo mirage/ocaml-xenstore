@@ -16,11 +16,12 @@
 
 let project_url = "http://github.com/mirage/ocaml-xenstore"
 
+module Client = Xenstore.Client.Make(Userspace)
+
+let debug fmt = Xenstore.Logging.debug "xs" fmt
+let error fmt = Xenstore.Logging.error "xs" fmt
+
 open Lwt
-open Xenstore
-open Protocol
-module Client = Client.Make(Userspace)
-open Client
 
 let ( |> ) a b = b a
 
@@ -86,9 +87,9 @@ let parse_expr s =
 let rec eval_expression expr xs = match expr with
   | Val path ->
     begin try_lwt
-      lwt k = read path xs in
+      Client.read path xs >>= fun k ->
       return true
-    with Enoent _ ->
+    with Xenstore.Protocol.Enoent _ ->
       return false
     end
   | Not a ->
@@ -102,9 +103,9 @@ let rec eval_expression expr xs = match expr with
     return (a' || b')
   | Eq (Val path, Val v) ->
     begin try_lwt
-      lwt v' = read path xs in
+      Client.read path xs >>= fun v' ->
       return (v = v')
-    with Enoent _ ->
+    with Xenstore.Protocol.Enoent _ ->
       return false
     end
   | _ -> fail Invalid_expression
@@ -113,12 +114,13 @@ open Cmdliner
 
 module Common = struct
         type t = {
-        verbose: bool;
         debug: bool;
+        verbose: bool;
+        restrict: int option;
         }
 
-        let make verbose debug =
-                { verbose; debug }
+        let make debug verbose restrict =
+                { debug; verbose; restrict }
 
 end
 
@@ -134,7 +136,10 @@ let common_options_t =
     let doc = "Give verbose output." in
     let verbose = true, Arg.info ["v"; "verbose"] ~docs ~doc in
     Arg.(last & vflag_all [false] [verbose]) in
-  Term.(pure Common.make $ debug $ verb)
+  let restrict =
+    let doc = "Act on behalf of this domain." in
+    Arg.(value & opt (some int) None & info ["restrict"] ~docs ~doc) in
+  Term.(pure Common.make $ debug $ verb $ restrict)
 
 
 (* Help sections common to all commands *)
@@ -271,7 +276,40 @@ let _ =
   Lwt_main.run (main ())
 *)
 
-let read common path = `Ok ()
+let maybe_print_logs common =
+  ( match common.Common.debug with
+    | false -> return ()
+    | true ->
+      Xenstore.Logging.(get logger) >>= fun lines ->
+      Lwt_list.iter_s
+        (fun x ->
+           Lwt_io.write Lwt_io.stderr x >>= fun () ->
+           Lwt_io.write Lwt_io.stderr "\n"
+        ) lines )
+
+let read common path =
+  debug "Program started.";
+  let t =
+  ( match common.Common.restrict with
+    | None -> return ()
+    | Some domid -> Client.(immediate (restrict domid) )) >>= fun () ->
+  Client.(immediate (read path)) >>= fun v ->
+  Lwt_io.write Lwt_io.stdout v >>= fun () ->
+  maybe_print_logs common in
+  try
+    Lwt_main.run t;
+    `Ok ()
+  with Userspace.Could_not_find_xenstore ->
+    let lines = [
+      "Failed to connect to xenstore.";
+      "First check whether you are running on a Xen system. Try asking";
+      "  'virt-what' or looking in /sys/hypervisor/type on Linux.";
+      "Second check whether you are running with sufficient privileges.";
+      "  Access to xenstore normally requires root privileges.";
+      "Third check whether xenstored is running and start it if not.";
+    ] in
+    Lwt_main.run (maybe_print_logs common);
+    `Error(false, String.concat "\n" lines)
 
 let read_cmd =
   let doc = "read the value at a particular path" in
@@ -279,10 +317,10 @@ let read_cmd =
     `S "DESCRIPTION";
     `P "Read the value at a particular path.";
   ] @ help in
-  let path =
+  let key =
     let doc = "The path to read" in
-    Arg.(value & opt string "" & info ["path"] ~docv:"PATH" ~doc) in
-  Term.(ret(pure read $ common_options_t $ path)),
+    Arg.(value & pos 0 string "" & info [] ~docv:"PATH" ~doc) in
+  Term.(ret(pure read $ common_options_t $ key)),
   Term.info "read" ~sdocs:_common_options ~doc ~man
 
 let default_cmd =

@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val xenstored_socket: string ref
-(** path to the xenstored Unix domain socket *)
+exception Could_not_find_xenstore
+(** Thrown if we cannot make contact with xenstore using the normal addresses *)
 
 open Xenstore
 
