@@ -317,6 +317,10 @@ let read path () =
 let write path value () =
   Client.(immediate (write path value))
 
+let directory path () =
+  Client.(immediate (directory path)) >>= fun ls ->
+  Lwt_list.iter_s (fun x -> Lwt_io.write Lwt_io.stdout (x ^ "\n")) ls
+
 let read_cmd =
   let doc = "read the value at a particular path" in
   let man = [
@@ -344,13 +348,25 @@ let write_cmd =
   Term.(ret( (pure command) $ (pure write $ key $ value) $ common_options_t )),
   Term.info "write" ~sdocs:_common_options ~doc ~man
 
+let directory_cmd =
+  let doc = "list the child keys of a particular path" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "List the child keys of a particular path.";
+  ] @ help in
+  let key =
+    let doc = "The path to list" in
+    Arg.(value & pos 0 string "" & info [] ~docv:"PATH" ~doc) in
+  Term.(ret( (pure command) $ (pure directory $ key) $ common_options_t )),
+  Term.info "directory" ~sdocs:_common_options ~doc ~man
+
 let default_cmd =
   let doc = "manipulate XenStore" in
   let man = help in
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "xs" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
 
-let cmds = [ read_cmd; write_cmd ]
+let cmds = [ read_cmd; write_cmd; directory_cmd ]
 
 let _ =
   match Term.eval_choice default_cmd cmds with
