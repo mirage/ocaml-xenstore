@@ -81,7 +81,11 @@ let parse_expr s =
         | [< 'Kwd "or"; e2=parse_expr >] -> Or(e1, e2)
         | [< 'Kwd "="; e2=parse_expr >] -> Eq(e1, e2)
             | [< >] -> e1) stream in
-  s |> Stream.of_string |> make_lexer keywords |> flatten |> parse_expr
+  try
+    Some (s |> Stream.of_string |> make_lexer keywords |> flatten |> parse_expr)
+  with e ->
+    debug "Caught %s while parsing [%s]" (Printexc.to_string e) s;
+    None
 
 (* Return true if [expr] holds. Used in the xenstore 'wait' operation *)
 let rec eval_expression expr xs = match expr with
@@ -309,6 +313,8 @@ let command f common =
     ] in
     Lwt_main.run (maybe_print_logs common);
     `Error(false, String.concat "\n" lines)
+  | Invalid_expression ->
+    `Error(true, "My expression parser couldn't understand your expression")
 
 let read path () =
   Client.(immediate (read path)) >>= fun v ->
@@ -320,6 +326,21 @@ let write path value () =
 let directory path () =
   Client.(immediate (directory path)) >>= fun ls ->
   Lwt_list.iter_s (fun x -> Lwt_io.write Lwt_io.stdout (x ^ "\n")) ls
+
+let wait expr () =
+  match parse_expr expr with
+  | None -> fail Invalid_expression
+  | Some expr ->
+    debug "I parsed the expression as: %s" (pretty_print () expr);
+    let t = Client.(wait (fun xs ->
+        eval_expression expr xs >>= function
+        | false -> return `Retry
+        | true -> return (`Ok ())
+      )) in
+    Lwt_timeout.create 5 (fun () -> cancel t) |> Lwt_timeout.start;
+    t >>= function
+    | `Ok () -> return ()
+    | `Error _ -> assert false (* see eval_expression invocation above *)
 
 let read_cmd =
   let doc = "read the value at a particular path" in
@@ -360,13 +381,36 @@ let directory_cmd =
   Term.(ret( (pure command) $ (pure directory $ key) $ common_options_t )),
   Term.info "directory" ~sdocs:_common_options ~doc ~man
 
+let wait_cmd =
+  let doc = "wait for a condition to become true" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Wait for the condition described by the expression to become true";
+    `P "The implementation uses the Xenstore 'watch' mechanism for efficiency.";
+    `S "EXAMPLES";
+    `P "";
+    `P "$(mname) wait '/foo'";
+    `P "   -- block until the key \"/foo\" exists";
+    `P "$(mname) wait 'not(/foo)'";
+    `P "   -- block until the key \"/foo\" is deleted";
+    `P "$(mname) wait '/foo or /bar'";
+    `P "   -- block until either key \"/foo\" or \"/bar\" are created";
+    `P "$(mname) wait '/foo and (/bar = hello)'";
+    `P "   -- block until either key \"/foo\" is created or key \"/bar\" has value \"hello\"";
+  ] @ help in
+  let expr =
+    let doc = "The expression which we want to become true" in
+    Arg.(value & pos 0 string "" & info [] ~docv:"EXPR" ~doc) in
+  Term.(ret( (pure command) $ (pure wait $ expr) $ common_options_t )),
+  Term.info "wait" ~sdocs:_common_options ~doc ~man
+
 let default_cmd =
   let doc = "manipulate XenStore" in
   let man = help in
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "xs" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
 
-let cmds = [ read_cmd; write_cmd; directory_cmd ]
+let cmds = [ read_cmd; write_cmd; directory_cmd; wait_cmd ]
 
 let _ =
   match Term.eval_choice default_cmd cmds with
