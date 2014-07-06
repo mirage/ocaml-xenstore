@@ -37,6 +37,14 @@ Library xenstore_userspace
   Modules:            Userspace
   BuildDepends:       lwt, lwt.unix, xenstore
 
+Library xenstore_kernelspace
+  CompiledObject:     best
+  Path:               kernelspace
+  Findlibname:        kernelspace
+  FindlibParent:      xenstore
+  Modules:            Kernelspace
+  BuildDepends:       lwt, lwt.unix, xenstore, io-page, xen-evtchn
+
 Executable xs
   CompiledObject:     best
   Path:               xs

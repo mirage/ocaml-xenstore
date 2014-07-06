@@ -14,9 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception Could_not_find_xenstore
-(** Thrown if we cannot make contact with xenstore using the normal addresses *)
-
 open Xenstore.S
 
-include TRANSPORT
+module Make(A: ACTIVATIONS)(DS: DOMAIN_STATE) : TRANSPORT

@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: f81b8ae2a5b7123681a85fe1bba8a16b) *)
+(* DO NOT EDIT (digest: d2432af580bf638b9d2ce27dedb9edd7) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -596,7 +596,10 @@ open Ocamlbuild_plugin;;
 let package_default =
   {
      MyOCamlbuildBase.lib_ocaml =
-       [("xenstore", ["core"], []); ("xenstore_userspace", ["userspace"], [])
+       [
+          ("xenstore", ["core"], []);
+          ("xenstore_userspace", ["userspace"], []);
+          ("xenstore_kernelspace", ["kernelspace"], [])
        ];
      lib_c = [];
      flags = [];
@@ -604,6 +607,7 @@ let package_default =
        [
           ("xs", ["core"; "userspace"]);
           ("userspace", ["core"]);
+          ("kernelspace", ["core"]);
           ("core_test", ["core"; "userspace"])
        ]
   }
@@ -611,6 +615,6 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 615 "myocamlbuild.ml"
+# 619 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

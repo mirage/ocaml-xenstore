@@ -47,3 +47,8 @@ Client.(wait (
   | status, _ when status <> "" -> return (`Ok status)
   | _, error -> return (`Error error)
 ))
+
+Open issues
+-----------
+  1. Xenstore.Client.Make is a nice name. Global 'Userspace' and 'Kernelspace' are a bit rude. Can these be made part of the Xenstore.* space somehow, even through they are optional?
+
