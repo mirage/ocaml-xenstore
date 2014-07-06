@@ -287,14 +287,13 @@ let maybe_print_logs common =
            Lwt_io.write Lwt_io.stderr "\n"
         ) lines )
 
-let read common path =
+let command f common =
   debug "Program started.";
   let t =
   ( match common.Common.restrict with
     | None -> return ()
     | Some domid -> Client.(immediate (restrict domid) )) >>= fun () ->
-  Client.(immediate (read path)) >>= fun v ->
-  Lwt_io.write Lwt_io.stdout v >>= fun () ->
+  f () >>= fun () ->
   maybe_print_logs common in
   try
     Lwt_main.run t;
@@ -311,6 +310,10 @@ let read common path =
     Lwt_main.run (maybe_print_logs common);
     `Error(false, String.concat "\n" lines)
 
+let read path () =
+  Client.(immediate (read path)) >>= fun v ->
+  Lwt_io.write Lwt_io.stdout v
+
 let read_cmd =
   let doc = "read the value at a particular path" in
   let man = [
@@ -320,7 +323,7 @@ let read_cmd =
   let key =
     let doc = "The path to read" in
     Arg.(value & pos 0 string "" & info [] ~docv:"PATH" ~doc) in
-  Term.(ret(pure read $ common_options_t $ key)),
+  Term.(ret( (pure command) $ (pure read $ key) $ common_options_t )),
   Term.info "read" ~sdocs:_common_options ~doc ~man
 
 let default_cmd =
