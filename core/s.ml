@@ -115,6 +115,8 @@ module type CLIENT = sig
 
   type ctx
 
+  module M: MONAD with type 'a t = ctx -> 'a t
+
   val directory     : string -> ctx -> string list t
   val read          : string -> ctx -> string t
   val write         : string -> string -> ctx -> unit t

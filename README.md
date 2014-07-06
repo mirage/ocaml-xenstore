@@ -43,7 +43,7 @@ Client.(wait (
   read "hotplug-status" >>= fun status ->
   read "hotplug-error" >>= fun error ->
   match status, error with
-  | "", "" -> retry
-  | status, _ -> return (`Ok status)
+  | "", "" -> return `Retry
+  | status, _ when status <> "" -> return (`Ok status)
   | _, error -> return (`Error error)
 ))

@@ -15,6 +15,7 @@
  *)
 open Sexplib
 open OUnit
+open Xenstore
 
 let ( |> ) a b = b a
 let id x = x
@@ -39,8 +40,8 @@ let check_readme_typechecks () =
     read "hotplug-status" >>= fun status ->
     read "hotplug-error" >>= fun error ->
     match status, error with
-    | "", "" -> retry
-    | status, _ -> return (`Ok status)
+    | "", "" -> return `Retry
+    | status, _ when status <> "" -> return (`Ok status)
     | _, error -> return (`Error error)
   ))
 

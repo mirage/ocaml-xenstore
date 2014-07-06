@@ -217,6 +217,16 @@ module Make = functor(IO: S.CONNECTION) -> struct
 
   type ctx = client Handle.t
 
+  module M = struct
+    type 'a t = ctx -> 'a Lwt.t
+
+    let ( >>= ) f_h next =
+       fun h ->
+         f_h h >>= fun x ->
+         next x h
+    let return x h = return x
+  end
+
   let make_rid =
     let counter = ref 0l in
     fun () ->
