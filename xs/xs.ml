@@ -17,7 +17,7 @@
 open Lwt
 open Xenstore
 open Protocol
-module Client = Client.Make(Sockets)
+module Client = Client.Make(Userspace)
 open Client
 
 let ( |> ) a b = b a
@@ -161,11 +161,6 @@ let main () =
 				else (x :: acc, false)
 			) ([], false) args |> fst |> List.rev in
 		!result, args in
-	let path, args = extract args "-path" in
-	begin match path with
-	| Some path -> Sockets.xenstored_socket := path
-	| None -> ()
-	end;
 	let restrict_domid, args = extract args "-restrict" in
 	let do_restrict xs = match restrict_domid with
 		| Some domid -> restrict xs (int_of_string domid)

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0951a7ccdc7ded69b4bafae3806725fa)
+# DO NOT EDIT (digest: b37b6d5fa02f4dc76104cc0076c75f95)
 version = "1.2.5"
 description = "Xenstore protocol library"
 requires =
@@ -9,15 +9,15 @@ archive(byte, plugin) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
 archive(native, plugin) = "xenstore.cmxs"
 exists_if = "xenstore.cma"
-package "unix" (
+package "userspace" (
  version = "1.2.5"
  description = "Xenstore protocol library"
  requires = "lwt lwt.unix xenstore"
- archive(byte) = "xenstore_unix.cma"
- archive(byte, plugin) = "xenstore_unix.cma"
- archive(native) = "xenstore_unix.cmxa"
- archive(native, plugin) = "xenstore_unix.cmxs"
- exists_if = "xenstore_unix.cma"
+ archive(byte) = "xenstore_userspace.cma"
+ archive(byte, plugin) = "xenstore_userspace.cma"
+ archive(native) = "xenstore_userspace.cmxa"
+ archive(native, plugin) = "xenstore_userspace.cmxs"
+ exists_if = "xenstore_userspace.cma"
 )
 # OASIS_STOP
 
