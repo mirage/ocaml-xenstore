@@ -21,36 +21,28 @@ and create a 'Client':
 #require "xenstore.userspace";;
 
 module Client = Xenstore.Client.Make(Userspace)
-lwt client = Client.make ()
 ```
 To perform a single non-transactional read or wrote:
 ```
-lwt my_domid = Client.immediate client (Client.read "domid");;
+lwt my_domid = Client.(immediate (read "domid"));;
 ```
 To perform a transactional update:
 ```
-Client.transaction client (
-  let open Client.Transaction in
-  Client.write "a" "b" >>= fun () ->
-  Client.write "c" "d" >>= fun () ->
+Client.(transaction (
+  let open M in
+  write "a" "b" >>= fun () ->
+  write "c" "d" >>= fun () ->
   return ()
-)
+))
 ```
 To wait for a condition to be met:
 ```
-Client.wait client (
-  let open Client.Wait in
-  Client.read "hotplug-status" >>= fun status ->
-  Client.read "hotplug-error" >>= fun error ->
+Client.(wait (
+  let open M in
+  read "hotplug-status" >>= fun status ->
+  read "hotplug-error" >>= fun error ->
   match status, error with
   | "", "" -> retry
   | status, _ -> return (`Ok status)
   | _, error -> return (`Error error)
 )
-
-Open issues
------------
-Can we hide the client instances? The library could keep track of the (single) client
-and provide 'suspend' 'resume' functions. Otherwise the application has to thread
-a client through everywhere.
-
