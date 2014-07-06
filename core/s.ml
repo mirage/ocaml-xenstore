@@ -34,11 +34,14 @@ module type INTROSPECTABLE = sig
   val write: t -> string list -> string -> bool
 end
 
-module type IO = sig
-  type 'a t = 'a Lwt.t
+module type MONAD = sig
+  type 'a t
   val return: 'a -> 'a t
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 end
+
+module type IO = MONAD
+  with type 'a t = 'a Lwt.t
 
 module type CONNECTION = sig
   include IO
@@ -107,30 +110,32 @@ end
 module type CLIENT = sig
   include IO
 
-  type client
+  val suspend : unit -> unit t
+  val resume : unit -> unit t
 
-  val make : unit -> client t
-  val suspend : client -> unit t
-  val resume : client -> unit t
+  type ctx
 
-  type handle
+  val directory     : string -> ctx -> string list t
+  val read          : string -> ctx -> string t
+  val write         : string -> string -> ctx -> unit t
+  val rm            : string -> ctx -> unit t
+  val mkdir         : string -> ctx -> unit t
+  val setperms      : string -> Protocol.ACL.t -> ctx -> unit t
+  val debug         : string list -> ctx -> string list t
+  val restrict      : int -> ctx -> unit t
+  val getdomainpath : int -> ctx -> string t
+  val watch         : string -> Protocol.Token.t -> ctx -> unit t
+  val unwatch       : string -> Protocol.Token.t -> ctx -> unit t
+  val introduce     : int -> nativeint -> int -> ctx -> unit t
+  val set_target    : int -> int -> ctx -> unit t
 
-  val immediate : client -> (handle -> 'a t) -> 'a t
-  val transaction : client -> (handle -> 'a t) -> 'a t
-  val wait : client -> (handle -> 'a t) -> 'a t
-  val directory : handle -> string -> string list t
-  val read : handle -> string -> string t
-  val write : handle -> string -> string -> unit t
-  val rm : handle -> string -> unit t
-  val mkdir : handle -> string -> unit t
-  val setperms : handle -> string -> Protocol.ACL.t -> unit t
-  val debug : handle -> string list -> string list t
-  val restrict : handle -> int -> unit t
-  val getdomainpath : handle -> int -> string t
-  val watch : handle -> string -> Protocol.Token.t -> unit t
-  val unwatch : handle -> string -> Protocol.Token.t -> unit t
-  val introduce : handle -> int -> nativeint -> int -> unit t
-  val set_target : handle -> int -> int -> unit t
+  val immediate : (ctx -> 'a t) -> 'a t
+  (** [immediate op] executes [op] in a regular, non-transactional context *)
+
+  val transaction: (ctx -> 'a t) -> 'a t
+  (** [transaction op] executes [op] as a transaction *)
+
+  val wait: (ctx -> [ `Ok of 'a | `Error of 'b | `Retry ] t) -> [ `Ok of 'a | `Error of 'b ] t
 end
 
 module type ACTIVATIONS = sig

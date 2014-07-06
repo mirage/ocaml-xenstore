@@ -184,16 +184,19 @@ module Make = functor(IO: S.CONNECTION) -> struct
            return c
       )
 
-  let suspend t =
-    lwt () = Lwt_mutex.with_lock t.suspended_m
+  let suspend () =
+    match_lwt Lwt_mutex.with_lock client_cache_m (fun () -> return !client_cache) with
+    | None -> return ()
+    | Some t ->
+      Lwt_mutex.with_lock t.suspended_m
         (fun () ->
            t.suspended <- true;
            while_lwt (Hashtbl.length t.rid_to_wakeup > 0) do
              Lwt_condition.wait ~mutex:t.suspended_m t.suspended_c
-           done) in
-    Hashtbl.iter (fun _ watcher -> Watcher.cancel watcher) t.watchevents;
-    Lwt.cancel t.dispatcher_thread;
-    return ()
+           done) >>= fun () ->
+      Hashtbl.iter (fun _ watcher -> Watcher.cancel watcher) t.watchevents;
+      Lwt.cancel t.dispatcher_thread;
+      return ()
 
   let resume_unsafe t =
     lwt () = Lwt_mutex.with_lock t.suspended_m (fun () ->
@@ -204,14 +207,15 @@ module Make = functor(IO: S.CONNECTION) -> struct
     t.dispatcher_thread <- dispatcher t;
     return ()
 
-  let resume t = match !client_cache with
-    | None -> Lwt.return ()
-    | Some c ->
+  let resume () =
+    match_lwt Lwt_mutex.with_lock client_cache_m (fun () -> return !client_cache) with
+    | None -> return ()
+    | Some t ->
       IO.create () >>= fun transport ->
-      c.transport <- transport;
+      t.transport <- transport;
       resume_unsafe t
 
-  type handle = client Handle.t
+  type ctx = client Handle.t
 
   let make_rid =
     let counter = ref 0l in
@@ -259,50 +263,53 @@ module Make = functor(IO: S.CONNECTION) -> struct
     | Response.Error x        -> raise (Error x)
     | x              -> raise (Error (Printf.sprintf "%s: unexpected response: %s" hint (Sexplib.Sexp.to_string_hum (Response.sexp_of_t x))))
 
-  let directory h path = rpc (Handle.accessed_path h path) Request.(PathOp(path, Directory))
+  let directory path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Directory))
       (function Response.Directory ls -> return ls
               | x -> error "directory" x)
-  let read h path = rpc (Handle.accessed_path h path) Request.(PathOp(path, Read))
+  let read path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Read))
       (function Response.Read x -> return x
               | x -> error "read" x)
-  let write h path data = rpc (Handle.accessed_path h path) Request.(PathOp(path, Write data))
+  let write path data h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Write data))
       (function Response.Write -> return ()
               | x -> error "write" x)
-  let rm h path = rpc (Handle.accessed_path h path) Request.(PathOp(path, Rm))
+  let rm path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Rm))
       (function Response.Rm -> return ()
               | x -> error "rm" x)
-  let mkdir h path = rpc (Handle.accessed_path h path) Request.(PathOp(path, Mkdir))
+  let mkdir path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Mkdir))
       (function Response.Mkdir -> return ()
               | x -> error "mkdir" x)
-  let setperms h path acl = rpc (Handle.accessed_path h path) Request.(PathOp(path, Setperms acl))
+  let setperms path acl h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Setperms acl))
       (function Response.Setperms -> return ()
               | x -> error "setperms" x)
-  let debug h cmd_args = rpc h (Request.Debug cmd_args)
+  let debug cmd_args h = rpc h (Request.Debug cmd_args)
       (function Response.Debug debug -> return debug
               | x -> error "debug" x)
-  let restrict h domid = rpc h (Request.Restrict domid)
+  let restrict domid h = rpc h (Request.Restrict domid)
       (function Response.Restrict -> return ()
               | x -> error "restrict" x)
-  let getdomainpath h domid = rpc h (Request.Getdomainpath domid)
+  let getdomainpath domid h = rpc h (Request.Getdomainpath domid)
       (function Response.Getdomainpath x -> return x
               | x -> error "getdomainpath" x)
-  let watch h path token = rpc (Handle.watch h path) (Request.Watch(path, Token.marshal token))
+  let watch path token h = rpc (Handle.watch h path) (Request.Watch(path, Token.marshal token))
       (function Response.Watch -> return ()
               | x -> error "watch" x)
-  let unwatch h path token = rpc (Handle.watch h path) (Request.Unwatch(path, Token.marshal token))
+  let unwatch path token h = rpc (Handle.watch h path) (Request.Unwatch(path, Token.marshal token))
       (function Response.Unwatch -> return ()
               | x -> error "unwatch" x)
-  let introduce h domid store_mfn store_port = rpc h (Request.Introduce(domid, store_mfn, store_port))
+  let introduce domid store_mfn store_port h = rpc h (Request.Introduce(domid, store_mfn, store_port))
       (function Response.Introduce -> return ()
               | x -> error "introduce" x)
-  let set_target h stubdom_domid domid = rpc h (Request.Set_target(stubdom_domid, domid))
+  let set_target stubdom_domid domid h = rpc h (Request.Set_target(stubdom_domid, domid))
       (function Response.Set_target -> return ()
               | x -> error "set_target" x)
-  let immediate client f = f (Handle.no_transaction client)
+  let immediate f =
+    make () >>= fun client ->
+    f (Handle.no_transaction client)
 
   let counter = ref 0l
 
-  let wait client f =
+  let wait f =
+    make () >>= fun client ->
     let open StringSet in
     counter := Int32.succ !counter;
     let token = Token.unmarshal (Printf.sprintf "%ld:xs_client.wait" !counter) in
@@ -324,10 +331,10 @@ module Make = functor(IO: S.CONNECTION) -> struct
       let current_paths = Handle.get_watched_paths h in
       (* Paths which weren't read don't need to be watched: *)
       let old_paths = diff current_paths (Handle.get_accessed_paths h) in
-      lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements old_paths) in
+      lwt () = Lwt_list.iter_s (fun p -> unwatch p token h) (elements old_paths) in
       (* Paths which were read do need to be watched: *)
       let new_paths = diff (Handle.get_accessed_paths h) current_paths in
-      lwt () = Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths) in
+      lwt () = Lwt_list.iter_s (fun p -> watch p token h) (elements new_paths) in
       (* If we're watching the correct set of paths already then just block *)
       if old_paths = empty && (new_paths = empty)
       then begin
@@ -339,28 +346,28 @@ module Make = functor(IO: S.CONNECTION) -> struct
       end else return () in
     (* Main client loop: *)
     let rec loop () =
-      lwt finished =
-        try_lwt
-          lwt result = f h in
-          wakeup wakener result;
-          return true
-        with Eagain ->
-          return false in
-      if finished
-      then return ()
-      else adjust_paths () >> loop ()
-    in
+      f h >>= function
+      | `Ok x ->
+        wakeup wakener (`Ok x);
+        return ()
+      | `Error y ->
+        wakeup wakener (`Error y);
+        return ()
+      | `Retry ->
+        adjust_paths () >>= fun () ->
+        loop () in
     let (_: unit Lwt.t) =
       try_lwt
         loop ()
       finally
       let current_paths = Handle.get_watched_paths h in
-      lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths) in
+      lwt () = Lwt_list.iter_s (fun p -> unwatch p token h) (elements current_paths) in
       Hashtbl.remove client.watchevents token;
       return () in
     result
 
-  let rec transaction client f =
+  let rec transaction f =
+    make () >>= fun client ->
     lwt tid = rpc (Handle.no_transaction client) Request.Transaction_start
         (function Response.Transaction_start tid -> return tid
                 | x -> error "transaction_start" x) in
@@ -371,5 +378,5 @@ module Make = functor(IO: S.CONNECTION) -> struct
         (function Response.Transaction_end -> return result
                 | x -> error "transaction_end" x)
     with Eagain ->
-      transaction client f
+      transaction f
 end
