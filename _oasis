@@ -42,7 +42,7 @@ Library xenstore_kernelspace
   Path:               kernelspace
   Findlibname:        kernelspace
   FindlibParent:      xenstore
-  Modules:            Kernelspace
+  Modules:            Kernelspace, Closer, PBuffer
   BuildDepends:       lwt, lwt.unix, xenstore, io-page, xen-evtchn
 
 Executable xs
