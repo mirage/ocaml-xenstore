@@ -22,11 +22,16 @@ let debug fmt = Logging.debug "kernelspace/closer" fmt
 let error fmt = Logging.error "kernelspace/closer" fmt
 
 module Make(A: ACTIVATIONS with type channel = Eventchn.t)(DS: DOMAIN_STATE) = struct
+  module Domid_Map = Map.Make(struct
+    type t = int
+    let compare (a: int) (b: int) = compare a b
+  end)
+
   let thread () =
     let eventchn = Eventchn.init () in
     let virq_port = Eventchn.bind_dom_exc_virq eventchn in
     debug "Bound virq_port = %d" (Eventchn.to_int virq_port);
-    let rec loop from =
+    let rec loop (domains: DS.t Domid_Map.t) from =
       (* Check to see if any of our domains have shutdown *)
       let dis = DS.list () in
       List.iter (fun di ->
@@ -36,31 +41,28 @@ module Make(A: ACTIVATIONS with type channel = Eventchn.t)(DS: DOMAIN_STATE) = s
           (if di.DS.dying && di.DS.shutdown then " and " else "")
           (if di.DS.shutdown then "shutdown" else "")
         ) dis;
-      let dis_by_domid = Hashtbl.create 128 in
-      List.iter (fun di -> Hashtbl.add dis_by_domid di.DS.domid di) dis;
+      let dis_map = List.fold_left (fun acc elt -> Domid_Map.add elt.DS.domid elt acc) Domid_Map.empty dis in
       (* Connections to domains which are missing or 'dying' should be closed *)
-      let to_close = Hashtbl.fold (fun domid _ acc ->
-        if not(Hashtbl.mem dis_by_domid domid) || (Hashtbl.find dis_by_domid domid).DS.dying
-        then domid :: acc else acc) domains [] in
+      let to_close = Domid_Map.filter (fun x _ ->
+        not(Domid_Map.mem x dis_map) || (Domid_Map.find x dis_map).DS.dying
+      ) domains in
       (* If any domain is missing, shutdown or dying then we should send @releaseDomain *)
-      let release_domain = Hashtbl.fold (fun domid _ acc ->
+      let release_domain = Domid_Map.fold (fun domid ds acc ->
         acc
-        || (not(Hashtbl.mem dis_by_domid domid)
-        || (let di = Hashtbl.find dis_by_domid domid in di.DS.shutdown || di.DS.dying))
+        || (not(Domid_Map.mem domid dis_map))
+        || (let di = Domid_Map.find domid dis_map in di.DS.shutdown || di.DS.dying)
       ) domains false in
       (* Set the connections to "closing", wake up any readers/writers *)
-      List.iter
-        (fun domid ->
+      Domid_Map.iter
+        (fun domid _ ->
           debug "closing connection to domid: %d" domid;
-          let t = Hashtbl.find domains domid in
-          t.shutdown <- true;
           (* XXX wakeup threads stuck in activations somehow *)
         ) to_close;
         (* XXX
       if release_domain
       then Connection.fire (Protocol.Op.Write, Protocol.Name.(Predefined ReleaseDomain));
       *)
-    lwt after = A.after virq_port from in
-    loop after in
-  loop A.program_start
+      lwt after = A.after virq_port from in
+      loop dis_map after in
+    loop Domid_Map.empty A.program_start
 end
