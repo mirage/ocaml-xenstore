@@ -43,6 +43,18 @@ end
 module type IO = MONAD
   with type 'a t = 'a Lwt.t
 
+module type STREAM = sig
+  include IO
+
+  type state
+
+  val initial: state
+
+  type data
+
+  val next: state -> (data * state) t
+end
+
 module type CONNECTION = sig
   include IO
 

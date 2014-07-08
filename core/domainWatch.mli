@@ -13,10 +13,12 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-open Xenstore.S
+open S
 
-(* Watch for domains dying / shutting down *)
+type domid = int
 
-module Make(A: ACTIVATIONS with type channel = Eventchn.t)(DS: DOMAIN_STATE) : sig
-  val thread : unit -> unit Lwt.t
-end
+module Make(E: STREAM)(DS: DOMAIN_STATE) : STREAM
+  with type data = [ `Created of domid | `Destroyed of domid ] list
+(** Given a stream of signals saying something has happened, and a means
+    of querying the current domain list, emit a stream of domain
+    `Created and `Destroyed events. *)

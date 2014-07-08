@@ -12,7 +12,7 @@ Library xenstore
   Pack:               true
   Path:               core
   Findlibname:        xenstore
-  Modules:            Protocol, Handle, Client, Logging, S
+  Modules:            Protocol, Handle, Client, DomainWatch, Logging, S
   BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax, lwt, lwt.syntax, uri, sexplib, sexplib.syntax, stringext
 
 Executable core_test
@@ -42,8 +42,8 @@ Library xenstore_kernelspace
   Path:               kernelspace
   Findlibname:        kernelspace
   FindlibParent:      xenstore
-  Modules:            Kernelspace, Closer, PBuffer
-  BuildDepends:       lwt, lwt.unix, xenstore, io-page, xen-evtchn
+  Modules:            Kernelspace, PBuffer
+  BuildDepends:       lwt, lwt.unix, xenstore, io-page, xen-evtchn, shared-memory-ring, shared-memory-ring.xenstore
 
 Executable xs
   CompiledObject:     best

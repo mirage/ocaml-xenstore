@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ce903430f09a616bf584fbe62ac2de6e)
+# DO NOT EDIT (digest: f474d46157a885418d462badd7f7346a)
 version = "1.2.5"
 description = "Xenstore protocol library"
 requires =
@@ -23,7 +23,8 @@ package "userspace" (
 package "kernelspace" (
  version = "1.2.5"
  description = "Xenstore protocol library"
- requires = "lwt lwt.unix xenstore io-page xen-evtchn"
+ requires =
+ "lwt lwt.unix xenstore io-page xen-evtchn shared-memory-ring shared-memory-ring.xenstore"
  archive(byte) = "xenstore_kernelspace.cma"
  archive(byte, plugin) = "xenstore_kernelspace.cma"
  archive(native) = "xenstore_kernelspace.cmxa"
