@@ -184,3 +184,11 @@ module type DOMAIN_STATE = sig
   val list: unit -> t list
   (** [list ()] returns a list of known domains *)
 end
+
+module type FOREIGN_PAGE_MAPPER = sig
+  val map: int -> nativeint -> Cstruct.t
+  (** [map domid mfn] maps a foreign page *)
+
+  val unmap: Cstruct.t -> unit
+  (** [unmap page] unmaps a previously-mapped foreign page *)
+end

@@ -45,21 +45,20 @@ cstruct buffer {
 } as little_endian
 let _ = assert(4112 = Protocol.xenstore_payload_max + Protocol.Header.sizeof)
 
-type connection = {
+type conn = {
   address: address;
-  page: Io_page.t;
   ring: Cstruct.t;
   input: Cstruct.t;
   output: Cstruct.t;
-  port: int;
+  port: Eventchn.t;
   mutable shutdown: bool;
 }
 
 (* Thrown when an attempt is made to read or write to a closed ring *)
 exception Ring_shutdown
 
-module Reader(A: ACTIVATIONS) = struct
-  type t = connection
+module Reader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
+  type t = conn
 
   let next t =
     let rec loop from =
@@ -69,21 +68,22 @@ module Reader(A: ACTIVATIONS) = struct
         let seq, available = Xenstore_ring.Ring.Back.read_prepare t.ring in
         let available_bytes = Cstruct.len available in
         if available_bytes = 0 then begin
-          A.after from >>= fun from ->
+          A.after t.port from >>= fun from ->
           loop from
         end else return (Int64.of_int32 seq, available) in
     loop A.program_start
 
   let ack t seq =
     Xenstore_ring.Ring.Back.read_commit t.ring (Int64.to_int32 seq);
-    Eventchn.(notify (init ()) (of_int t.port));
+    Eventchn.(notify (init ()) t.port);
     return ()
 
   let read t buf =
     let rec loop buf =
       if Cstruct.len buf = 0
-      then return true
+      then return ()
       else next t >>= fun (seq, available) ->
+        let available_bytes = Cstruct.len available in
         let consumable = min (Cstruct.len buf) available_bytes in
         Cstruct.blit available 0 buf 0 consumable;
         ack t Int64.(add seq (of_int consumable)) >>= fun () ->
@@ -91,8 +91,8 @@ module Reader(A: ACTIVATIONS) = struct
     loop buf
 end
 
-module Writer(A: ACTIVATIONS) = struct
-  type t = connection
+module Writer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
+  type t = conn
   let next t =
     let rec loop from =
       if t.shutdown
@@ -101,35 +101,49 @@ module Writer(A: ACTIVATIONS) = struct
         let seq, available = Xenstore_ring.Ring.Back.write_prepare t.ring in
         let available_bytes = Cstruct.len available in
         if available_bytes = 0 then begin
-          A.after from >>= fun from ->
+          A.after t.port from >>= fun from ->
           loop from
         end else return (Int64.of_int32 seq, available) in
     loop A.program_start
 
   let ack t seq =
     Xenstore_ring.Ring.Back.write_commit t.ring (Int64.to_int32 seq);
-    Eventchn.(notify (init ()) (of_int t.port));
+    Eventchn.(notify (init ()) t.port);
     return ()
 
   let write t buf =
     let rec loop buf =
       if Cstruct.len buf = 0
-      then return true
-      next t >>= fun (seq, available) ->
-      let consumable = min (Cstruct.len buf) available_bytes in
-      Cstruct.blit buf 0 available 0 consumable;
-      ack t Int64.(add seq (of_int consumable));
-      loop (Cstruct.shift buf consumable) in
+      then return ()
+      else next t >>= fun (seq, available) ->
+        let available_bytes = Cstruct.len available in
+        let consumable = min (Cstruct.len buf) available_bytes in
+        Cstruct.blit buf 0 available 0 consumable;
+        ack t Int64.(add seq (of_int consumable)) >>= fun () ->
+        loop (Cstruct.shift buf consumable) in
     loop buf
 end
 
-let domains : (int, connection) Hashtbl.t = Hashtbl.create 128
-let by_port : (int, connection) Hashtbl.t = Hashtbl.create 128
+let domains : (int, conn) Hashtbl.t = Hashtbl.create 128
 
-module Make(A: ACTIVATIONS)(DS: DOMAIN_STATE) = struct
+let (stream: address Lwt_stream.t), introduce_fn = Lwt_stream.create ()
+
+module Make
+  (A: ACTIVATIONS with type channel = Eventchn.t)
+  (DS: DOMAIN_STATE)
+  (FPM: FOREIGN_PAGE_MAPPER) = struct
+
+  type 'a t = 'a Lwt.t
+  let ( >>= ) = Lwt.( >>= )
+  let return = Lwt.return
+
+  type connection = conn
 
   module Reader = Reader(A)
   module Writer = Writer(A)
+
+  let read = Reader.read
+  let write = Writer.write
 
   let address_of t =
     return (Uri.make
@@ -150,16 +164,9 @@ module Make(A: ACTIVATIONS)(DS: DOMAIN_STATE) = struct
     if Hashtbl.mem domains address.domid
     then return (Hashtbl.find domains address.domid)
     else begin
-      (* On initial startup, Main doesn't know the remote port. *)
-      ( if address.domid = 0 then begin
-          read_port () >>= fun remote_port ->
-          return { address with remote_port }
-        end else return address ) >>= fun address ->
-      let page = match address.domid with
-      | 0 -> map_page xenstored_proc_kva
-      | _ -> Domains.map_foreign address.domid address.mfn in
+      let ring = FPM.map address.domid address.mfn in
       let eventchn = Eventchn.init () in
-      let port = Eventchn.(to_int (bind_interdomain eventchn address.domid address.remote_port)) in
+      let port = Eventchn.(bind_interdomain eventchn address.domid address.remote_port) in
 
       PBuffer.create sizeof_buffer >>= fun poutput ->
       let output = PBuffer.get_cstruct poutput in
@@ -171,14 +178,11 @@ module Make(A: ACTIVATIONS)(DS: DOMAIN_STATE) = struct
       set_buffer_offset input 0L;
       set_buffer_length input 0;
 
-      let ring = Cstruct.of_bigarray page in
       let d = {
-        address; page; ring; port; input; output;
+        address; ring; port; input; output;
         shutdown = false;
       } in
-      let (_: unit Lwt.t) = service_domain d in
       Hashtbl.add domains address.domid d;
-      Hashtbl.add by_port port d;
       return d
     end
 
@@ -193,11 +197,10 @@ module Make(A: ACTIVATIONS)(DS: DOMAIN_STATE) = struct
 
   let destroy t =
     let eventchn = Eventchn.init () in
-    Eventchn.(unbind eventchn (of_int t.port));
-    Domains.unmap_foreign t.page;
+    Eventchn.(unbind eventchn t.port);
+    FPM.unmap t.ring;
     Hashtbl.remove domains t.address.domid;
-    Hashtbl.remove by_port t.port;
-    Introduce.forget t.address
+    return ()
 
   type offset = int64 with sexp
 
@@ -317,12 +320,14 @@ module Make(A: ACTIVATIONS)(DS: DOMAIN_STATE) = struct
     return next_write_ofs
 
   module Introspect = struct
+    type t = connection
+
     let read t path =
         let pairs = Xenstore_ring.Ring.to_debug_map t.ring in
         match path with
         | [] -> Some ""
         | [ "mfn" ] -> Some (Nativeint.to_string t.address.mfn)
-        | [ "local-port" ] -> Some (string_of_int t.port)
+        | [ "local-port" ] -> Some (string_of_int (Eventchn.to_int t.port))
         | [ "remote-port" ] -> Some (string_of_int t.address.remote_port)
         | [ "shutdown" ] -> Some (string_of_bool t.shutdown)
         | [ "request" ]

@@ -16,4 +16,7 @@
 
 open Xenstore.S
 
-module Make(A: ACTIVATIONS)(DS: DOMAIN_STATE) : TRANSPORT
+module Make
+  (A: ACTIVATIONS with type channel = Eventchn.t)
+  (DS: DOMAIN_STATE)
+  (FPM: FOREIGN_PAGE_MAPPER) : TRANSPORT
