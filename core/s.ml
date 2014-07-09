@@ -71,12 +71,6 @@ module type CONNECTION = sig
   val read: connection -> Cstruct.t -> unit t
 
   val write: connection -> Cstruct.t -> unit t
-
-  type offset with sexp
-
-  val get_read_offset: connection -> offset t
-
-  val get_write_offset: connection -> offset t
 end
 
 module type CHANNEL = sig
@@ -84,11 +78,6 @@ module type CHANNEL = sig
   include CONNECTION
     with type 'a t := 'a t
 
-  val flush: connection -> offset -> unit t
-
-  val enqueue: connection -> Protocol.Header.t -> Protocol.Response.t -> offset t
-
-  val recv: connection -> offset -> (offset * [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]) t
 end
 
 module type SERVER = sig
@@ -110,11 +99,9 @@ module type TRANSPORT = sig
   include CHANNEL
     with type 'a t := 'a t
      and  type connection := connection
-     and  type offset := offset
   include SERVER
     with type 'a t := 'a t
      and  type connection := connection
-     and  type offset := offset
 
   module Introspect : INTROSPECTABLE with type t = connection
 end
