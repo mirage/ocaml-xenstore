@@ -124,6 +124,73 @@ module Writer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     loop buf
 end
 
+module type WINDOWED_BUFFER = sig
+  type t
+  val next: t -> (int64 * Cstruct.t) Lwt.t
+  val ack: t -> int64 -> unit Lwt.t
+end
+
+module BufferedWriter(Writer: WINDOWED_BUFFER) = struct
+  type t = {
+    t: Writer.t;
+    output: Cstruct.t;
+  }
+
+  (* Flush any pending output to the channel.
+     On exit, the output buffer is invalid and all the contents have been
+     transmitted.
+     This function can be interrupted and restarted at any point. *)
+  let rec flush t next_write_ofs =
+    let offset = get_buffer_offset t.output in
+    if next_write_ofs <> offset then begin
+      (* packet is from the future *)
+      return ()
+    end else begin
+      let length = get_buffer_length t.output in
+      Writer.next t.t >>= fun (offset', space') ->
+      let space = Cstruct.sub (get_buffer_buffer t.output) 0 length in
+      (* write as much of (offset, space) into (offset', space') as possible *)
+      (* 1. skip any already-written data, check we haven't lost any *)
+      ( if offset < offset'
+        then
+          let to_skip = Int64.sub offset' offset in
+          return (offset', Cstruct.shift space (Int64.to_int to_skip))
+        else
+          if offset > offset'
+          then fail (Failure (Printf.sprintf "Some portion of the output stream has been skipped. Our data starts at %Ld, the stream starts at %Ld" offset offset'))
+          else return (offset, space)
+      ) >>= fun (offset, space) ->
+      (* 2. write as much as there is space for *)
+      let to_write = min (Cstruct.len space) (Cstruct.len space') in
+      Cstruct.blit space 0 space' 0 to_write;
+      let next_offset = Int64.(add offset' (of_int to_write)) in
+      Writer.ack t.t next_offset >>= fun () ->
+      let remaining = to_write - (Cstruct.len space) in
+      if remaining = 0
+      then return ()
+      else flush t next_write_ofs
+    end
+
+  (* Enqueue an output packet. This assumes that the output buffer is empty. *)
+  let enqueue t marshal_fn =
+    let reply_buf = get_buffer_buffer t.output in
+    (*
+    let payload_buf = Cstruct.shift reply_buf Protocol.Header.sizeof in
+
+    let next = Protocol.Response.marshal response payload_buf in
+    let length = next.Cstruct.off - payload_buf.Cstruct.off in
+    let hdr = Protocol.Header.({ hdr with len = length }) in
+    ignore (Protocol.Header.marshal hdr reply_buf);
+    *)
+    let length = marshal_fn reply_buf in
+
+    Writer.next t.t >>= fun (offset, _) ->
+    set_buffer_length t.output length;
+    set_buffer_offset t.output offset;
+    return offset
+
+end
+
 let domains : (int, conn) Hashtbl.t = Hashtbl.create 128
 
 let (stream: address Lwt_stream.t), introduce_fn = Lwt_stream.create ()
