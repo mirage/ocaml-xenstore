@@ -29,27 +29,46 @@ let fail_on_error = function
 | `Ok x -> return x
 | `Error x -> fail (Failure x)
 
-type address = {
-  domid: int;
-  mfn: nativeint;
-  remote_port: int;
-} with sexp
-(** A remote domain address *)
+module Address = struct
+  type t = {
+    domid: int;
+    mfn: nativeint;
+    remote_port: int;
+  } with sexp
+  (** A remote domain address *)
+
+  let uri_of address =
+    Uri.make
+      ~scheme:"domain"
+      ~path:(Printf.sprintf "%d/%nu/%d" address.domid address.mfn address.remote_port)
+      ()
+end
 
 let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
 
-type conn = {
-  address: address;
-  ring: Cstruct.t;
-  port: Eventchn.t;
-  mutable shutdown: bool;
-}
+module Connection = struct
+  type t = {
+    address: Address.t;
+    ring: Cstruct.t;
+    port: Eventchn.t;
+    mutable shutdown: bool;
+  }
+
+  let domains : (int, t) Hashtbl.t = Hashtbl.create 128
+
+  let destroy t =
+    let eventchn = Eventchn.init () in
+    Eventchn.(unbind eventchn t.port);
+    Hashtbl.remove domains t.address.Address.domid;
+    return ()
+end
 
 (* Thrown when an attempt is made to read or write to a closed ring *)
 exception Ring_shutdown
 
 module Reader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
-  type t = conn
+  type t = Connection.t
+  open Connection
 
   type offset = int64
 
@@ -85,7 +104,8 @@ module Reader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
 end
 
 module Writer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
-  type t = conn
+  type t = Connection.t
+  open Connection
 
   type offset = int64
 
@@ -120,9 +140,8 @@ module Writer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     loop buf
 end
 
-let domains : (int, conn) Hashtbl.t = Hashtbl.create 128
 
-let (stream: address Lwt_stream.t), introduce_fn = Lwt_stream.create ()
+let (stream: Address.t Lwt_stream.t), introduce_fn = Lwt_stream.create ()
 
 module Make
   (A: ACTIVATIONS with type channel = Eventchn.t)
@@ -133,74 +152,79 @@ module Make
   let ( >>= ) = Lwt.( >>= )
   let return = Lwt.return
 
-  type connection = conn
 
   module Reader = Reader(A)
   module Writer = Writer(A)
 
-  let read = Reader.read
-  let write = Writer.write
-
   module BufferedReader = BufferedReader.Make(Reader)
   module BufferedWriter = BufferedWriter.Make(Writer)
 
-  let address_of t =
-    return (Uri.make
-      ~scheme:"domain"
-      ~path:(Printf.sprintf "%d/%nu/%d" t.address.domid t.address.mfn t.address.remote_port)
-      ()
-    )
+  type connection = {
+    conn: Connection.t;
+    reader: BufferedReader.t;
+    writer: BufferedWriter.t;
+  }
 
-  let domain_of t = t.address.domid
+  let read t buf = Reader.read t.conn buf
+  let write t buf = Writer.write t.conn buf
 
-  type server = address Lwt_stream.t
+
+  let uri_of t = return (Address.uri_of t.conn.Connection.address)
+
+  let domain_of t = t.conn.Connection.address.Address.domid
+
+  type server = Address.t Lwt_stream.t
 
   let listen () =
     return stream
 
   let from_address address =
     (* this function should be idempotent *)
-    if Hashtbl.mem domains address.domid
-    then return (Hashtbl.find domains address.domid)
+    if Hashtbl.mem Connection.domains address.Address.domid
+    then return (Hashtbl.find Connection.domains address.Address.domid)
     else begin
-      let ring = FPM.map address.domid address.mfn in
+      let ring = FPM.map address.Address.domid address.Address.mfn in
       let eventchn = Eventchn.init () in
-      let port = Eventchn.(bind_interdomain eventchn address.domid address.remote_port) in
+      let port = Eventchn.(bind_interdomain eventchn address.Address.domid address.Address.remote_port) in
 
       let d = {
-        address; ring; port;
+        Connection.address; ring; port;
         shutdown = false;
       } in
-      Hashtbl.add domains address.domid d;
+      Hashtbl.add Connection.domains address.Address.domid d;
       return d
     end
 
   let rec accept_forever stream process =
     Lwt_stream.next stream >>= fun address ->
-    from_address address >>= fun d ->
-    let (_: unit Lwt.t) = process d in
+    from_address address >>= fun conn ->
+    let reader_buffer = Cstruct.create max_packet_size in
+    let writer_buffer = Cstruct.create max_packet_size in
+    let reader = BufferedReader.create conn reader_buffer in
+    let writer = BufferedWriter.create conn writer_buffer in
+    let t = { conn; reader; writer } in
+    let (_: unit Lwt.t) = process t  in
     accept_forever stream process
 
   let create () =
     failwith "It's not possible to directly 'create' an interdomain ring."
 
   let destroy t =
-    let eventchn = Eventchn.init () in
-    Eventchn.(unbind eventchn t.port);
-    FPM.unmap t.ring;
-    Hashtbl.remove domains t.address.domid;
-    return ()
+    FPM.unmap t.conn.Connection.ring;
+    Connection.destroy t.conn
 
   module Introspect = struct
     type t = connection
+    open Connection
 
     let read t path =
+        let t = t.conn in
         let pairs = Xenstore_ring.Ring.to_debug_map t.ring in
         match path with
         | [] -> Some ""
-        | [ "mfn" ] -> Some (Nativeint.to_string t.address.mfn)
+        | [ "mfn" ] -> Some (Nativeint.to_string t.address.Address.mfn)
         | [ "local-port" ] -> Some (string_of_int (Eventchn.to_int t.port))
-        | [ "remote-port" ] -> Some (string_of_int t.address.remote_port)
+        | [ "remote-port" ] -> Some (string_of_int t.address.Address.remote_port)
         | [ "shutdown" ] -> Some (string_of_bool t.shutdown)
         | [ "request" ]
         | [ "response" ] -> Some ""

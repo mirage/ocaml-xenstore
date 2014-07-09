@@ -128,7 +128,7 @@ let int_of_file_descr fd =
   let (fd: int) = Obj.magic fd in
   fd
 
-let address_of { fd } =
+let uri_of { fd } =
   let creds = Lwt_unix.get_credentials fd in
   let pid = creds.Lwt_unix.cred_pid in
   lwt cmdline =

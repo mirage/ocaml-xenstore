@@ -64,7 +64,7 @@ module type CONNECTION = sig
 
   val destroy: connection -> unit t
 
-  val address_of: connection -> Uri.t t
+  val uri_of: connection -> Uri.t t
 
   val domain_of: connection -> int
 
