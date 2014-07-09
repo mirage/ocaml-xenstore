@@ -152,6 +152,22 @@ module type CLIENT = sig
   val wait: (ctx -> [ `Ok of 'a | `Error of 'b | `Retry ] t) -> [ `Ok of 'a | `Error of 'b ] t
 end
 
+module type WINDOW = sig
+  (** A view of the underlying byte stream *)
+
+  type t
+
+  type offset
+
+  val next: t -> (offset * Cstruct.t) Lwt.t
+  (** [next buf] returns the next fragment of space (full if reading; empty
+      if writing) and the offset of the first byte. *)
+
+  val ack: t -> offset -> unit Lwt.t
+  (** [ack buf offset] declares that we have processed all data up to [offset]
+      and therefore any buffers may be recycled. *)
+end
+
 module type ACTIVATIONS = sig
   include IO
 
