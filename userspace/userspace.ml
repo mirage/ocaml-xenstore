@@ -32,20 +32,79 @@ let initial_retry_interval = 0.1 (* seconds *)
 let max_retry_interval = 5.0 (* seconds *)
 let retry_max = 100 (* attempts *)
 
+let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
+
 exception Connection_timeout
+
+module Reader = struct
+  type t = {
+    fd: Lwt_unix.file_descr;
+    buffer: Cstruct.t;
+    mutable offset: int64;
+    mutable length: int;
+  }
+  type offset = int64
+
+  let make fd =
+    let buffer = Cstruct.create 1024 in
+    let offset = 0L in
+    let length = 0 in
+    { fd; buffer; offset; length }
+
+  let next t = match t.length with
+    | 0 ->
+      Lwt_cstruct.read t.fd t.buffer >>= fun n ->
+      t.length <- n;
+      return (t.offset, Cstruct.sub t.buffer 0 n)
+    | n ->
+      return (t.offset, Cstruct.sub t.buffer 0 n)
+
+  let ack t offset =
+    let delta = Int64.(to_int (sub offset t.offset)) in
+    let length = max 0 (t.length - delta) in
+    if length > 0
+    then Cstruct.blit t.buffer (t.length - length) t.buffer 0 length;
+    t.length <- length;
+    return ()
+end
+
+module Writer = struct
+  type t = {
+    fd: Lwt_unix.file_descr;
+    buffer: Cstruct.t;
+    mutable offset: int64;
+    mutable length: int;
+  }
+  type offset = int64
+
+  let make fd =
+    let buffer = Cstruct.create 1024 in
+    let offset = 0L in
+    let length = 0 in
+    { fd; buffer; offset; length }
+
+  let next t = assert false
+
+  let ack t offset = assert false
+end
+
+module BufferedReader = BufferedReader.Make(Reader)
+module BufferedWriter = BufferedWriter.Make(Writer)
 
 (* Individual connections *)
 type connection = {
   fd: Lwt_unix.file_descr;
   sockaddr: Lwt_unix.sockaddr;
-  read_buffer: Cstruct.t;
-  write_buffer: Cstruct.t;
+  reader: BufferedReader.t;
+  writer: BufferedWriter.t;
 }
 
 let alloc (fd, sockaddr) =
-  let read_buffer = Cstruct.create (Protocol.Header.sizeof + Protocol.xenstore_payload_max) in
-  let write_buffer = Cstruct.create (Protocol.Header.sizeof + Protocol.xenstore_payload_max) in
-  return { fd; sockaddr; read_buffer; write_buffer }
+  let read_buffer = Cstruct.create max_packet_size in
+  let reader = BufferedReader.create (Reader.make fd) read_buffer in
+  let write_buffer = Cstruct.create max_packet_size in
+  let writer = BufferedWriter.create (Writer.make fd) write_buffer in
+  return { fd; sockaddr; reader; writer }
 
 let xenstored_socket = ref "/var/run/xenstored/socket"
 
@@ -172,6 +231,7 @@ let rec accept_forever fd process =
   let (_: unit Lwt.t list) = List.map (fun x -> alloc x >>= process) conns in
   accept_forever fd process
 
+(*
 type offset = unit with sexp
 
 let get_read_offset _ = return ()
@@ -200,6 +260,7 @@ let recv t _ =
       | `Error y -> return ((), `Error y)
       | `Ok y -> return ((), `Ok (x, y))
     end
+*)
 
 module Introspect = struct
   type t = connection

@@ -35,7 +35,7 @@ Library xenstore_userspace
   Findlibname:        userspace
   FindlibParent:      xenstore
   Modules:            Userspace
-  BuildDepends:       lwt, lwt.unix, xenstore
+  BuildDepends:       lwt, lwt.unix, xenstore, cstruct.lwt
 
 Library xenstore_kernelspace
   CompiledObject:     best
