@@ -131,65 +131,120 @@ module type WINDOWED_BUFFER = sig
 end
 
 module BufferedWriter(Writer: WINDOWED_BUFFER) = struct
+  cstruct hdr {
+    uint64_t producer;
+    uint64_t consumer;
+  } as little_endian
+
   type t = {
     t: Writer.t;
     output: Cstruct.t;
   }
 
-  (* Flush any pending output to the channel.
-     On exit, the output buffer is invalid and all the contents have been
-     transmitted.
-     This function can be interrupted and restarted at any point. *)
-  let rec flush t next_write_ofs =
-    let offset = get_buffer_offset t.output in
-    if next_write_ofs <> offset then begin
-      (* packet is from the future *)
-      return ()
-    end else begin
-      let length = get_buffer_length t.output in
-      Writer.next t.t >>= fun (offset', space') ->
-      let space = Cstruct.sub (get_buffer_buffer t.output) 0 length in
-      (* write as much of (offset, space) into (offset', space') as possible *)
-      (* 1. skip any already-written data, check we haven't lost any *)
-      ( if offset < offset'
-        then
-          let to_skip = Int64.sub offset' offset in
-          return (offset', Cstruct.shift space (Int64.to_int to_skip))
-        else
-          if offset > offset'
-          then fail (Failure (Printf.sprintf "Some portion of the output stream has been skipped. Our data starts at %Ld, the stream starts at %Ld" offset offset'))
-          else return (offset, space)
-      ) >>= fun (offset, space) ->
-      (* 2. write as much as there is space for *)
-      let to_write = min (Cstruct.len space) (Cstruct.len space') in
-      Cstruct.blit space 0 space' 0 to_write;
-      let next_offset = Int64.(add offset' (of_int to_write)) in
-      Writer.ack t.t next_offset >>= fun () ->
-      let remaining = to_write - (Cstruct.len space) in
-      if remaining = 0
-      then return ()
-      else flush t next_write_ofs
+  let attach t output = { t; output }
+
+  let create t output =
+    set_hdr_producer output 0L;
+    set_hdr_consumer output 0L;
+    attach t output
+
+  let next t =
+    let len = Cstruct.len t.output in
+    (* total space available is len - (producer - consumer_ but we only want to
+       return contiguous space *)
+    let producer = get_hdr_producer t.output in
+    let consumer = get_hdr_consumer t.output in
+    let used = Int64.(to_int (sub producer consumer)) in
+    let available = len - used in
+    let producer_wrapped = Int64.(to_int (rem producer (of_int len))) in
+    let to_buffer_end = len - producer_wrapped in
+    let contiguous = min available to_buffer_end in
+    return (producer, Cstruct.sub t.output producer_wrapped contiguous)
+
+  let rec ack t up_to =
+    let len = Cstruct.len t.output in
+    let consumer = get_hdr_consumer t.output in
+    Writer.next t.t >>= fun (offset, space) ->
+    ( if offset < consumer
+      then fail (Failure (Printf.sprintf "Some portion of the output stream has been dropped. Our data starts at %Ld, the stream starts at %Ld" consumer offset))
+      else return () ) >>= fun () ->
+    (* If we crashed on a previous run we might not have bumped the consumer
+       pointer -- do it now *)
+    let consumer = offset in
+    set_hdr_consumer t.output offset;
+
+    if consumer = up_to
+    then return ()
+    else begin
+      (* total data we should write is up_to - consumer but we need to
+         subdivide this into contiguous chunks *)
+      let used = Int64.(to_int (sub up_to consumer)) in
+      let consumer_wrapped = Int64.(to_int (rem consumer (of_int len))) in
+      let to_buffer_end = len - consumer_wrapped in
+      let contiguous = min used to_buffer_end in
+      let n = min (Cstruct.len space) contiguous in
+      let to_write = Cstruct.sub t.output consumer_wrapped n in
+      Cstruct.blit to_write 0 space 0 n;
+      let consumer = Int64.(add consumer (of_int n)) in
+      Writer.ack t.t consumer >>= fun () ->
+      ack t up_to
     end
-
-  (* Enqueue an output packet. This assumes that the output buffer is empty. *)
-  let enqueue t marshal_fn =
-    let reply_buf = get_buffer_buffer t.output in
-    (*
-    let payload_buf = Cstruct.shift reply_buf Protocol.Header.sizeof in
-
-    let next = Protocol.Response.marshal response payload_buf in
-    let length = next.Cstruct.off - payload_buf.Cstruct.off in
-    let hdr = Protocol.Header.({ hdr with len = length }) in
-    ignore (Protocol.Header.marshal hdr reply_buf);
-    *)
-    let length = marshal_fn reply_buf in
-
-    Writer.next t.t >>= fun (offset, _) ->
-    set_buffer_length t.output length;
-    set_buffer_offset t.output offset;
-    return offset
-
 end
+
+module BufferedReader(Reader: WINDOWED_BUFFER) = struct
+  cstruct hdr {
+    uint64_t producer;
+    uint64_t consumer;
+  } as little_endian
+
+  type t = {
+    t: Reader.t;
+    output: Cstruct.t;
+  }
+
+  let attach t output = { t; output }
+
+  let create t output =
+    set_hdr_producer output 0L;
+    set_hdr_consumer output 0L;
+    attach t output
+
+  let next t =
+    let len = Cstruct.len t.output in
+    let producer = get_hdr_producer t.output in
+    let consumer = get_hdr_consumer t.output in
+    let used = Int64.(to_int (sub producer consumer)) in
+    Reader.next t.t >>= fun (offset, space) ->
+    (* copy as much as possible into our buffer *)
+    ( if offset > producer
+      then fail (failwith (Printf.sprintf "Some portion of the input stream has been dropped. Our data starts at %Ld, the stream starts at %Ld" producer offset))
+      else return () ) >>= fun () ->
+    let producer = offset in
+    (* total data we can write is len - (producer - consumer) but we need to
+       subdivide this into contiguous chunks *)
+    let used = Int64.(to_int (sub producer consumer)) in
+    let free = len - used in
+    let producer_wrapped = Int64.(to_int (rem producer (of_int len))) in
+    let to_buffer_end = len - producer_wrapped in
+    let contiguous = min free to_buffer_end in
+    let n = min (Cstruct.len space) contiguous in
+    let to_write = Cstruct.sub t.output producer_wrapped n in
+    Cstruct.blit space 0 to_write 0 n;
+    let producer = Int64.(add producer (of_int n)) in
+    set_hdr_producer t.output producer;
+    Reader.ack t.t producer >>= fun () ->
+
+    (* return everything we've got to the user *)
+    let consumer_wrapped = Int64.(to_int (rem consumer (of_int len))) in
+    let to_buffer_end = len - consumer_wrapped in
+    let contiguous = min used to_buffer_end in
+    return (consumer, Cstruct.sub t.output consumer_wrapped contiguous)
+
+  let ack t up_to =
+    set_hdr_consumer t.output up_to;
+    return ()
+end
+
 
 let domains : (int, conn) Hashtbl.t = Hashtbl.create 128
 
