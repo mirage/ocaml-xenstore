@@ -17,7 +17,7 @@ open Lwt
 
 module Make(Reader: S.WINDOW with type offset = int64) = struct
   type offset = Reader.offset
-  
+
   cstruct hdr {
     uint64_t producer;
     uint64_t consumer;
@@ -38,9 +38,11 @@ module Make(Reader: S.WINDOW with type offset = int64) = struct
   (* read a bit more data from the underlying buffer, return what we have
      so far *)
   let next t =
-    let len = Cstruct.len t.output in
     let producer = get_hdr_producer t.output in
     let consumer = get_hdr_consumer t.output in
+    let buffer = Cstruct.shift t.output 16 in
+    let len = Cstruct.len buffer in
+
     let used = Int64.(to_int (sub producer consumer)) in
     Reader.next t.t >>= fun (offset, space) ->
     (* copy as much as possible into our buffer *)
@@ -56,7 +58,7 @@ module Make(Reader: S.WINDOW with type offset = int64) = struct
     let to_buffer_end = len - producer_wrapped in
     let contiguous = min free to_buffer_end in
     let n = min (Cstruct.len space) contiguous in
-    let to_write = Cstruct.sub t.output producer_wrapped n in
+    let to_write = Cstruct.sub buffer producer_wrapped n in
     Cstruct.blit space 0 to_write 0 n;
     let producer = Int64.(add producer (of_int n)) in
     set_hdr_producer t.output producer;
@@ -66,7 +68,9 @@ module Make(Reader: S.WINDOW with type offset = int64) = struct
     let consumer_wrapped = Int64.(to_int (rem consumer (of_int len))) in
     let to_buffer_end = len - consumer_wrapped in
     let contiguous = min used to_buffer_end in
-    return (consumer, Cstruct.sub t.output consumer_wrapped contiguous)
+
+    let space = Cstruct.sub buffer consumer_wrapped contiguous in
+    return (consumer, space)
 
   (* consume [up_to] *)
   let ack t up_to =

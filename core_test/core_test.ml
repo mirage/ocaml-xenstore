@@ -162,6 +162,15 @@ module Example_request_packet = struct
           failwith (Printf.sprintf "At %Ld: %s" offset x)
         | offset, `Ok (hdr, payload) ->
           check_parse t hdr payload;
+          (* check the data hasn't been lost *)
+          begin PacketCStructReader.next br >>= function
+          | offset', `Error _ ->
+            failwith "Reading data twice resulted in different contents"
+          | offset', `Ok (hdr', payload') ->
+            assert_equal ~printer:Int64.to_string offset offset';
+            assert_equal hdr hdr';
+            return ()
+          end >>= fun () ->
           PacketCStructReader.ack br offset >>= fun () ->
           loop (i + 1) in
     Lwt_main.run (loop 0)
