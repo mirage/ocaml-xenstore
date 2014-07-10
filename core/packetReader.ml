@@ -35,7 +35,10 @@ module Make(Reader: S.WINDOW with type offset = int64) = struct
           then loop ()
           else begin
             let payload = Cstruct.shift space Protocol.Header.sizeof in
-            return (Int64.(add offset (of_int length)), Protocol.Request.unmarshal x payload)
+            let offset = Int64.(add offset (of_int length)) in
+            match Protocol.Request.unmarshal x payload with
+            | `Ok y -> return (offset, `Ok (x, y))
+            | `Error y -> return (offset, `Error y)
           end in
         loop ()
     end

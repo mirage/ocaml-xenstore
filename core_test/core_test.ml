@@ -90,6 +90,28 @@ let cstruct_of_string x =
   Cstruct.blit_from_string x 0 c 0 (Cstruct.len c);
   c
 
+module CStructReader = struct
+  type offset = int64
+  type t = {
+    buffer: Cstruct.t;
+    mutable offset: offset;
+    length: int;
+  }
+  let create buffer length =
+    let offset = 0L in
+    { buffer; offset; length }
+  let next t =
+    let offset = Int64.to_int t.offset in
+    let l = min (Cstruct.len t.buffer) (offset + t.length) - offset in
+    return (t.offset, Cstruct.sub t.buffer offset l)
+  let ack t ofs =
+    t.offset <- ofs;
+    return ()
+end
+
+module BufferedCStructReader = BufferedReader.Make(CStructReader)
+module PacketCStructReader = PacketReader.Make(BufferedCStructReader)
+
 module Example_request_packet = struct
   type t = {
     op: Protocol.Op.t;
@@ -98,14 +120,17 @@ module Example_request_packet = struct
     expected: string;
   }
 
+  let check_parse t hdr request =
+    assert_equal ~printer:(fun x -> Sexp.to_string (Protocol.Op.sexp_of_t x)) t.op hdr.Protocol.Header.ty;
+    assert_equal ~printer:Int32.to_string t.tid hdr.Protocol.Header.tid;
+    assert_equal ~printer:(fun x -> Sexp.to_string (Protocol.Request.sexp_of_t x)) t.request request
+
   let test_parse t () =
     let buf = cstruct_of_string t.expected in
     let hdr = failure_on_error (Protocol.Header.unmarshal buf) in
     let payload = Cstruct.shift buf Protocol.Header.sizeof in
-    assert_equal ~printer:(fun x -> Sexp.to_string (Protocol.Op.sexp_of_t x)) t.op hdr.Protocol.Header.ty;
-    assert_equal ~printer:Int32.to_string t.tid hdr.Protocol.Header.tid;
     let request = failure_on_error (Protocol.Request.unmarshal hdr payload) in
-    assert_equal ~printer:(fun x -> Sexp.to_string (Protocol.Request.sexp_of_t x)) t.request request
+    check_parse t hdr request
 
   let test_print t () =
     let buf = Cstruct.create (Protocol.xenstore_payload_max + Protocol.Header.sizeof) in
@@ -117,6 +142,30 @@ module Example_request_packet = struct
     let all = Cstruct.sub buf 0 (Protocol.Header.sizeof + len) in
     let txt = Cstruct.to_string all in
     assert_equal ~printer:String.escaped t.expected txt
+
+  let test_packet_reader t () =
+    let n = 1 in
+    let one = cstruct_of_string t.expected in
+    let len = Cstruct.len one in
+    let buf = Cstruct.create (len * n) in
+    for i = 0 to n - 1 do
+      Cstruct.blit one 0 buf (i * len) len
+    done;
+    let r = CStructReader.create buf 3 in
+    let br = BufferedCStructReader.create r (Cstruct.create 5000) in
+    let rec loop i =
+      if i = n
+      then return ()
+      else
+        PacketCStructReader.next br >>= function
+        | offset, `Error x ->
+          failwith (Printf.sprintf "At %Ld: %s" offset x)
+        | offset, `Ok (hdr, payload) ->
+          check_parse t hdr payload;
+          PacketCStructReader.ack br offset >>= fun () ->
+          loop (i + 1) in
+    Lwt_main.run (loop 0)
+
 end
 
 let make_example_request op request tid expected =
@@ -242,7 +291,7 @@ let example_response_packets =
       rid = 10l;
       op = Op.Error;
       response = Protocol.Response.Error "whatyoutalkingabout";
-      expected = 
+      expected =
         "\x10\x00\x00\x00\n\x00\x00\x00\x02\x00\x00\x00\x14\x00\x00\x00\x77\x68\x61\x74\x79\x6f\x75\x74\x61\x6c\x6b\x69\x6e\x67\x61\x62\x6f\x75\x74\x00"
     }
   ]
@@ -273,6 +322,13 @@ let _ =
          description >:: Example_request_packet.test_parse t
        ) (unexpected_request_packets @ example_request_packets)) in
 
+  let buffered_request_parsing =
+    "buffered_request_parsing" >:::
+    (List.map (fun t ->
+         let description = Sexp.to_string (Protocol.Request.sexp_of_t t.Example_request_packet.request) in
+         description >:: Example_request_packet.test_packet_reader t
+       ) (unexpected_request_packets @ example_request_packets)) in
+
   let response_parsing =
     "response_parsing" >:::
     (List.map (fun t ->
@@ -299,6 +355,7 @@ let _ =
                 "op_ids" >:: op_ids;
                 "acl_parser" >:: acl_parser;
                 request_parsing;
+                buffered_request_parsing;
                 response_parsing;
                 request_printing;
                 response_printing;

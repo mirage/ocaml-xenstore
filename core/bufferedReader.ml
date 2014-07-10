@@ -16,7 +16,8 @@
 open Lwt
 
 module Make(Reader: S.WINDOW with type offset = int64) = struct
-
+  type offset = Reader.offset
+  
   cstruct hdr {
     uint64_t producer;
     uint64_t consumer;
