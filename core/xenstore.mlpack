@@ -1,11 +1,13 @@
 # OASIS_START
-# DO NOT EDIT (digest: aef46ce17866b5bf38c2e482acd9e1dc)
+# DO NOT EDIT (digest: f983fc9ffa638dd7e22e1bc4b8b02eab)
 Protocol
 Handle
 Client
 DomainWatch
 BufferedReader
+PacketReader
 BufferedWriter
+PacketWriter
 Logging
 S
 # OASIS_STOP
