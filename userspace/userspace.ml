@@ -64,28 +64,51 @@ module Reader = struct
     let length = max 0 (t.length - delta) in
     if length > 0
     then Cstruct.blit t.buffer (t.length - length) t.buffer 0 length;
+    t.offset <- offset;
     t.length <- length;
     return ()
 end
+
+let complete op fd buf =
+  let ofs = buf.Cstruct.off in
+  let len = buf.Cstruct.len in
+  let buf = buf.Cstruct.buffer in
+  let rec loop acc fd buf ofs len =
+    op fd buf ofs len >>= fun n ->
+    let len' = len - n in
+    let acc' = acc + n in
+    if len' = 0 || n = 0
+    then return acc'
+    else loop acc' fd buf (ofs + n) len' in
+  loop 0 fd buf ofs len >>= fun n ->
+  if n = 0 && len <> 0
+  then fail End_of_file
+  else return ()
 
 module Writer = struct
   type t = {
     fd: Lwt_unix.file_descr;
     buffer: Cstruct.t;
     mutable offset: int64;
-    mutable length: int;
   }
   type offset = int64
 
   let make fd =
     let buffer = Cstruct.create 1024 in
     let offset = 0L in
-    let length = 0 in
-    { fd; buffer; offset; length }
+    { fd; buffer; offset }
 
-  let next t = assert false
+  let next t =
+    return (t.offset, t.buffer )
 
-  let ack t offset = assert false
+  let ack t offset =
+    let delta = Int64.(to_int (sub offset t.offset)) in
+    complete Lwt_bytes.write t.fd (Cstruct.sub t.buffer 0 delta) >>= fun () ->
+    let unwritten = Cstruct.len t.buffer - delta in
+    if unwritten > 0
+    then Cstruct.blit t.buffer (Cstruct.len t.buffer - unwritten) t.buffer 0 unwritten;
+    t.offset <- offset;
+    return ()
 end
 
 module BufferedReader = BufferedReader.Make(Reader)
@@ -160,22 +183,6 @@ let create () =
     let fd = Unix.openfile path [ Lwt_unix.O_RDWR ] 0o0 in
     (* It looks like a file but behaves like a pipe: *)
     alloc (Lwt_unix.of_unix_file_descr ~blocking:false fd, sockaddr)
-
-let complete op fd buf =
-  let ofs = buf.Cstruct.off in
-  let len = buf.Cstruct.len in
-  let buf = buf.Cstruct.buffer in
-  let rec loop acc fd buf ofs len =
-    op fd buf ofs len >>= fun n ->
-    let len' = len - n in
-    let acc' = acc + n in
-    if len' = 0 || n = 0
-    then return acc'
-    else loop acc' fd buf (ofs + n) len' in
-  loop 0 fd buf ofs len >>= fun n ->
-  if n = 0 && len <> 0
-  then fail End_of_file
-  else return ()
 
 let destroy { fd } = Lwt_unix.close fd
 
