@@ -90,7 +90,7 @@ let cstruct_of_string x =
   Cstruct.blit_from_string x 0 c 0 (Cstruct.len c);
   c
 
-module CStructReader = struct
+module CStructWindow = struct
   type offset = int64
   type t = {
     buffer: Cstruct.t;
@@ -109,8 +109,11 @@ module CStructReader = struct
     return ()
 end
 
-module BufferedCStructReader = BufferedReader.Make(CStructReader)
+module BufferedCStructReader = BufferedReader.Make(CStructWindow)
 module PacketCStructReader = PacketReader.Make(BufferedCStructReader)
+
+module BufferedCStructWriter = BufferedWriter.Make(CStructWindow)
+module PacketCStructWriter = PacketWriter.Make(BufferedCStructWriter)
 
 module Example_request_packet = struct
   type t = {
@@ -151,7 +154,7 @@ module Example_request_packet = struct
     for i = 0 to n - 1 do
       Cstruct.blit one 0 buf (i * len) len
     done;
-    let r = CStructReader.create buf 3 in
+    let r = CStructWindow.create buf 3 in
     let br = BufferedCStructReader.create r (Cstruct.create 5000) in
     let rec loop i =
       if i = n
@@ -174,6 +177,26 @@ module Example_request_packet = struct
           PacketCStructReader.ack br offset >>= fun () ->
           loop (i + 1) in
     Lwt_main.run (loop 0)
+
+  let test_packet_writer t () =
+    let buf = cstruct_of_string t.expected in
+    let hdr = failure_on_error (Protocol.Header.unmarshal buf) in
+    let payload = Cstruct.shift buf Protocol.Header.sizeof in
+    let request = failure_on_error (Protocol.Request.unmarshal hdr payload) in
+
+    let n = 1 in
+    let len = String.length t.expected in
+    let buf = Cstruct.create (len * n) in
+    let w = CStructWindow.create buf 3 in
+    let bw = BufferedCStructWriter.create w (Cstruct.create 5000) in
+    let rec loop offset i =
+      if i = n
+      then return ()
+      else
+        PacketCStructWriter.write bw offset hdr (Protocol.Request.marshal request) >>= fun offset ->
+        PacketCStructWriter.ack bw offset >>= fun () ->
+        loop offset (i + 1) in
+    Lwt_main.run (loop 0L 0);
 
 end
 
@@ -352,6 +375,13 @@ let _ =
          description >:: Example_request_packet.test_print t
        ) example_request_packets) in
 
+  let buffered_request_printing =
+    "buffered_request_printing" >:::
+    (List.map (fun t ->
+         let description = Sexp.to_string (Protocol.Request.sexp_of_t t.Example_request_packet.request) in
+         description >:: Example_request_packet.test_packet_writer t
+       ) example_request_packets) in
+
   let response_printing =
     "response_printing" >:::
     (List.map (fun t ->
@@ -365,6 +395,7 @@ let _ =
                 "acl_parser" >:: acl_parser;
                 request_parsing;
                 buffered_request_parsing;
+                buffered_request_printing;
                 response_parsing;
                 request_printing;
                 response_printing;

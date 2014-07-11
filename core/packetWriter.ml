@@ -20,7 +20,7 @@ let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
 module Make(Writer: S.WINDOW with type offset = int64) = struct
   type t = Writer.t
 
-  let write t offset hdr response =
+  let write t offset hdr marshal =
     let rec loop () =
       Writer.next t >>= fun (_, space) ->
       if Cstruct.len space >= max_packet_size
@@ -29,7 +29,7 @@ module Make(Writer: S.WINDOW with type offset = int64) = struct
     loop () >>= fun () ->
     Writer.next t >>= fun (offset, space) ->
     let payload_buf = Cstruct.shift space Protocol.Header.sizeof in
-    let next = Protocol.Response.marshal response payload_buf in
+    let next = marshal payload_buf in
     let length = next.Cstruct.off - payload_buf.Cstruct.off in
     let hdr = Protocol.Header.({ hdr with len = length }) in
     ignore (Protocol.Header.marshal hdr space);
