@@ -37,21 +37,24 @@ module Make(Writer: S.WINDOW with type offset = int64) = struct
 
   (* Return the next contiguous buffer fragment available for writing *)
   let next t =
-    let len = Cstruct.len t.output in
     (* total space available is len - (producer - consumer_ but we only want to
        return contiguous space *)
     let producer = get_hdr_producer t.output in
     let consumer = get_hdr_consumer t.output in
     let used = Int64.(to_int (sub producer consumer)) in
+    let buffer = Cstruct.shift t.output 16 in
+    let len = Cstruct.len buffer in
+
     let available = len - used in
     let producer_wrapped = Int64.(to_int (rem producer (of_int len))) in
     let to_buffer_end = len - producer_wrapped in
     let contiguous = min available to_buffer_end in
-    return (producer, Cstruct.sub t.output producer_wrapped contiguous)
+    return (producer, Cstruct.sub buffer producer_wrapped contiguous)
 
   (* Ensure all data [up_to] have been transmitted *)
   let rec ack t up_to =
-    let len = Cstruct.len t.output in
+    let buffer = Cstruct.shift t.output 16 in
+    let len = Cstruct.len buffer in
     let consumer = get_hdr_consumer t.output in
     Writer.next t.t >>= fun (offset, space) ->
     ( if offset < consumer
@@ -72,7 +75,7 @@ module Make(Writer: S.WINDOW with type offset = int64) = struct
       let to_buffer_end = len - consumer_wrapped in
       let contiguous = min used to_buffer_end in
       let n = min (Cstruct.len space) contiguous in
-      let to_write = Cstruct.sub t.output consumer_wrapped n in
+      let to_write = Cstruct.sub buffer consumer_wrapped n in
       Cstruct.blit to_write 0 space 0 n;
       let consumer = Int64.(add consumer (of_int n)) in
       Writer.ack t.t consumer >>= fun () ->
