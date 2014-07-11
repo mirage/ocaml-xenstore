@@ -15,7 +15,9 @@
  *)
 open Lwt
 
-module Make(Reader: S.WINDOW with type offset = int64) = struct
+module Make(Reader: S.WINDOW
+  with type offset = int64
+  and  type item = Cstruct.t) = struct
   type t = Reader.t
 
   let rec next t =

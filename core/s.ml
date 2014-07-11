@@ -55,6 +55,24 @@ module type STREAM = sig
   val next: state -> (data * state) t
 end
 
+module type WINDOW = sig
+  (** A view of the underlying stream *)
+
+  type t
+
+  type offset
+
+  type item
+
+  val next: t -> (offset * item) Lwt.t
+  (** [next t] returns the next item from the stream, together with the offset
+      which should be passed to [ack] *)
+      
+  val ack: t -> offset -> unit Lwt.t
+  (** [ack buf offset] declares that we have processed all data up to [offset]
+      and therefore any buffers may be recycled. *)
+end
+
 module type CONNECTION = sig
   include IO
 
@@ -137,22 +155,6 @@ module type CLIENT = sig
   (** [transaction op] executes [op] as a transaction *)
 
   val wait: (ctx -> [ `Ok of 'a | `Error of 'b | `Retry ] t) -> [ `Ok of 'a | `Error of 'b ] t
-end
-
-module type WINDOW = sig
-  (** A view of the underlying byte stream *)
-
-  type t
-
-  type offset
-
-  val next: t -> (offset * Cstruct.t) Lwt.t
-  (** [next buf] returns the next fragment of space (full if reading; empty
-      if writing) and the offset of the first byte. *)
-
-  val ack: t -> offset -> unit Lwt.t
-  (** [ack buf offset] declares that we have processed all data up to [offset]
-      and therefore any buffers may be recycled. *)
 end
 
 module type ACTIVATIONS = sig

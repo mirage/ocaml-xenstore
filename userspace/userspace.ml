@@ -44,7 +44,8 @@ module Reader = struct
     mutable length: int;
   }
   type offset = int64
-
+  type item = Cstruct.t
+  
   let make fd =
     let buffer = Cstruct.create 1024 in
     let offset = 0L in
@@ -92,6 +93,7 @@ module Writer = struct
     mutable offset: int64;
   }
   type offset = int64
+  type item = Cstruct.t
 
   let make fd =
     let buffer = Cstruct.create 1024 in

@@ -15,11 +15,15 @@
  *)
 
 
-module Make(Reader: S.WINDOW with type offset = int64) : sig
+module Make(Reader: S.WINDOW
+  with type offset = int64
+  and type item = Cstruct.t) : sig
   (** Create a buffered WINDOW intended for reading on top of an unbuffered
       one *)
 
-  include S.WINDOW with type offset = int64
+  include S.WINDOW
+    with type offset = int64
+    and type item = Cstruct.t
 
   val attach: Reader.t -> Cstruct.t -> t
   (** [attach reader buffer] return a buffered reader layered on top of

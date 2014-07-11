@@ -92,6 +92,7 @@ let cstruct_of_string x =
 
 module CStructWindow = struct
   type offset = int64
+  type item = Cstruct.t
   type t = {
     buffer: Cstruct.t;
     mutable offset: offset;

@@ -71,7 +71,8 @@ module Reader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   open Connection
 
   type offset = int64
-
+  type item = Cstruct.t
+  
   let next t =
     let rec loop from =
       if t.shutdown
@@ -108,6 +109,7 @@ module Writer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   open Connection
 
   type offset = int64
+  type item = Cstruct.t
 
   let next t =
     let rec loop from =
@@ -152,9 +154,13 @@ module Make
   let ( >>= ) = Lwt.( >>= )
   let return = Lwt.return
 
+  module Window = struct
+    include A
+    type item = Cstruct.t
+  end
 
-  module Reader = Reader(A)
-  module Writer = Writer(A)
+  module Reader = Reader(Window)
+  module Writer = Writer(Window)
 
   module BufferedReader = BufferedReader.Make(Reader)
   module BufferedWriter = BufferedWriter.Make(Writer)

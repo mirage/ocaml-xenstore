@@ -17,7 +17,10 @@ open Lwt
 
 let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
 
-module Make(Writer: S.WINDOW with type offset = int64) = struct
+module Make(Writer: S.WINDOW
+  with type offset = int64
+  and type item = Cstruct.t) = struct
+
   type t = Writer.t
 
   let write t offset hdr marshal =

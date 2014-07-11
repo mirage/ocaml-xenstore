@@ -15,8 +15,12 @@
  *)
 open Lwt
 
-module Make(Reader: S.WINDOW with type offset = int64) = struct
+module Make(Reader: S.WINDOW
+  with type offset = int64
+  and type item = Cstruct.t) = struct
+
   type offset = Reader.offset
+  type item = Reader.item
 
   cstruct hdr {
     uint64_t producer;
