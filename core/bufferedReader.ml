@@ -43,7 +43,6 @@ module Make(Reader: S.WINDOW with type offset = int64) = struct
     let buffer = Cstruct.shift t.output 16 in
     let len = Cstruct.len buffer in
 
-    let used = Int64.(to_int (sub producer consumer)) in
     Reader.next t.t >>= fun (offset, space) ->
     (* copy as much as possible into our buffer *)
     ( if offset > producer
