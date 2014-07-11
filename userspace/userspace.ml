@@ -36,7 +36,7 @@ let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
 
 exception Connection_timeout
 
-module Reader = struct
+module FDReader = struct
   type t = {
     fd: Lwt_unix.file_descr;
     buffer: Cstruct.t;
@@ -45,7 +45,7 @@ module Reader = struct
   }
   type offset = int64
   type item = Cstruct.t
-  
+
   let make fd =
     let buffer = Cstruct.create 1024 in
     let offset = 0L in
@@ -86,7 +86,7 @@ let complete op fd buf =
   then fail End_of_file
   else return ()
 
-module Writer = struct
+module FDWriter = struct
   type t = {
     fd: Lwt_unix.file_descr;
     buffer: Cstruct.t;
@@ -113,8 +113,12 @@ module Writer = struct
     return ()
 end
 
-module BufferedReader = BufferedReader.Make(Reader)
-module BufferedWriter = BufferedWriter.Make(Writer)
+module BufferedReader = BufferedReader.Make(FDReader)
+module BufferedWriter = BufferedWriter.Make(FDWriter)
+
+module Request = struct
+  module Reader = PacketReader.Make(BufferedReader)
+end
 
 (* Individual connections *)
 type connection = {
@@ -126,9 +130,9 @@ type connection = {
 
 let alloc (fd, sockaddr) =
   let read_buffer = Cstruct.create max_packet_size in
-  let reader = BufferedReader.create (Reader.make fd) read_buffer in
+  let reader = BufferedReader.create (FDReader.make fd) read_buffer in
   let write_buffer = Cstruct.create max_packet_size in
-  let writer = BufferedWriter.create (Writer.make fd) write_buffer in
+  let writer = BufferedWriter.create (FDWriter.make fd) write_buffer in
   return { fd; sockaddr; reader; writer }
 
 let xenstored_socket = ref "/var/run/xenstored/socket"

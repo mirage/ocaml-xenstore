@@ -66,13 +66,13 @@ end
 (* Thrown when an attempt is made to read or write to a closed ring *)
 exception Ring_shutdown
 
-module Reader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
+module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type t = Connection.t
   open Connection
 
   type offset = int64
   type item = Cstruct.t
-  
+
   let next t =
     let rec loop from =
       if t.shutdown
@@ -104,7 +104,7 @@ module Reader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     loop buf
 end
 
-module Writer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
+module RingWriter(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type t = Connection.t
   open Connection
 
@@ -159,11 +159,15 @@ module Make
     type item = Cstruct.t
   end
 
-  module Reader = Reader(Window)
-  module Writer = Writer(Window)
+  module Reader = RingReader(Window)
+  module Writer = RingWriter(Window)
 
   module BufferedReader = BufferedReader.Make(Reader)
   module BufferedWriter = BufferedWriter.Make(Writer)
+
+  module Request = struct
+    module Reader = PacketReader.Make(BufferedReader)
+  end
 
   type connection = {
     conn: Connection.t;

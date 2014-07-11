@@ -67,7 +67,7 @@ module type WINDOW = sig
   val next: t -> (offset * item) Lwt.t
   (** [next t] returns the next item from the stream, together with the offset
       which should be passed to [ack] *)
-      
+
   val ack: t -> offset -> unit Lwt.t
   (** [ack buf offset] declares that we have processed all data up to [offset]
       and therefore any buffers may be recycled. *)
@@ -86,16 +86,15 @@ module type CONNECTION = sig
 
   val domain_of: connection -> int
 
+  module Request : sig
+    module Reader : WINDOW
+      with type offset = int64
+      and type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+  end
+
   val read: connection -> Cstruct.t -> unit t
 
   val write: connection -> Cstruct.t -> unit t
-end
-
-module type CHANNEL = sig
-  include IO
-  include CONNECTION
-    with type 'a t := 'a t
-
 end
 
 module type SERVER = sig
@@ -112,14 +111,9 @@ end
 
 module type TRANSPORT = sig
   include IO
-  include CONNECTION
-    with type 'a t := 'a t
-  include CHANNEL
-    with type 'a t := 'a t
-     and  type connection := connection
+
   include SERVER
     with type 'a t := 'a t
-     and  type connection := connection
 
   module Introspect : INTROSPECTABLE with type t = connection
 end

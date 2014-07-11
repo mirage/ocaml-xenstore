@@ -19,6 +19,8 @@ module Make(Reader: S.WINDOW
   with type offset = int64
   and  type item = Cstruct.t) = struct
   type t = Reader.t
+  type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+  type offset = Reader.offset
 
   let rec next t =
     Reader.next t >>= fun (offset, space) ->
