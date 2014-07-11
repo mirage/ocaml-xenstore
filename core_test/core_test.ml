@@ -184,7 +184,7 @@ module Example_request_packet = struct
     let payload = Cstruct.shift buf Protocol.Header.sizeof in
     let request = failure_on_error (Protocol.Request.unmarshal hdr payload) in
 
-    let n = 1 in
+    let n = 100 in
     let len = String.length t.expected in
     let buf = Cstruct.create (len * n) in
     let w = CStructWindow.create buf 3 in
