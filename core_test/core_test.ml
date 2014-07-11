@@ -147,7 +147,7 @@ module Example_request_packet = struct
     assert_equal ~printer:String.escaped t.expected txt
 
   let test_packet_reader t () =
-    let n = 1 in
+    let n = 2 in
     let one = cstruct_of_string t.expected in
     let len = Cstruct.len one in
     let buf = Cstruct.create (len * n) in
