@@ -27,14 +27,14 @@ module Make(Reader: S.WINDOW with type offset = int64) = struct
       match Protocol.Header.unmarshal space with
       | `Error x -> return (offset, `Error x)
       | `Ok x ->
-        let length = Protocol.Header.sizeof + x.Protocol.Header.len in
         let rec loop () =
           Reader.next t >>= fun (offset, space) ->
+          let length = Protocol.Header.sizeof + x.Protocol.Header.len in
           let len = Cstruct.len space in
           if len < length
           then loop ()
           else begin
-            let payload = Cstruct.shift space Protocol.Header.sizeof in
+            let payload = Cstruct.sub space Protocol.Header.sizeof x.Protocol.Header.len in
             let offset = Int64.(add offset (of_int length)) in
             match Protocol.Request.unmarshal x payload with
             | `Ok y -> return (offset, `Ok (x, y))
