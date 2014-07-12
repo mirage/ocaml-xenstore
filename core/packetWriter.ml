@@ -22,6 +22,8 @@ module Make(Writer: S.WINDOW
   and type item = Cstruct.t) = struct
 
   type t = Writer.t
+  type offset = Writer.offset
+  type item = Writer.item
 
   let write t offset hdr marshal =
     let rec loop () =

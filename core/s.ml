@@ -73,6 +73,19 @@ module type WINDOW = sig
       and therefore any buffers may be recycled. *)
 end
 
+module type PACKET_WRITER = sig
+  type t
+
+  type offset
+
+  val write: t -> offset -> Protocol.Header.t -> (Cstruct.t -> Cstruct.t) -> offset Lwt.t
+  (** [write t offset hdr marshal] writes a packet to the output at [offset],
+      and returns the next [offset] value, suitable for [ack] *)
+
+  val ack: t -> offset -> unit Lwt.t
+  (** [ack offset] ensures all data written before [offset] is flushed *)
+end
+
 module type CONNECTION = sig
   include IO
 
@@ -90,6 +103,10 @@ module type CONNECTION = sig
     module Reader : WINDOW
       with type offset = int64
       and type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+    module Writer : PACKET_WRITER
+  end
+  module Response : sig
+    module Writer : PACKET_WRITER
   end
 
   val read: connection -> Cstruct.t -> unit t

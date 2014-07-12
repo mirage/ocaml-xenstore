@@ -167,6 +167,11 @@ module Make
 
   module Request = struct
     module Reader = PacketReader.Make(BufferedReader)
+    module Writer = PacketWriter.Make(BufferedWriter)
+  end
+
+  module Response = struct
+    module Writer = PacketWriter.Make(BufferedWriter)
   end
 
   type connection = {
