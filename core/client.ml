@@ -102,7 +102,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
     mutable suspended : bool;
     suspended_m : Lwt_mutex.t;
     suspended_c : unit Lwt_condition.t;
-    mutable offset: int64;
+    mutable position: int64;
   }
 
   let client_cache = ref None
@@ -125,8 +125,8 @@ module Make = functor(IO: S.CONNECTION) -> struct
     raise_lwt e
 
   let rec dispatcher t =
-    IO.Response.Reader.peek t.transport >>= fun (offset, x) ->
-    IO.Response.Reader.ack t.transport offset >>= fun () ->
+    IO.Response.Reader.read t.transport >>= fun (position, x) ->
+    IO.Response.Reader.advance t.transport position >>= fun () ->
     fail_on_error x >>= fun (hdr, payload) ->
     match payload with
     | Response.Watchevent(path, token) ->
@@ -162,7 +162,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
       suspended = false;
       suspended_m = Lwt_mutex.create ();
       suspended_c = Lwt_condition.create ();
-      offset = 0L;
+      position = 0L;
     } in
     t.dispatcher_thread <- dispatcher t;
     return t
@@ -243,9 +243,9 @@ module Make = functor(IO: S.CONNECTION) -> struct
             done in
           Hashtbl.add c.rid_to_wakeup rid u;
           let hdr = { Header.rid; tid; ty; len = 0} in
-          IO.Request.Writer.write c.transport c.offset hdr payload >>= fun offset ->
-          c.offset <- offset;
-          IO.Request.Writer.ack c.transport offset) in
+          IO.Request.Writer.write c.transport c.position hdr payload >>= fun position ->
+          c.position <- position;
+          IO.Request.Writer.advance c.transport position) in
       lwt res = t in
       lwt () = Lwt_mutex.with_lock c.suspended_m
           (fun () ->

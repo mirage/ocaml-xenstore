@@ -91,30 +91,30 @@ let cstruct_of_string x =
   c
 
 module CStructWindow = struct
-  type offset = int64
+  type position = int64
   type item = Cstruct.t
   type t = {
     buffer: Cstruct.t;
-    mutable offset: offset;
+    mutable position: position;
     length: int;
   }
   let create buffer length =
-    let offset = 0L in
-    { buffer; offset; length }
-  let peek t =
-    let offset = Int64.to_int t.offset in
-    let l = min (Cstruct.len t.buffer) (offset + t.length) - offset in
-    return (t.offset, `Ok (Cstruct.sub t.buffer offset l))
-  let ack t ofs =
-    t.offset <- ofs;
+    let position = 0L in
+    { buffer; position; length }
+  let read t =
+    let position = Int64.to_int t.position in
+    let l = min (Cstruct.len t.buffer) (position + t.length) - position in
+    return (t.position, `Ok (Cstruct.sub t.buffer position l))
+  let advance t pos =
+    t.position <- pos;
     return ()
 end
 
 module BufferedCStructReader = BufferedReader.Make(CStructWindow)
 module PacketCStructReader = PacketReader.Make(Protocol.Request)(BufferedCStructReader)
 
-module BufferedCStructWriter = BufferedWriter.Make(CStructWindow)
-module PacketCStructWriter = PacketWriter.Make(Protocol.Request)(BufferedCStructWriter)
+module WriteBufferStream = WriteBufferStream.Make(CStructWindow)
+module PacketCStructWriter = PacketWriter.Make(Protocol.Request)(WriteBufferStream)
 
 module Example_request_packet = struct
   type t = {
@@ -161,13 +161,13 @@ module Example_request_packet = struct
       if i = n
       then return ()
       else
-        PacketCStructReader.peek br >>= function
+        PacketCStructReader.read br >>= function
         | offset, `Error x ->
           failwith (Printf.sprintf "At %Ld: %s" offset x)
         | offset, `Ok (hdr, payload) ->
           check_parse t hdr payload;
           (* check the data hasn't been lost *)
-          begin PacketCStructReader.peek br >>= function
+          begin PacketCStructReader.read br >>= function
           | offset', `Error _ ->
             failwith "Reading data twice resulted in different contents"
           | offset', `Ok (hdr', payload') ->
@@ -175,7 +175,7 @@ module Example_request_packet = struct
             assert_equal hdr hdr';
             return ()
           end >>= fun () ->
-          PacketCStructReader.ack br offset >>= fun () ->
+          PacketCStructReader.advance br offset >>= fun () ->
           loop (i + 1) in
     Lwt_main.run (loop 0)
 
@@ -189,13 +189,13 @@ module Example_request_packet = struct
     let len = String.length t.expected in
     let buf = Cstruct.create (len * n) in
     let w = CStructWindow.create buf 3 in
-    let bw = BufferedCStructWriter.create w (Cstruct.create 5000) in
+    let bw = WriteBufferStream.create w (Cstruct.create 5000) in
     let rec loop offset i =
       if i = n
       then return ()
       else
         PacketCStructWriter.write bw offset hdr request >>= fun offset ->
-        PacketCStructWriter.ack bw offset >>= fun () ->
+        PacketCStructWriter.advance bw offset >>= fun () ->
         loop offset (i + 1) in
     Lwt_main.run (loop 0L 0);
 

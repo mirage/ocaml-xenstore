@@ -14,10 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.STREAM
-  with type offset = int64
+module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.READABLE
+  with type position = int64
   and  type item = Cstruct.t
-) : S.STREAM
-  with type offset = int64
+) : S.READABLE
+  with type position = int64
   and  type item = Protocol.Header.t * Unmarshal.t
   and  type t = Reader.t

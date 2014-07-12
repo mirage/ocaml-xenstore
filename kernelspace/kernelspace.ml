@@ -70,10 +70,10 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type t = Connection.t
   open Connection
 
-  type offset = int64
+  type position = int64
   type item = Cstruct.t
 
-  let peek t =
+  let read t =
     let rec loop from =
       if t.shutdown
       then fail Ring_shutdown
@@ -86,34 +86,20 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
         end else return (Int64.of_int32 seq, `Ok available) in
     loop A.program_start
 
-  let ack t seq =
+  let advance t seq =
     Xenstore_ring.Ring.Back.read_commit t.ring (Int64.to_int32 seq);
     Eventchn.(notify (init ()) t.port);
     return ()
-
-  let read t buf =
-    let rec loop buf =
-      if Cstruct.len buf = 0
-      then return ()
-      else peek t >>= function
-      | _, `Error x -> fail (Failure x)
-      | seq, `Ok available ->
-        let available_bytes = Cstruct.len available in
-        let consumable = min (Cstruct.len buf) available_bytes in
-        Cstruct.blit available 0 buf 0 consumable;
-        ack t Int64.(add seq (of_int consumable)) >>= fun () ->
-        loop (Cstruct.shift buf consumable) in
-    loop buf
 end
 
-module RingWriter(A: ACTIVATIONS with type channel = Eventchn.t) = struct
+module RingWriteBuffer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type t = Connection.t
   open Connection
 
-  type offset = int64
+  type position = int64
   type item = Cstruct.t
 
-  let peek t =
+  let read t =
     let rec loop from =
       if t.shutdown
       then fail Ring_shutdown
@@ -126,24 +112,10 @@ module RingWriter(A: ACTIVATIONS with type channel = Eventchn.t) = struct
         end else return (Int64.of_int32 seq, `Ok available) in
     loop A.program_start
 
-  let ack t seq =
+  let advance t seq =
     Xenstore_ring.Ring.Back.write_commit t.ring (Int64.to_int32 seq);
     Eventchn.(notify (init ()) t.port);
     return ()
-
-  let write t buf =
-    let rec loop buf =
-      if Cstruct.len buf = 0
-      then return ()
-      else peek t >>= function
-      | _, `Error x -> fail (Failure x)
-      | seq, `Ok available ->
-        let available_bytes = Cstruct.len available in
-        let consumable = min (Cstruct.len buf) available_bytes in
-        Cstruct.blit buf 0 available 0 consumable;
-        ack t Int64.(add seq (of_int consumable)) >>= fun () ->
-        loop (Cstruct.shift buf consumable) in
-    loop buf
 end
 
 
@@ -164,54 +136,54 @@ module Make
   end
 
   module Reader = RingReader(Window)
-  module Writer = RingWriter(Window)
+  module WriteBuffer = RingWriteBuffer(Window)
 
   module BufferedReader = BufferedReader.Make(Reader)
-  module BufferedWriter = BufferedWriter.Make(Writer)
+  module WriteBufferStream = WriteBufferStream.Make(WriteBuffer)
 
   type connection = {
     conn: Connection.t;
     reader: BufferedReader.t;
-    writer: BufferedWriter.t;
+    writeBuffers: WriteBufferStream.t;
   }
 
   module Request = struct
     module PacketReader = PacketReader.Make(Protocol.Request)(BufferedReader)
-    module PacketWriter = PacketWriter.Make(Protocol.Request)(BufferedWriter)
+    module PacketWriter = PacketWriter.Make(Protocol.Request)(WriteBufferStream)
 
     module Reader = struct
       type t = connection
-      type offset = int64
+      type position = int64
       type item = Protocol.Header.t * Protocol.Request.t
-      let peek t = PacketReader.peek t.reader
-      let ack t = PacketReader.ack t.reader
+      let read t = PacketReader.read t.reader
+      let advance t = PacketReader.advance t.reader
     end
     module Writer = struct
       type t = connection
-      type offset = int64
+      type position = int64
       type item = Protocol.Request.t
-      let write t = PacketWriter.write t.writer
-      let ack t = PacketWriter.ack t.writer
+      let write t = PacketWriter.write t.writeBuffers
+      let advance t = PacketWriter.advance t.writeBuffers
     end
   end
 
   module Response = struct
     module PacketReader = PacketReader.Make(Protocol.Response)(BufferedReader)
-    module PacketWriter = PacketWriter.Make(Protocol.Response)(BufferedWriter)
+    module PacketWriter = PacketWriter.Make(Protocol.Response)(WriteBufferStream)
 
     module Reader = struct
       type t = connection
-      type offset = int64
+      type position = int64
       type item = Protocol.Header.t * Protocol.Response.t
-      let peek t = PacketReader.peek t.reader
-      let ack t = PacketReader.ack t.reader
+      let read t = PacketReader.read t.reader
+      let advance t = PacketReader.advance t.reader
     end
     module Writer = struct
       type t = connection
-      type offset = int64
+      type position = int64
       type item = Protocol.Response.t
-      let write t = PacketWriter.write t.writer
-      let ack t = PacketWriter.ack t.writer
+      let write t = PacketWriter.write t.writeBuffers
+      let advance t = PacketWriter.advance t.writeBuffers
     end
   end
 
@@ -247,8 +219,8 @@ module Make
     let reader_buffer = Cstruct.create max_packet_size in
     let writer_buffer = Cstruct.create max_packet_size in
     let reader = BufferedReader.create conn reader_buffer in
-    let writer = BufferedWriter.create conn writer_buffer in
-    let t = { conn; reader; writer } in
+    let writeBuffers = WriteBufferStream.create conn writer_buffer in
+    let t = { conn; reader; writeBuffers } in
     let (_: unit Lwt.t) = process t  in
     accept_forever stream process
 

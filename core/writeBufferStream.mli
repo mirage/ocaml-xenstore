@@ -14,24 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Writer: S.STREAM
-  with type offset = int64
+module Make(Space: S.READABLE
+  with type position = int64
   and type item = Cstruct.t) : sig
   (** Create a buffered STREAM intended for Writing on top of an unbuffered
       one *)
 
-  include S.STREAM
-    with type offset = int64
+  include S.READABLE
+    with type position = int64
     and type item = Cstruct.t
 
-  val attach: Writer.t -> Cstruct.t -> t
+  val attach: Space.t -> Cstruct.t -> t
   (** [attach writer buffer] return a buffered writer layered on top of
       [writer]. Data written here will be buffered, and only flushed to the
       underlying writer when [ack] is called.
 
       This call does not initialise [buffer]. *)
 
-  val create: Writer.t -> Cstruct.t -> t
+  val create: Space.t -> Cstruct.t -> t
   (** [create writer buffer] return a buffered writer layered on top of
       [writer]. Initialises the [buffer]. *)
 

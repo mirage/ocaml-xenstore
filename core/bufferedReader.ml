@@ -15,11 +15,11 @@
  *)
 open Lwt
 
-module Make(Reader: S.STREAM
-  with type offset = int64
+module Make(Reader: S.READABLE
+  with type position = int64
   and type item = Cstruct.t) = struct
 
-  type offset = Reader.offset
+  type position = Reader.position
   type item = Reader.item
 
   cstruct hdr {
@@ -41,13 +41,13 @@ module Make(Reader: S.STREAM
 
   (* read a bit more data from the underlying buffer, return what we have
      so far *)
-  let peek t =
+  let read t =
     let producer = get_hdr_producer t.output in
     let consumer = get_hdr_consumer t.output in
     let buffer = Cstruct.shift t.output 16 in
     let len = Cstruct.len buffer in
 
-    Reader.peek t.t >>= function
+    Reader.read t.t >>= function
     | offset, `Error x -> return (offset, `Error x)
     | offset, `Ok space ->
       (* copy as much as possible into our buffer *)
@@ -67,7 +67,7 @@ module Make(Reader: S.STREAM
       Cstruct.blit space 0 to_write 0 n;
       let producer = Int64.(add producer (of_int n)) in
       set_hdr_producer t.output producer;
-      Reader.ack t.t producer >>= fun () ->
+      Reader.advance t.t producer >>= fun () ->
 
       (* return everything we've got to the user *)
       let consumer_wrapped = Int64.(to_int (rem consumer (of_int len))) in
@@ -78,7 +78,7 @@ module Make(Reader: S.STREAM
       return (consumer, `Ok space)
 
   (* consume [up_to] *)
-  let ack t up_to =
+  let advance t up_to =
     set_hdr_consumer t.output up_to;
     return ()
 end

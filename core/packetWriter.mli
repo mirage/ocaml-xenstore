@@ -14,10 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Marshal: S.MARSHALABLE)(Writer: S.STREAM
-  with type offset = int64
+module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
+  with type position = int64
   and type item = Cstruct.t
-) : S.PACKET_WRITER
-  with type t = Writer.t
-  and type offset = int64
+) : S.WRITABLE
+  with type t = WriteBuffers.t
+  and type position = int64
   and type item = Marshal.t

@@ -43,7 +43,7 @@ module FDReader = struct
     mutable offset: int64;
     mutable length: int;
   }
-  type offset = int64
+  type position = int64
   type item = Cstruct.t
 
   let make fd =
@@ -52,7 +52,7 @@ module FDReader = struct
     let length = 0 in
     { fd; buffer; offset; length }
 
-  let peek t = match t.length with
+  let read t = match t.length with
     | 0 ->
       Lwt_cstruct.read t.fd t.buffer >>= fun n ->
       t.length <- n;
@@ -60,7 +60,7 @@ module FDReader = struct
     | n ->
       return (t.offset, `Ok (Cstruct.sub t.buffer 0 n))
 
-  let ack t offset =
+  let advance t offset =
     let delta = Int64.(to_int (sub offset t.offset)) in
     let length = max 0 (t.length - delta) in
     if length > 0
@@ -86,13 +86,13 @@ let complete op fd buf =
   then fail End_of_file
   else return ()
 
-module FDWriter = struct
+module FDWriteBuffer = struct
   type t = {
     fd: Lwt_unix.file_descr;
     buffer: Cstruct.t;
     mutable offset: int64;
   }
-  type offset = int64
+  type position = int64
   type item = Cstruct.t
 
   let make fd =
@@ -100,10 +100,10 @@ module FDWriter = struct
     let offset = 0L in
     { fd; buffer; offset }
 
-  let peek t =
+  let read t =
     return (t.offset, `Ok t.buffer )
 
-  let ack t offset =
+  let advance t offset =
     let delta = Int64.(to_int (sub offset t.offset)) in
     complete Lwt_bytes.write t.fd (Cstruct.sub t.buffer 0 delta) >>= fun () ->
     let unwritten = Cstruct.len t.buffer - delta in
@@ -114,54 +114,54 @@ module FDWriter = struct
 end
 
 module BufferedReader = BufferedReader.Make(FDReader)
-module BufferedWriter = BufferedWriter.Make(FDWriter)
+module WriteBufferStream = WriteBufferStream.Make(FDWriteBuffer)
 
 (* Individual connections *)
 type connection = {
   fd: Lwt_unix.file_descr;
   sockaddr: Lwt_unix.sockaddr;
   reader: BufferedReader.t;
-  writer: BufferedWriter.t;
+  writeBuffers: WriteBufferStream.t;
 }
 
 
 module Request = struct
   module PacketReader = PacketReader.Make(Protocol.Request)(BufferedReader)
-  module PacketWriter = PacketWriter.Make(Protocol.Request)(BufferedWriter)
+  module PacketWriter = PacketWriter.Make(Protocol.Request)(WriteBufferStream)
 
   module Reader = struct
     type t = connection
-    type offset = int64
+    type position = int64
     type item = Protocol.Header.t * Protocol.Request.t
-    let peek t = PacketReader.peek t.reader
-    let ack t = PacketReader.ack t.reader
+    let read t = PacketReader.read t.reader
+    let advance t = PacketReader.advance t.reader
   end
   module Writer = struct
     type t = connection
-    type offset = int64
+    type position = int64
     type item = Protocol.Request.t
-    let write t = PacketWriter.write t.writer
-    let ack t = PacketWriter.ack t.writer
+    let write t = PacketWriter.write t.writeBuffers
+    let advance t = PacketWriter.advance t.writeBuffers
   end
 end
 
 module Response = struct
   module PacketReader = PacketReader.Make(Protocol.Response)(BufferedReader)
-  module PacketWriter = PacketWriter.Make(Protocol.Response)(BufferedWriter)
+  module PacketWriter = PacketWriter.Make(Protocol.Response)(WriteBufferStream)
 
   module Reader = struct
     type t = connection
-    type offset = int64
+    type position = int64
     type item = Protocol.Header.t * Protocol.Response.t
-    let peek t = PacketReader.peek t.reader
-    let ack t = PacketReader.ack t.reader
+    let read t = PacketReader.read t.reader
+    let advance t = PacketReader.advance t.reader
   end
   module Writer = struct
     type t = connection
-    type offset = int64
+    type position = int64
     type item = Protocol.Response.t
-    let write t = PacketWriter.write t.writer
-    let ack t = PacketWriter.ack t.writer
+    let write t = PacketWriter.write t.writeBuffers
+    let advance t = PacketWriter.advance t.writeBuffers
   end
 end
 
@@ -169,8 +169,8 @@ let alloc (fd, sockaddr) =
   let read_buffer = Cstruct.create max_packet_size in
   let reader = BufferedReader.create (FDReader.make fd) read_buffer in
   let write_buffer = Cstruct.create max_packet_size in
-  let writer = BufferedWriter.create (FDWriter.make fd) write_buffer in
-  return { fd; sockaddr; reader; writer }
+  let writeBuffers = WriteBufferStream.create (FDWriteBuffer.make fd) write_buffer in
+  return { fd; sockaddr; reader; writeBuffers }
 
 let xenstored_socket = ref "/var/run/xenstored/socket"
 

@@ -15,11 +15,11 @@
  *)
 open Lwt
 
-module Make(Writer: S.STREAM
-  with type offset = int64
+module Make(Space: S.READABLE
+  with type position = int64
   and type item = Cstruct.t) = struct
-  type offset = Writer.offset
-  type item = Writer.item
+  type position = Space.position
+  type item = Space.item
 
   cstruct hdr {
     uint64_t producer;
@@ -27,7 +27,7 @@ module Make(Writer: S.STREAM
   } as little_endian
 
   type t = {
-    t: Writer.t;
+    t: Space.t;
     output: Cstruct.t;
   }
 
@@ -39,7 +39,7 @@ module Make(Writer: S.STREAM
     attach t output
 
   (* Return the next contiguous buffer fragment available for writing *)
-  let peek t =
+  let read t =
     (* total space available is len - (producer - consumer_ but we only want to
        return contiguous space *)
     let producer = get_hdr_producer t.output in
@@ -55,11 +55,11 @@ module Make(Writer: S.STREAM
     return (producer, `Ok (Cstruct.sub buffer producer_wrapped contiguous))
 
   (* Ensure all data [up_to] have been transmitted *)
-  let rec ack t up_to =
+  let rec advance t up_to =
     let buffer = Cstruct.shift t.output 16 in
     let len = Cstruct.len buffer in
     let consumer = get_hdr_consumer t.output in
-    Writer.peek t.t >>= function
+    Space.read t.t >>= function
     | _, `Error x -> fail (Failure x)
     | offset, `Ok space ->
       ( if offset < consumer
@@ -83,7 +83,7 @@ module Make(Writer: S.STREAM
         let to_write = Cstruct.sub buffer consumer_wrapped n in
         Cstruct.blit to_write 0 space 0 n;
         let consumer = Int64.(add consumer (of_int n)) in
-        Writer.ack t.t consumer >>= fun () ->
-        ack t up_to
+        Space.advance t.t consumer >>= fun () ->
+        advance t up_to
       end
 end

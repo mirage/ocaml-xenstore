@@ -17,24 +17,24 @@ open Lwt
 
 let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
 
-module Make(Marshal: S.MARSHALABLE)(Writer: S.STREAM
-  with type offset = int64
+module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
+  with type position = int64
   and type item = Cstruct.t) = struct
 
-  type t = Writer.t
-  type offset = Writer.offset
+  type t = WriteBuffers.t
+  type position = WriteBuffers.position
   type item = Marshal.t
 
   let write t offset hdr item =
     let rec loop () =
-      Writer.peek t >>= function
+      WriteBuffers.read t >>= function
       | _, `Error x -> fail (Failure x)
       | _, `Ok space ->
         if Cstruct.len space >= max_packet_size
         then return ()
         else loop () in
     loop () >>= fun () ->
-    Writer.peek t >>= function
+    WriteBuffers.read t >>= function
     | _, `Error x -> fail (Failure x)
     | offset, `Ok space ->
       let payload_buf = Cstruct.shift space Protocol.Header.sizeof in
@@ -44,6 +44,6 @@ module Make(Marshal: S.MARSHALABLE)(Writer: S.STREAM
       ignore (Protocol.Header.marshal hdr space);
       return (Int64.(add offset (of_int (Protocol.Header.sizeof + length))))
 
-  let ack t ofs =
-    Writer.ack t ofs
+  let advance t ofs =
+    WriteBuffers.advance t ofs
 end

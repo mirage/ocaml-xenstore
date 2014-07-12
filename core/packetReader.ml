@@ -15,26 +15,26 @@
  *)
 open Lwt
 
-module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.STREAM
-  with type offset = int64
+module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.READABLE
+  with type position = int64
   and  type item = Cstruct.t) = struct
   type t = Reader.t
   type item = Protocol.Header.t * Unmarshal.t
-  type offset = Reader.offset
+  type position = Reader.position
 
-  let rec peek t =
-    Reader.peek t >>= function
+  let rec read t =
+    Reader.read t >>= function
     | offset, `Error x -> return (offset, `Error x)
     | offset, `Ok space ->
       let len = Cstruct.len space in
       if len < Protocol.Header.sizeof
-      then peek t
+      then read t
       else begin
         match Protocol.Header.unmarshal space with
         | `Error x -> return (offset, `Error x)
         | `Ok x ->
           let rec loop () =
-            Reader.peek t >>= function
+            Reader.read t >>= function
             | offset, `Error x -> return (offset, `Error x)
             | offset, `Ok space ->
               let length = Protocol.Header.sizeof + x.Protocol.Header.len in
@@ -51,6 +51,6 @@ module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.STREAM
             loop ()
       end
 
-  let ack t ofs =
-    Reader.ack t ofs
+  let advance t ofs =
+    Reader.advance t ofs
 end

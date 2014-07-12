@@ -15,14 +15,14 @@
  *)
 
 
-module Make(Reader: S.STREAM
-  with type offset = int64
+module Make(Reader: S.READABLE
+  with type position = int64
   and type item = Cstruct.t) : sig
   (** Create a buffered STREAM intended for reading on top of an unbuffered
       one *)
 
-  include S.STREAM
-    with type offset = int64
+  include S.READABLE
+    with type position = int64
     and type item = Cstruct.t
 
   val attach: Reader.t -> Cstruct.t -> t

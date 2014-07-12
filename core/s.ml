@@ -71,39 +71,44 @@ module type EVENTS = sig
 end
 
 module type STREAM = sig
-  (** A view of the underlying stream *)
+  (** A stream of items. *)
 
   type t
-
-  type offset
+  (** The stream *)
 
   type item
+  (** The stream consists of a sequence of items *)
 
-  val peek: t -> (offset * item result) Lwt.t
-  (** [peek t] returns the next item from the stream, together with the offset
-      which should be passed to [ack] *)
+  type position
+  (** Each item has a position. The stream itself remains at a fixed position so
+      that repeated calls to [read] or [write] process the same data.
+      To advance the stream call [advance new_position] *)
 
-(* drop *)
-  val ack: t -> offset -> unit Lwt.t
-  (** [ack buf offset] declares that we have processed all data up to [offset]
-      and therefore any buffers may be recycled. *)
+  val advance: t -> position -> unit Lwt.t
+  (** [advanced buf position] declares that we have processed all data up to
+      [position] and therefore any buffers may be recycled. *)
 end
 
-(* WRITER *)
-module type PACKET_WRITER = sig
-  type t
+module type READABLE = sig
+  include STREAM
 
-  type offset
+  val read: t -> (position * item result) Lwt.t
+  (** [read t] returns the next item from the stream. This function does not
+      advance the stream, so repeated calls should return data at the same
+      position in the stream.
+      To advance the stream, call [advance position]. *)
 
-  type item
+end
 
-  val write: t -> offset -> Protocol.Header.t -> item -> offset Lwt.t
+module type WRITABLE = sig
+  include STREAM
+
+(* should item be header * payload *)
+  val write: t -> position -> Protocol.Header.t -> item -> position Lwt.t
   (** [write t offset hdr marshal] writes a packet to the output at [offset],
-      and returns the next [offset] value, suitable for [ack] *)
-
-(* flush.. but do we even need this? *)
-  val ack: t -> offset -> unit Lwt.t
-  (** [ack offset] ensures all data written before [offset] is flushed *)
+      and returns the next [offset] value. This function does not advance
+      the stream, so multiple calls will write at the same position.
+      To advance the stream, call [advance offset] *)
 end
 
 module type CONNECTION = sig
@@ -120,23 +125,23 @@ module type CONNECTION = sig
   val domain_of: connection -> int
 
   module Request : sig
-    module Reader : STREAM
+    module Reader : READABLE
       with type t = connection
-      and type offset = int64
+      and type position = int64
       and type item = Protocol.Header.t * Protocol.Request.t
-    module Writer : PACKET_WRITER
+    module Writer : WRITABLE
       with type t = connection
-      and type offset = int64
+      and type position = int64
       and type item = Protocol.Request.t
   end
   module Response : sig
-    module Reader : STREAM
+    module Reader : READABLE
       with type t = connection
-      and type offset = int64
+      and type position = int64
       and type item = Protocol.Header.t * Protocol.Response.t
-    module Writer : PACKET_WRITER
+    module Writer : WRITABLE
       with type t = connection
-      and type offset = int64
+      and type position = int64
       and type item = Protocol.Response.t
   end
 end
