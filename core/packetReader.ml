@@ -22,19 +22,19 @@ module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.STREAM
   type item = Protocol.Header.t * Unmarshal.t
   type offset = Reader.offset
 
-  let rec next t =
-    Reader.next t >>= function
+  let rec peek t =
+    Reader.peek t >>= function
     | offset, `Error x -> return (offset, `Error x)
     | offset, `Ok space ->
       let len = Cstruct.len space in
       if len < Protocol.Header.sizeof
-      then next t
+      then peek t
       else begin
         match Protocol.Header.unmarshal space with
         | `Error x -> return (offset, `Error x)
         | `Ok x ->
           let rec loop () =
-            Reader.next t >>= function
+            Reader.peek t >>= function
             | offset, `Error x -> return (offset, `Error x)
             | offset, `Ok space ->
               let length = Protocol.Header.sizeof + x.Protocol.Header.len in

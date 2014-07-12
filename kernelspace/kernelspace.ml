@@ -73,7 +73,7 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type offset = int64
   type item = Cstruct.t
 
-  let next t =
+  let peek t =
     let rec loop from =
       if t.shutdown
       then fail Ring_shutdown
@@ -95,7 +95,7 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     let rec loop buf =
       if Cstruct.len buf = 0
       then return ()
-      else next t >>= function
+      else peek t >>= function
       | _, `Error x -> fail (Failure x)
       | seq, `Ok available ->
         let available_bytes = Cstruct.len available in
@@ -113,7 +113,7 @@ module RingWriter(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type offset = int64
   type item = Cstruct.t
 
-  let next t =
+  let peek t =
     let rec loop from =
       if t.shutdown
       then fail Ring_shutdown
@@ -135,7 +135,7 @@ module RingWriter(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     let rec loop buf =
       if Cstruct.len buf = 0
       then return ()
-      else next t >>= function
+      else peek t >>= function
       | _, `Error x -> fail (Failure x)
       | seq, `Ok available ->
         let available_bytes = Cstruct.len available in
@@ -183,7 +183,7 @@ module Make
       type t = connection
       type offset = int64
       type item = Protocol.Header.t * Protocol.Request.t
-      let next t = PacketReader.next t.reader
+      let peek t = PacketReader.peek t.reader
       let ack t = PacketReader.ack t.reader
     end
     module Writer = struct
@@ -203,7 +203,7 @@ module Make
       type t = connection
       type offset = int64
       type item = Protocol.Header.t * Protocol.Response.t
-      let next t = PacketReader.next t.reader
+      let peek t = PacketReader.peek t.reader
       let ack t = PacketReader.ack t.reader
     end
     module Writer = struct

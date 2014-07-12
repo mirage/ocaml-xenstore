@@ -79,10 +79,8 @@ module type STREAM = sig
 
   type item
 
-(* peek *)
-(* use result type *)
-  val next: t -> (offset * item result) Lwt.t
-  (** [next t] returns the next item from the stream, together with the offset
+  val peek: t -> (offset * item result) Lwt.t
+  (** [peek t] returns the next item from the stream, together with the offset
       which should be passed to [ack] *)
 
 (* drop *)

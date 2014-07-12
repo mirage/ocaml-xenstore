@@ -41,13 +41,13 @@ module Make(Reader: S.STREAM
 
   (* read a bit more data from the underlying buffer, return what we have
      so far *)
-  let next t =
+  let peek t =
     let producer = get_hdr_producer t.output in
     let consumer = get_hdr_consumer t.output in
     let buffer = Cstruct.shift t.output 16 in
     let len = Cstruct.len buffer in
 
-    Reader.next t.t >>= function
+    Reader.peek t.t >>= function
     | offset, `Error x -> return (offset, `Error x)
     | offset, `Ok space ->
       (* copy as much as possible into our buffer *)

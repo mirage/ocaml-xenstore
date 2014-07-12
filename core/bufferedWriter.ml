@@ -39,7 +39,7 @@ module Make(Writer: S.STREAM
     attach t output
 
   (* Return the next contiguous buffer fragment available for writing *)
-  let next t =
+  let peek t =
     (* total space available is len - (producer - consumer_ but we only want to
        return contiguous space *)
     let producer = get_hdr_producer t.output in
@@ -59,7 +59,7 @@ module Make(Writer: S.STREAM
     let buffer = Cstruct.shift t.output 16 in
     let len = Cstruct.len buffer in
     let consumer = get_hdr_consumer t.output in
-    Writer.next t.t >>= function
+    Writer.peek t.t >>= function
     | _, `Error x -> fail (Failure x)
     | offset, `Ok space ->
       ( if offset < consumer

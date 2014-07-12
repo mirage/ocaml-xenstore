@@ -101,7 +101,7 @@ module CStructWindow = struct
   let create buffer length =
     let offset = 0L in
     { buffer; offset; length }
-  let next t =
+  let peek t =
     let offset = Int64.to_int t.offset in
     let l = min (Cstruct.len t.buffer) (offset + t.length) - offset in
     return (t.offset, `Ok (Cstruct.sub t.buffer offset l))
@@ -161,13 +161,13 @@ module Example_request_packet = struct
       if i = n
       then return ()
       else
-        PacketCStructReader.next br >>= function
+        PacketCStructReader.peek br >>= function
         | offset, `Error x ->
           failwith (Printf.sprintf "At %Ld: %s" offset x)
         | offset, `Ok (hdr, payload) ->
           check_parse t hdr payload;
           (* check the data hasn't been lost *)
-          begin PacketCStructReader.next br >>= function
+          begin PacketCStructReader.peek br >>= function
           | offset', `Error _ ->
             failwith "Reading data twice resulted in different contents"
           | offset', `Ok (hdr', payload') ->

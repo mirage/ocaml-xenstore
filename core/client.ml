@@ -125,7 +125,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
     raise_lwt e
 
   let rec dispatcher t =
-    IO.Response.Reader.next t.transport >>= fun (offset, x) ->
+    IO.Response.Reader.peek t.transport >>= fun (offset, x) ->
     IO.Response.Reader.ack t.transport offset >>= fun () ->
     fail_on_error x >>= fun (hdr, payload) ->
     match payload with
