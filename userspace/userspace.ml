@@ -139,7 +139,7 @@ module Request = struct
   module Writer = struct
     type t = connection
     type position = int64
-    type item = Protocol.Request.t
+    type item = Protocol.Header.t * Protocol.Request.t
     let write t = PacketWriter.write t.writeBuffers
     let advance t = PacketWriter.advance t.writeBuffers
   end
@@ -159,7 +159,7 @@ module Response = struct
   module Writer = struct
     type t = connection
     type position = int64
-    type item = Protocol.Response.t
+    type item = Protocol.Header.t * Protocol.Response.t
     let write t = PacketWriter.write t.writeBuffers
     let advance t = PacketWriter.advance t.writeBuffers
   end

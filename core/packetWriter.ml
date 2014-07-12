@@ -23,9 +23,9 @@ module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
 
   type t = WriteBuffers.t
   type position = WriteBuffers.position
-  type item = Marshal.t
+  type item = Protocol.Header.t * Marshal.t
 
-  let write t offset hdr item =
+  let write t offset (hdr, m) =
     let rec loop () =
       WriteBuffers.read t >>= function
       | _, `Error x -> fail (Failure x)
@@ -38,7 +38,7 @@ module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
     | _, `Error x -> fail (Failure x)
     | offset, `Ok space ->
       let payload_buf = Cstruct.shift space Protocol.Header.sizeof in
-      let next = Marshal.marshal item payload_buf in
+      let next = Marshal.marshal m payload_buf in
       let length = next.Cstruct.off - payload_buf.Cstruct.off in
       let hdr = Protocol.Header.({ hdr with len = length }) in
       ignore (Protocol.Header.marshal hdr space);

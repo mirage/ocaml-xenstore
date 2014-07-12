@@ -243,7 +243,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
             done in
           Hashtbl.add c.rid_to_wakeup rid u;
           let hdr = { Header.rid; tid; ty; len = 0} in
-          IO.Request.Writer.write c.transport c.position hdr payload >>= fun position ->
+          IO.Request.Writer.write c.transport c.position (hdr, payload) >>= fun position ->
           c.position <- position;
           IO.Request.Writer.advance c.transport position) in
       lwt res = t in

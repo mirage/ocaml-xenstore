@@ -20,4 +20,4 @@ module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
 ) : S.WRITABLE
   with type t = WriteBuffers.t
   and type position = int64
-  and type item = Marshal.t
+  and type item = Protocol.Header.t * Marshal.t

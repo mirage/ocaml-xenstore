@@ -90,22 +90,25 @@ module type STREAM = sig
 end
 
 module type READABLE = sig
+  (** A stream of readable items *)
+
   include STREAM
 
   val read: t -> (position * item result) Lwt.t
-  (** [read t] returns the next item from the stream. This function does not
-      advance the stream, so repeated calls should return data at the same
-      position in the stream.
+  (** [read t] returns the item at the current stream position. Note this
+      function does not advance the stream, so repeated calls should return
+      the same data.
       To advance the stream, call [advance position]. *)
 
 end
 
 module type WRITABLE = sig
+  (** A stream of writable items *)
+
   include STREAM
 
-(* should item be header * payload *)
-  val write: t -> position -> Protocol.Header.t -> item -> position Lwt.t
-  (** [write t offset hdr marshal] writes a packet to the output at [offset],
+  val write: t -> position -> item -> position Lwt.t
+  (** [write t position item] writes a packet to the output at [position],
       and returns the next [offset] value. This function does not advance
       the stream, so multiple calls will write at the same position.
       To advance the stream, call [advance offset] *)
@@ -132,7 +135,7 @@ module type CONNECTION = sig
     module Writer : WRITABLE
       with type t = connection
       and type position = int64
-      and type item = Protocol.Request.t
+      and type item = Protocol.Header.t * Protocol.Request.t
   end
   module Response : sig
     module Reader : READABLE
@@ -142,7 +145,7 @@ module type CONNECTION = sig
     module Writer : WRITABLE
       with type t = connection
       and type position = int64
-      and type item = Protocol.Response.t
+      and type item = Protocol.Header.t * Protocol.Response.t
   end
 end
 

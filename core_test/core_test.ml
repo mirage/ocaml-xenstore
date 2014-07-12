@@ -194,7 +194,7 @@ module Example_request_packet = struct
       if i = n
       then return ()
       else
-        PacketCStructWriter.write bw offset hdr request >>= fun offset ->
+        PacketCStructWriter.write bw offset (hdr, request) >>= fun offset ->
         PacketCStructWriter.advance bw offset >>= fun () ->
         loop offset (i + 1) in
     Lwt_main.run (loop 0L 0);
