@@ -124,10 +124,10 @@ type connection = {
   writer: BufferedWriter.t;
 }
 
-module PacketWriter = PacketWriter.Make(BufferedWriter)
 
 module Request = struct
   module PacketReader = PacketReader.Make(Protocol.Request)(BufferedReader)
+  module PacketWriter = PacketWriter.Make(Protocol.Request)(BufferedWriter)
 
   module Reader = struct
     type t = connection
@@ -139,6 +139,7 @@ module Request = struct
   module Writer = struct
     type t = connection
     type offset = int64
+    type item = Protocol.Request.t
     let write t = PacketWriter.write t.writer
     let ack t = PacketWriter.ack t.writer
   end
@@ -146,6 +147,7 @@ end
 
 module Response = struct
   module PacketReader = PacketReader.Make(Protocol.Response)(BufferedReader)
+  module PacketWriter = PacketWriter.Make(Protocol.Response)(BufferedWriter)
 
   module Reader = struct
     type t = connection
@@ -157,6 +159,7 @@ module Response = struct
   module Writer = struct
     type t = connection
     type offset = int64
+    type item = Protocol.Response.t
     let write t = PacketWriter.write t.writer
     let ack t = PacketWriter.ack t.writer
   end

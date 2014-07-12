@@ -37,6 +37,10 @@ module type UNMARSHALABLE = sig
   val unmarshal: Protocol.Header.t -> Cstruct.t -> (t, string) result
 end
 
+module type MARSHALABLE = sig
+  type t
+  val marshal: t -> Cstruct.t -> Cstruct.t
+end
 module type INTROSPECTABLE = sig
   type t
   val ls: t -> string list -> string list
@@ -88,7 +92,9 @@ module type PACKET_WRITER = sig
 
   type offset
 
-  val write: t -> offset -> Protocol.Header.t -> (Cstruct.t -> Cstruct.t) -> offset Lwt.t
+  type item
+
+  val write: t -> offset -> Protocol.Header.t -> item -> offset Lwt.t
   (** [write t offset hdr marshal] writes a packet to the output at [offset],
       and returns the next [offset] value, suitable for [ack] *)
 
@@ -117,6 +123,7 @@ module type CONNECTION = sig
     module Writer : PACKET_WRITER
       with type t = connection
       and type offset = int64
+      and type item = Protocol.Request.t
   end
   module Response : sig
     module Reader : WINDOW
@@ -126,6 +133,7 @@ module type CONNECTION = sig
     module Writer : PACKET_WRITER
       with type t = connection
       and type offset = int64
+      and type item = Protocol.Response.t
   end
 end
 

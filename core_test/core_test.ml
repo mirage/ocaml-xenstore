@@ -114,7 +114,7 @@ module BufferedCStructReader = BufferedReader.Make(CStructWindow)
 module PacketCStructReader = PacketReader.Make(Protocol.Request)(BufferedCStructReader)
 
 module BufferedCStructWriter = BufferedWriter.Make(CStructWindow)
-module PacketCStructWriter = PacketWriter.Make(BufferedCStructWriter)
+module PacketCStructWriter = PacketWriter.Make(Protocol.Request)(BufferedCStructWriter)
 
 module Example_request_packet = struct
   type t = {
@@ -194,7 +194,7 @@ module Example_request_packet = struct
       if i = n
       then return ()
       else
-        PacketCStructWriter.write bw offset hdr (Protocol.Request.marshal request) >>= fun offset ->
+        PacketCStructWriter.write bw offset hdr request >>= fun offset ->
         PacketCStructWriter.ack bw offset >>= fun () ->
         loop offset (i + 1) in
     Lwt_main.run (loop 0L 0);

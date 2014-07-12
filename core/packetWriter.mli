@@ -14,9 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Writer: S.WINDOW
+module Make(Marshal: S.MARSHALABLE)(Writer: S.WINDOW
   with type offset = int64
   and type item = Cstruct.t
 ) : S.PACKET_WRITER
   with type t = Writer.t
   and type offset = int64
+  and type item = Marshal.t
