@@ -101,20 +101,22 @@ module type CONNECTION = sig
 
   module Request : sig
     module Reader : WINDOW
-      with type offset = int64
+      with type t = connection
+      and type offset = int64
       and type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
     module Writer : PACKET_WRITER
+      with type t = connection
+      and type offset = int64
   end
   module Response : sig
     module Reader : WINDOW
-      with type offset = int64
+      with type t = connection
+      and type offset = int64
       and type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
     module Writer : PACKET_WRITER
+      with type t = connection
+      and type offset = int64
   end
-
-  val read: connection -> Cstruct.t -> unit t
-
-  val write: connection -> Cstruct.t -> unit t
 end
 
 module type SERVER = sig

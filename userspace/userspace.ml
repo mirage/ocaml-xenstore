@@ -116,16 +116,6 @@ end
 module BufferedReader = BufferedReader.Make(FDReader)
 module BufferedWriter = BufferedWriter.Make(FDWriter)
 
-module Request = struct
-  module Reader = PacketReader.Make(BufferedReader)
-  module Writer = PacketWriter.Make(BufferedWriter)
-end
-
-module Response = struct
-  module Reader = PacketReader.Make(BufferedReader)
-  module Writer = PacketWriter.Make(BufferedWriter)
-end
-
 (* Individual connections *)
 type connection = {
   fd: Lwt_unix.file_descr;
@@ -133,6 +123,27 @@ type connection = {
   reader: BufferedReader.t;
   writer: BufferedWriter.t;
 }
+
+module PacketReader = PacketReader.Make(BufferedReader)
+module PacketWriter = PacketWriter.Make(BufferedWriter)
+
+module Request = struct
+  module Reader = struct
+    type t = connection
+    type offset = int64
+    type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
+    let next t = PacketReader.next t.reader
+    let ack t = PacketReader.ack t.reader
+  end
+  module Writer = struct
+    type t = connection
+    type offset = int64
+    let write t = PacketWriter.write t.writer
+    let ack t = PacketWriter.ack t.writer
+  end
+end
+
+module Response = Request
 
 let alloc (fd, sockaddr) =
   let read_buffer = Cstruct.create max_packet_size in
@@ -197,9 +208,6 @@ let create () =
     alloc (Lwt_unix.of_unix_file_descr ~blocking:false fd, sockaddr)
 
 let destroy { fd } = Lwt_unix.close fd
-
-let read { fd } = complete Lwt_bytes.read fd
-let write { fd } = complete Lwt_bytes.write fd
 
 let int_of_file_descr fd =
   let fd = Lwt_unix.unix_file_descr fd in

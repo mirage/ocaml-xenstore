@@ -165,15 +165,8 @@ module Make
   module BufferedReader = BufferedReader.Make(Reader)
   module BufferedWriter = BufferedWriter.Make(Writer)
 
-  module Request = struct
-    module Reader = PacketReader.Make(BufferedReader)
-    module Writer = PacketWriter.Make(BufferedWriter)
-  end
-
-  module Response = struct
-    module Reader = PacketReader.Make(BufferedReader)
-    module Writer = PacketWriter.Make(BufferedWriter)
-  end
+  module PacketReader = PacketReader.Make(BufferedReader)
+  module PacketWriter = PacketWriter.Make(BufferedWriter)
 
   type connection = {
     conn: Connection.t;
@@ -181,10 +174,24 @@ module Make
     writer: BufferedWriter.t;
   }
 
-  let read t buf = Reader.read t.conn buf
-  let write t buf = Writer.write t.conn buf
+  module Request = struct
+    module Reader = struct
+      type t = connection
+      type offset = int64
+      type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
+      let next t = PacketReader.next t.reader
+      let ack t = PacketReader.ack t.reader
+    end
+    module Writer = struct
+      type t = connection
+      type offset = int64
+      let write t = PacketWriter.write t.writer
+      let ack t = PacketWriter.ack t.writer
+    end
+  end
 
-
+  module Response = Request
+  
   let uri_of t = return (Address.uri_of t.conn.Connection.address)
 
   let domain_of t = t.conn.Connection.address.Address.domid

@@ -102,8 +102,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
     mutable suspended : bool;
     suspended_m : Lwt_mutex.t;
     suspended_c : unit Lwt_condition.t;
-    send_header : Cstruct.t; (* protected by suspended_m *)
-    send_payload : Cstruct.t;
+    mutable offset: int64;
   }
 
   let client_cache = ref None
@@ -126,36 +125,31 @@ module Make = functor(IO: S.CONNECTION) -> struct
     raise_lwt e
 
   let rec dispatcher t =
-    let buf = Cstruct.create Protocol.xenstore_payload_max in
-    IO.read t.transport (Cstruct.sub buf 0 Header.sizeof) >>= fun () ->
-    fail_on_error (Header.unmarshal buf) >>= fun hdr ->
-    let payload = Cstruct.sub buf 0 hdr.Header.len in
-    IO.read t.transport payload >>= fun () ->
-
-    fail_on_error (Response.unmarshal hdr payload) >>= fun r ->
-    match r with
+    IO.Response.Reader.next t.transport >>= fun (offset, x) ->
+    IO.Response.Reader.ack t.transport offset >>= fun () ->
+    fail_on_error x >>= fun (hdr, payload) ->
+    fail_on_error (Response.unmarshal hdr payload) >>= function
     | Response.Watchevent(path, token) ->
-      lwt () =
-        let token = Token.unmarshal token in
-        (* We may get old watches: silently drop these *)
-        if Hashtbl.mem t.watchevents token
-        then Watcher.put (Hashtbl.find t.watchevents token) (Name.to_string path) >> dispatcher t
-        else dispatcher t in
-      dispatcher t
+      let token = Token.unmarshal token in
+      (* We may get old watches: silently drop these *)
+      if Hashtbl.mem t.watchevents token then begin
+        Watcher.put (Hashtbl.find t.watchevents token) (Name.to_string path) >>= fun () ->
+        dispatcher t
+      end else dispatcher t
     | r ->
-      let rid = hdr.Header.rid in
-      lwt thread = Lwt_mutex.with_lock t.suspended_m (fun () ->
+      begin
+        let rid = hdr.Header.rid in
+        Lwt_mutex.with_lock t.suspended_m (fun () ->
           if Hashtbl.mem t.rid_to_wakeup rid
           then return (Some (Hashtbl.find t.rid_to_wakeup rid))
-          else return None) in
-      match thread with
-      | None -> handle_exn t (Unexpected_rid rid)
-      | Some thread ->
-        begin
-          Lwt.wakeup_later thread r;
-          dispatcher t
-        end
-
+          else return None) >>= function
+        | None -> handle_exn t (Unexpected_rid rid)
+        | Some thread ->
+          begin
+            Lwt.wakeup_later thread r;
+            dispatcher t
+          end
+      end
 
   let make_unsafe () =
     lwt transport = IO.create () in
@@ -168,8 +162,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
       suspended = false;
       suspended_m = Lwt_mutex.create ();
       suspended_c = Lwt_condition.create ();
-      send_header = Cstruct.create Header.sizeof;
-      send_payload = Cstruct.create Protocol.xenstore_payload_max;
+      offset = 0L;
     } in
     t.dispatcher_thread <- dispatcher t;
     return t
@@ -249,14 +242,10 @@ module Make = functor(IO: S.CONNECTION) -> struct
               Lwt_condition.wait ~mutex:c.suspended_m c.suspended_c
             done in
           Hashtbl.add c.rid_to_wakeup rid u;
-          let next = Request.marshal payload c.send_payload in
-          let len = next.Cstruct.off in
-          let payload = Cstruct.sub c.send_payload 0 len in
-          let hdr = { Header.rid; tid; ty; len } in
-          ignore(Header.marshal hdr c.send_header);
-          IO.write c.transport c.send_header >>= fun () ->
-          IO.write c.transport payload >>= fun () ->
-          return ()) in
+          let hdr = { Header.rid; tid; ty; len = 0} in
+          IO.Request.Writer.write c.transport c.offset hdr (Header.marshal hdr) >>= fun offset ->
+          c.offset <- offset;
+          IO.Request.Writer.ack c.transport offset) in
       lwt res = t in
       lwt () = Lwt_mutex.with_lock c.suspended_m
           (fun () ->
