@@ -2,6 +2,7 @@ trunk (unreleased)
 * fix a number of string NULL parse/printing errors (thanks to Jonathan Davies)
 * use the Mirage ISC license
 * Unix applications should link against 'xenstore.userspace' rather than 'xenstore.unix'
+* replace old read/write interface with read;advance/write;advance for restartability
 
 1.2.5 (04-Oct-2013):
 * Add Travis continuous integration scripts
