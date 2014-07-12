@@ -20,7 +20,7 @@ module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.READABLE
   and  type item = Cstruct.t) = struct
   type t = Reader.t
   type item = Protocol.Header.t * Unmarshal.t
-  type position = Reader.position
+  type position = Reader.position with sexp
 
   let rec read t =
     Reader.read t >>= function

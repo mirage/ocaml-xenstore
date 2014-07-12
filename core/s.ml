@@ -79,7 +79,7 @@ module type STREAM = sig
   type item
   (** The stream consists of a sequence of items *)
 
-  type position
+  type position with sexp
   (** Each item has a position. The stream itself remains at a fixed position so
       that repeated calls to [read] or [write] process the same data.
       To advance the stream call [advance new_position] *)
@@ -130,21 +130,17 @@ module type CONNECTION = sig
   module Request : sig
     module Reader : READABLE
       with type t = connection
-      and type position = int64
       and type item = Protocol.Header.t * Protocol.Request.t
     module Writer : WRITABLE
       with type t = connection
-      and type position = int64
       and type item = Protocol.Header.t * Protocol.Request.t
   end
   module Response : sig
     module Reader : READABLE
       with type t = connection
-      and type position = int64
       and type item = Protocol.Header.t * Protocol.Response.t
     module Writer : WRITABLE
       with type t = connection
-      and type position = int64
       and type item = Protocol.Header.t * Protocol.Response.t
   end
 end

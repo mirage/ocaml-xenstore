@@ -22,7 +22,7 @@ module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
   and type item = Cstruct.t) = struct
 
   type t = WriteBuffers.t
-  type position = WriteBuffers.position
+  type position = WriteBuffers.position with sexp
   type item = Protocol.Header.t * Marshal.t
 
   let write t (hdr, m) =

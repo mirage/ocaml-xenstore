@@ -18,7 +18,7 @@ open Lwt
 module Make(Space: S.READABLE
   with type position = int64
   and type item = Cstruct.t) = struct
-  type position = Space.position
+  type position = Space.position with sexp
   type item = Space.item
 
   cstruct hdr {

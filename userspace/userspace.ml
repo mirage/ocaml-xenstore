@@ -43,7 +43,7 @@ module FDReader = struct
     mutable offset: int64;
     mutable length: int;
   }
-  type position = int64
+  type position = int64 with sexp
   type item = Cstruct.t
 
   let make fd =
@@ -92,7 +92,7 @@ module FDWriteBuffer = struct
     buffer: Cstruct.t;
     mutable offset: int64;
   }
-  type position = int64
+  type position = int64 with sexp
   type item = Cstruct.t
 
   let make fd =
@@ -131,14 +131,14 @@ module Request = struct
 
   module Reader = struct
     type t = connection
-    type position = int64
+    type position = int64 with sexp
     type item = Protocol.Header.t * Protocol.Request.t
     let read t = PacketReader.read t.reader
     let advance t = PacketReader.advance t.reader
   end
   module Writer = struct
     type t = connection
-    type position = int64
+    type position = int64 with sexp
     type item = Protocol.Header.t * Protocol.Request.t
     let write t = PacketWriter.write t.writeBuffers
     let advance t = PacketWriter.advance t.writeBuffers
@@ -151,14 +151,14 @@ module Response = struct
 
   module Reader = struct
     type t = connection
-    type position = int64
+    type position = int64 with sexp
     type item = Protocol.Header.t * Protocol.Response.t
     let read t = PacketReader.read t.reader
     let advance t = PacketReader.advance t.reader
   end
   module Writer = struct
     type t = connection
-    type position = int64
+    type position = int64 with sexp
     type item = Protocol.Header.t * Protocol.Response.t
     let write t = PacketWriter.write t.writeBuffers
     let advance t = PacketWriter.advance t.writeBuffers

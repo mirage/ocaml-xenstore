@@ -70,7 +70,7 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type t = Connection.t
   open Connection
 
-  type position = int64
+  type position = int64 with sexp
   type item = Cstruct.t
 
   let read t =
@@ -96,7 +96,7 @@ module RingWriteBuffer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type t = Connection.t
   open Connection
 
-  type position = int64
+  type position = int64 with sexp
   type item = Cstruct.t
 
   let read t =
@@ -153,14 +153,14 @@ module Make
 
     module Reader = struct
       type t = connection
-      type position = int64
+      type position = int64 with sexp
       type item = Protocol.Header.t * Protocol.Request.t
       let read t = PacketReader.read t.reader
       let advance t = PacketReader.advance t.reader
     end
     module Writer = struct
       type t = connection
-      type position = int64
+      type position = int64 with sexp
       type item = Protocol.Header.t * Protocol.Request.t
       let write t = PacketWriter.write t.writeBuffers
       let advance t = PacketWriter.advance t.writeBuffers
@@ -173,14 +173,14 @@ module Make
 
     module Reader = struct
       type t = connection
-      type position = int64
+      type position = int64 with sexp
       type item = Protocol.Header.t * Protocol.Response.t
       let read t = PacketReader.read t.reader
       let advance t = PacketReader.advance t.reader
     end
     module Writer = struct
       type t = connection
-      type position = int64
+      type position = int64 with sexp
       type item = Protocol.Header.t * Protocol.Response.t
       let write t = PacketWriter.write t.writeBuffers
       let advance t = PacketWriter.advance t.writeBuffers

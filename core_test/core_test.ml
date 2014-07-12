@@ -13,6 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open Sexplib.Std
 open Sexplib
 open OUnit
 open Xenstore
@@ -91,7 +92,7 @@ let cstruct_of_string x =
   c
 
 module CStructWindow = struct
-  type position = int64
+  type position = int64 with sexp
   type item = Cstruct.t
   type t = {
     buffer: Cstruct.t;

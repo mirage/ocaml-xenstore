@@ -19,7 +19,7 @@ module Make(Reader: S.READABLE
   with type position = int64
   and type item = Cstruct.t) = struct
 
-  type position = Reader.position
+  type position = Reader.position with sexp
   type item = Reader.item
 
   cstruct hdr {
