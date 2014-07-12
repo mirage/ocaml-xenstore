@@ -118,31 +118,30 @@ module type CONNECTION = sig
   include IO
 
   type connection
-
-  val create: unit -> connection t
+  (** A connection, along which we can read and write packets *)
 
   val destroy: connection -> unit t
+  (** Shutdown a clean up the connection *)
 
   val uri_of: connection -> Uri.t t
+  (** Represent the peer endpoint's address as a URI *)
 
   val domain_of: connection -> int
+  (** The domain id of the peer *)
 
   module Request : sig
-    module Reader : READABLE
-      with type t = connection
-      and type item = Protocol.Header.t * Protocol.Request.t
-    module Writer : WRITABLE
-      with type t = connection
-      and type item = Protocol.Header.t * Protocol.Request.t
+    type item = Protocol.Header.t * Protocol.Request.t
+    module Reader : READABLE with type t = connection and type item = item
+    module Writer : WRITABLE with type t = connection and type item = item
   end
   module Response : sig
-    module Reader : READABLE
-      with type t = connection
-      and type item = Protocol.Header.t * Protocol.Response.t
-    module Writer : WRITABLE
-      with type t = connection
-      and type item = Protocol.Header.t * Protocol.Response.t
+    type item = Protocol.Header.t * Protocol.Response.t
+    module Reader : READABLE with type t = connection and type item = item
+    module Writer : WRITABLE with type t = connection and type item = item
   end
+
+  val create: unit -> connection t
+  (** As a client, connect to the xenstore service *)
 end
 
 module type SERVER = sig

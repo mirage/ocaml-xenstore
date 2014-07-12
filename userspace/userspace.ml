@@ -126,6 +126,8 @@ type connection = {
 
 
 module Request = struct
+  type item = Protocol.Header.t * Protocol.Request.t
+
   module PacketReader = PacketReader.Make(Protocol.Request)(BufferedReader)
   module PacketWriter = PacketWriter.Make(Protocol.Request)(WriteBufferStream)
 
@@ -146,6 +148,8 @@ module Request = struct
 end
 
 module Response = struct
+  type item = Protocol.Header.t * Protocol.Response.t
+
   module PacketReader = PacketReader.Make(Protocol.Response)(BufferedReader)
   module PacketWriter = PacketWriter.Make(Protocol.Response)(WriteBufferStream)
 
