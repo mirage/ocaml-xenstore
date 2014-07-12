@@ -25,7 +25,7 @@ module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
   type position = WriteBuffers.position
   type item = Protocol.Header.t * Marshal.t
 
-  let write t offset (hdr, m) =
+  let write t (hdr, m) =
     let rec loop () =
       WriteBuffers.read t >>= function
       | _, `Error x -> fail (Failure x)

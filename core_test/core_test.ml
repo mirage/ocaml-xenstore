@@ -190,14 +190,14 @@ module Example_request_packet = struct
     let buf = Cstruct.create (len * n) in
     let w = CStructWindow.create buf 3 in
     let bw = WriteBufferStream.create w (Cstruct.create 5000) in
-    let rec loop offset i =
+    let rec loop i =
       if i = n
       then return ()
       else
-        PacketCStructWriter.write bw offset (hdr, request) >>= fun offset ->
+        PacketCStructWriter.write bw (hdr, request) >>= fun offset ->
         PacketCStructWriter.advance bw offset >>= fun () ->
-        loop offset (i + 1) in
-    Lwt_main.run (loop 0L 0);
+        loop (i + 1) in
+    Lwt_main.run (loop 0);
 
 end
 

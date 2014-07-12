@@ -107,11 +107,11 @@ module type WRITABLE = sig
 
   include STREAM
 
-  val write: t -> position -> item -> position Lwt.t
-  (** [write t position item] writes a packet to the output at [position],
-      and returns the next [offset] value. This function does not advance
+  val write: t -> item -> position Lwt.t
+  (** [write t item] writes a packet to the output at the current position
+      and returns the next [position] value. This function does not advance
       the stream, so multiple calls will write at the same position.
-      To advance the stream, call [advance offset] *)
+      To advance the stream, call [advance position] *)
 end
 
 module type CONNECTION = sig
