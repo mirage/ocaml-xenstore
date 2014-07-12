@@ -128,7 +128,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
     IO.Response.Reader.next t.transport >>= fun (offset, x) ->
     IO.Response.Reader.ack t.transport offset >>= fun () ->
     fail_on_error x >>= fun (hdr, payload) ->
-    fail_on_error (Response.unmarshal hdr payload) >>= function
+    match payload with
     | Response.Watchevent(path, token) ->
       let token = Token.unmarshal token in
       (* We may get old watches: silently drop these *)

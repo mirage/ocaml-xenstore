@@ -15,11 +15,11 @@
  *)
 open Lwt
 
-module Make(Reader: S.WINDOW
+module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.WINDOW
   with type offset = int64
   and  type item = Cstruct.t) = struct
   type t = Reader.t
-  type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
+  type item = [ `Ok of (Protocol.Header.t * Unmarshal.t) | `Error of string ]
   type offset = Reader.offset
 
   let rec next t =
@@ -40,7 +40,9 @@ module Make(Reader: S.WINDOW
           else begin
             let payload = Cstruct.sub space Protocol.Header.sizeof x.Protocol.Header.len in
             let offset = Int64.(add offset (of_int length)) in
-            return (offset, `Ok (x, payload))
+            match Unmarshal.unmarshal x payload with
+            | `Ok body -> return (offset, `Ok (x, body))
+            | `Error x -> return (offset, `Error x)
           end in
         loop ()
     end

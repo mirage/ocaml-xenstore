@@ -111,7 +111,7 @@ module CStructWindow = struct
 end
 
 module BufferedCStructReader = BufferedReader.Make(CStructWindow)
-module PacketCStructReader = PacketReader.Make(BufferedCStructReader)
+module PacketCStructReader = PacketReader.Make(Protocol.Request)(BufferedCStructReader)
 
 module BufferedCStructWriter = BufferedWriter.Make(CStructWindow)
 module PacketCStructWriter = PacketWriter.Make(BufferedCStructWriter)
@@ -165,7 +165,6 @@ module Example_request_packet = struct
         | offset, `Error x ->
           failwith (Printf.sprintf "At %Ld: %s" offset x)
         | offset, `Ok (hdr, payload) ->
-          let payload = failure_on_error (Protocol.Request.unmarshal hdr payload) in
           check_parse t hdr payload;
           (* check the data hasn't been lost *)
           begin PacketCStructReader.next br >>= function

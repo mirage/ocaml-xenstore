@@ -15,6 +15,11 @@
  *)
 open Sexplib
 
+type ('a, 'b) result = [
+  | `Ok of 'a
+  | `Error of 'b
+]
+
 module type STRINGABLE = sig
   type t
   val to_string: t -> string
@@ -25,6 +30,11 @@ module type SEXPABLE = sig
   type t
   val sexp_of_t: t -> Sexp.t
   val t_of_sexp: Sexp.t -> t
+end
+
+module type UNMARSHALABLE = sig
+  type t
+  val unmarshal: Protocol.Header.t -> Cstruct.t -> (t, string) result
 end
 
 module type INTROSPECTABLE = sig
@@ -103,7 +113,7 @@ module type CONNECTION = sig
     module Reader : WINDOW
       with type t = connection
       and type offset = int64
-      and type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
+      and type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
     module Writer : PACKET_WRITER
       with type t = connection
       and type offset = int64
@@ -112,7 +122,7 @@ module type CONNECTION = sig
     module Reader : WINDOW
       with type t = connection
       and type offset = int64
-      and type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
+      and type item = [ `Ok of (Protocol.Header.t * Protocol.Response.t) | `Error of string ]
     module Writer : PACKET_WRITER
       with type t = connection
       and type offset = int64
