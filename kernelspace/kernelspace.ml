@@ -83,7 +83,7 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
         if available_bytes = 0 then begin
           A.after t.port from >>= fun from ->
           loop from
-        end else return (Int64.of_int32 seq, available) in
+        end else return (Int64.of_int32 seq, `Ok available) in
     loop A.program_start
 
   let ack t seq =
@@ -95,7 +95,9 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     let rec loop buf =
       if Cstruct.len buf = 0
       then return ()
-      else next t >>= fun (seq, available) ->
+      else next t >>= function
+      | _, `Error x -> fail (Failure x)
+      | seq, `Ok available ->
         let available_bytes = Cstruct.len available in
         let consumable = min (Cstruct.len buf) available_bytes in
         Cstruct.blit available 0 buf 0 consumable;
@@ -121,7 +123,7 @@ module RingWriter(A: ACTIVATIONS with type channel = Eventchn.t) = struct
         if available_bytes = 0 then begin
           A.after t.port from >>= fun from ->
           loop from
-        end else return (Int64.of_int32 seq, available) in
+        end else return (Int64.of_int32 seq, `Ok available) in
     loop A.program_start
 
   let ack t seq =
@@ -133,7 +135,9 @@ module RingWriter(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     let rec loop buf =
       if Cstruct.len buf = 0
       then return ()
-      else next t >>= fun (seq, available) ->
+      else next t >>= function
+      | _, `Error x -> fail (Failure x)
+      | seq, `Ok available ->
         let available_bytes = Cstruct.len available in
         let consumable = min (Cstruct.len buf) available_bytes in
         Cstruct.blit buf 0 available 0 consumable;
@@ -178,7 +182,7 @@ module Make
     module Reader = struct
       type t = connection
       type offset = int64
-      type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+      type item = Protocol.Header.t * Protocol.Request.t
       let next t = PacketReader.next t.reader
       let ack t = PacketReader.ack t.reader
     end
@@ -198,7 +202,7 @@ module Make
     module Reader = struct
       type t = connection
       type offset = int64
-      type item = [ `Ok of (Protocol.Header.t * Protocol.Response.t) | `Error of string ]
+      type item = Protocol.Header.t * Protocol.Response.t
       let next t = PacketReader.next t.reader
       let ack t = PacketReader.ack t.reader
     end

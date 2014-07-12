@@ -104,7 +104,7 @@ module CStructWindow = struct
   let next t =
     let offset = Int64.to_int t.offset in
     let l = min (Cstruct.len t.buffer) (offset + t.length) - offset in
-    return (t.offset, Cstruct.sub t.buffer offset l)
+    return (t.offset, `Ok (Cstruct.sub t.buffer offset l))
   let ack t ofs =
     t.offset <- ofs;
     return ()

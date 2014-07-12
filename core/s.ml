@@ -81,7 +81,7 @@ module type STREAM = sig
 
 (* peek *)
 (* use result type *)
-  val next: t -> (offset * item) Lwt.t
+  val next: t -> (offset * item result) Lwt.t
   (** [next t] returns the next item from the stream, together with the offset
       which should be passed to [ack] *)
 
@@ -125,7 +125,7 @@ module type CONNECTION = sig
     module Reader : STREAM
       with type t = connection
       and type offset = int64
-      and type item = (Protocol.Header.t * Protocol.Request.t) result
+      and type item = Protocol.Header.t * Protocol.Request.t
     module Writer : PACKET_WRITER
       with type t = connection
       and type offset = int64
@@ -135,7 +135,7 @@ module type CONNECTION = sig
     module Reader : STREAM
       with type t = connection
       and type offset = int64
-      and type item = (Protocol.Header.t * Protocol.Response.t) result
+      and type item = Protocol.Header.t * Protocol.Response.t
     module Writer : PACKET_WRITER
       with type t = connection
       and type offset = int64

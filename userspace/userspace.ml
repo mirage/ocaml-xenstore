@@ -56,9 +56,9 @@ module FDReader = struct
     | 0 ->
       Lwt_cstruct.read t.fd t.buffer >>= fun n ->
       t.length <- n;
-      return (t.offset, Cstruct.sub t.buffer 0 n)
+      return (t.offset, `Ok (Cstruct.sub t.buffer 0 n))
     | n ->
-      return (t.offset, Cstruct.sub t.buffer 0 n)
+      return (t.offset, `Ok (Cstruct.sub t.buffer 0 n))
 
   let ack t offset =
     let delta = Int64.(to_int (sub offset t.offset)) in
@@ -101,7 +101,7 @@ module FDWriter = struct
     { fd; buffer; offset }
 
   let next t =
-    return (t.offset, t.buffer )
+    return (t.offset, `Ok t.buffer )
 
   let ack t offset =
     let delta = Int64.(to_int (sub offset t.offset)) in
@@ -132,7 +132,7 @@ module Request = struct
   module Reader = struct
     type t = connection
     type offset = int64
-    type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+    type item = Protocol.Header.t * Protocol.Request.t
     let next t = PacketReader.next t.reader
     let ack t = PacketReader.ack t.reader
   end
@@ -152,7 +152,7 @@ module Response = struct
   module Reader = struct
     type t = connection
     type offset = int64
-    type item = [ `Ok of (Protocol.Header.t * Protocol.Response.t) | `Error of string ]
+    type item = Protocol.Header.t * Protocol.Response.t
     let next t = PacketReader.next t.reader
     let ack t = PacketReader.ack t.reader
   end

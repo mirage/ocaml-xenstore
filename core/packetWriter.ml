@@ -27,18 +27,22 @@ module Make(Marshal: S.MARSHALABLE)(Writer: S.STREAM
 
   let write t offset hdr item =
     let rec loop () =
-      Writer.next t >>= fun (_, space) ->
-      if Cstruct.len space >= max_packet_size
-      then return ()
-      else loop () in
+      Writer.next t >>= function
+      | _, `Error x -> fail (Failure x)
+      | _, `Ok space ->
+        if Cstruct.len space >= max_packet_size
+        then return ()
+        else loop () in
     loop () >>= fun () ->
-    Writer.next t >>= fun (offset, space) ->
-    let payload_buf = Cstruct.shift space Protocol.Header.sizeof in
-    let next = Marshal.marshal item payload_buf in
-    let length = next.Cstruct.off - payload_buf.Cstruct.off in
-    let hdr = Protocol.Header.({ hdr with len = length }) in
-    ignore (Protocol.Header.marshal hdr space);
-    return (Int64.(add offset (of_int (Protocol.Header.sizeof + length))))
+    Writer.next t >>= function
+    | _, `Error x -> fail (Failure x)
+    | offset, `Ok space ->
+      let payload_buf = Cstruct.shift space Protocol.Header.sizeof in
+      let next = Marshal.marshal item payload_buf in
+      let length = next.Cstruct.off - payload_buf.Cstruct.off in
+      let hdr = Protocol.Header.({ hdr with len = length }) in
+      ignore (Protocol.Header.marshal hdr space);
+      return (Int64.(add offset (of_int (Protocol.Header.sizeof + length))))
 
   let ack t ofs =
     Writer.ack t ofs

@@ -52,36 +52,38 @@ module Make(Writer: S.STREAM
     let producer_wrapped = Int64.(to_int (rem producer (of_int len))) in
     let to_buffer_end = len - producer_wrapped in
     let contiguous = min available to_buffer_end in
-    return (producer, Cstruct.sub buffer producer_wrapped contiguous)
+    return (producer, `Ok (Cstruct.sub buffer producer_wrapped contiguous))
 
   (* Ensure all data [up_to] have been transmitted *)
   let rec ack t up_to =
     let buffer = Cstruct.shift t.output 16 in
     let len = Cstruct.len buffer in
     let consumer = get_hdr_consumer t.output in
-    Writer.next t.t >>= fun (offset, space) ->
-    ( if offset < consumer
-      then fail (Failure (Printf.sprintf "Some portion of the output stream has been dropped. Our data starts at %Ld, the stream starts at %Ld" consumer offset))
-      else return () ) >>= fun () ->
-    (* If we crashed on a previous run we might not have bumped the consumer
-       pointer -- do it now *)
-    let consumer = offset in
-    set_hdr_consumer t.output offset;
+    Writer.next t.t >>= function
+    | _, `Error x -> fail (Failure x)
+    | offset, `Ok space ->
+      ( if offset < consumer
+        then fail (Failure (Printf.sprintf "Some portion of the output stream has been dropped. Our data starts at %Ld, the stream starts at %Ld" consumer offset))
+        else return () ) >>= fun () ->
+      (* If we crashed on a previous run we might not have bumped the consumer
+         pointer -- do it now *)
+      let consumer = offset in
+      set_hdr_consumer t.output offset;
 
-    if consumer = up_to
-    then return ()
-    else begin
-      (* total data we should write is up_to - consumer but we need to
-         subdivide this into contiguous chunks *)
-      let used = Int64.(to_int (sub up_to consumer)) in
-      let consumer_wrapped = Int64.(to_int (rem consumer (of_int len))) in
-      let to_buffer_end = len - consumer_wrapped in
-      let contiguous = min used to_buffer_end in
-      let n = min (Cstruct.len space) contiguous in
-      let to_write = Cstruct.sub buffer consumer_wrapped n in
-      Cstruct.blit to_write 0 space 0 n;
-      let consumer = Int64.(add consumer (of_int n)) in
-      Writer.ack t.t consumer >>= fun () ->
-      ack t up_to
-    end
+      if consumer = up_to
+      then return ()
+      else begin
+        (* total data we should write is up_to - consumer but we need to
+           subdivide this into contiguous chunks *)
+        let used = Int64.(to_int (sub up_to consumer)) in
+        let consumer_wrapped = Int64.(to_int (rem consumer (of_int len))) in
+        let to_buffer_end = len - consumer_wrapped in
+        let contiguous = min used to_buffer_end in
+        let n = min (Cstruct.len space) contiguous in
+        let to_write = Cstruct.sub buffer consumer_wrapped n in
+        Cstruct.blit to_write 0 space 0 n;
+        let consumer = Int64.(add consumer (of_int n)) in
+        Writer.ack t.t consumer >>= fun () ->
+        ack t up_to
+      end
 end

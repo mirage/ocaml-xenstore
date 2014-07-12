@@ -19,33 +19,37 @@ module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.STREAM
   with type offset = int64
   and  type item = Cstruct.t) = struct
   type t = Reader.t
-  type item = [ `Ok of (Protocol.Header.t * Unmarshal.t) | `Error of string ]
+  type item = Protocol.Header.t * Unmarshal.t
   type offset = Reader.offset
 
   let rec next t =
-    Reader.next t >>= fun (offset, space) ->
-    let len = Cstruct.len space in
-    if len < Protocol.Header.sizeof
-    then next t
-    else begin
-      match Protocol.Header.unmarshal space with
-      | `Error x -> return (offset, `Error x)
-      | `Ok x ->
-        let rec loop () =
-          Reader.next t >>= fun (offset, space) ->
-          let length = Protocol.Header.sizeof + x.Protocol.Header.len in
-          let len = Cstruct.len space in
-          if len < length
-          then loop ()
-          else begin
-            let payload = Cstruct.sub space Protocol.Header.sizeof x.Protocol.Header.len in
-            let offset = Int64.(add offset (of_int length)) in
-            match Unmarshal.unmarshal x payload with
-            | `Ok body -> return (offset, `Ok (x, body))
-            | `Error x -> return (offset, `Error x)
-          end in
-        loop ()
-    end
+    Reader.next t >>= function
+    | offset, `Error x -> return (offset, `Error x)
+    | offset, `Ok space ->
+      let len = Cstruct.len space in
+      if len < Protocol.Header.sizeof
+      then next t
+      else begin
+        match Protocol.Header.unmarshal space with
+        | `Error x -> return (offset, `Error x)
+        | `Ok x ->
+          let rec loop () =
+            Reader.next t >>= function
+            | offset, `Error x -> return (offset, `Error x)
+            | offset, `Ok space ->
+              let length = Protocol.Header.sizeof + x.Protocol.Header.len in
+              let len = Cstruct.len space in
+              if len < length
+              then loop ()
+              else begin
+                let payload = Cstruct.sub space Protocol.Header.sizeof x.Protocol.Header.len in
+                let offset = Int64.(add offset (of_int length)) in
+                match Unmarshal.unmarshal x payload with
+                | `Ok body -> return (offset, `Ok (x, body))
+                | `Error x -> return (offset, `Error x)
+              end in
+            loop ()
+      end
 
   let ack t ofs =
     Reader.ack t ofs

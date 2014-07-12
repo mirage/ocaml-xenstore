@@ -19,5 +19,5 @@ module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.STREAM
   and  type item = Cstruct.t
 ) : S.STREAM
   with type offset = int64
-  and  type item = [ `Ok of (Protocol.Header.t * Unmarshal.t) | `Error of string ]
+  and  type item = Protocol.Header.t * Unmarshal.t
   and  type t = Reader.t
