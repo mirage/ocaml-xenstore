@@ -19,9 +19,7 @@ open Xenstore
 
 (** A byte-level transport over the xenstore Unix domain socket *)
 
-type 'a t = 'a Lwt.t
-let return x = return x
-let ( >>= ) m f = m >>= f
+include IO_lwt
 
 let debug fmt = Logging.debug "userspace" fmt
 let error fmt = Logging.error "userspace" fmt
@@ -37,7 +35,7 @@ let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
 exception Connection_timeout
 
 module FDReader = struct
-  type t = {
+  type stream = {
     fd: Lwt_unix.file_descr;
     buffer: Cstruct.t;
     mutable offset: int64;
@@ -46,27 +44,29 @@ module FDReader = struct
   type position = int64 with sexp
   type item = Cstruct.t
 
+  include IO_lwt
+
   let make fd =
     let buffer = Cstruct.create 1024 in
     let offset = 0L in
     let length = 0 in
     { fd; buffer; offset; length }
 
-  let read t = match t.length with
+  let read stream = match stream.length with
     | 0 ->
-      Lwt_cstruct.read t.fd t.buffer >>= fun n ->
-      t.length <- n;
-      return (t.offset, `Ok (Cstruct.sub t.buffer 0 n))
+      Lwt_cstruct.read stream.fd stream.buffer >>= fun n ->
+      stream.length <- n;
+      return (stream.offset, `Ok (Cstruct.sub stream.buffer 0 n))
     | n ->
-      return (t.offset, `Ok (Cstruct.sub t.buffer 0 n))
+      return (stream.offset, `Ok (Cstruct.sub stream.buffer 0 n))
 
-  let advance t offset =
-    let delta = Int64.(to_int (sub offset t.offset)) in
-    let length = max 0 (t.length - delta) in
+  let advance stream offset =
+    let delta = Int64.(to_int (sub offset stream.offset)) in
+    let length = max 0 (stream.length - delta) in
     if length > 0
-    then Cstruct.blit t.buffer (t.length - length) t.buffer 0 length;
-    t.offset <- offset;
-    t.length <- length;
+    then Cstruct.blit stream.buffer (stream.length - length) stream.buffer 0 length;
+    stream.offset <- offset;
+    stream.length <- length;
     return ()
 end
 
@@ -87,7 +87,7 @@ let complete op fd buf =
   else return ()
 
 module FDWriteBuffer = struct
-  type t = {
+  type stream = {
     fd: Lwt_unix.file_descr;
     buffer: Cstruct.t;
     mutable offset: int64;
@@ -95,21 +95,23 @@ module FDWriteBuffer = struct
   type position = int64 with sexp
   type item = Cstruct.t
 
+  include IO_lwt
+
   let make fd =
     let buffer = Cstruct.create 1024 in
     let offset = 0L in
     { fd; buffer; offset }
 
-  let read t =
-    return (t.offset, `Ok t.buffer )
+  let read stream =
+    return (stream.offset, `Ok stream.buffer )
 
-  let advance t offset =
-    let delta = Int64.(to_int (sub offset t.offset)) in
-    complete Lwt_bytes.write t.fd (Cstruct.sub t.buffer 0 delta) >>= fun () ->
-    let unwritten = Cstruct.len t.buffer - delta in
+  let advance stream offset =
+    let delta = Int64.(to_int (sub offset stream.offset)) in
+    complete Lwt_bytes.write stream.fd (Cstruct.sub stream.buffer 0 delta) >>= fun () ->
+    let unwritten = Cstruct.len stream.buffer - delta in
     if unwritten > 0
-    then Cstruct.blit t.buffer (Cstruct.len t.buffer - unwritten) t.buffer 0 unwritten;
-    t.offset <- offset;
+    then Cstruct.blit stream.buffer (Cstruct.len stream.buffer - unwritten) stream.buffer 0 unwritten;
+    stream.offset <- offset;
     return ()
 end
 
@@ -120,8 +122,8 @@ module WriteBufferStream = WriteBufferStream.Make(FDWriteBuffer)
 type connection = {
   fd: Lwt_unix.file_descr;
   sockaddr: Lwt_unix.sockaddr;
-  reader: BufferedReader.t;
-  writeBuffers: WriteBufferStream.t;
+  reader: BufferedReader.stream;
+  writeBuffers: WriteBufferStream.stream;
 }
 
 
@@ -132,18 +134,20 @@ module Request = struct
   module PacketWriter = PacketWriter.Make(Protocol.Request)(WriteBufferStream)
 
   module Reader = struct
-    type t = connection
+    include IO_lwt
+    type stream = connection
     type position = int64 with sexp
     type item = Protocol.Header.t * Protocol.Request.t
-    let read t = PacketReader.read t.reader
-    let advance t = PacketReader.advance t.reader
+    let read stream = PacketReader.read stream.reader
+    let advance stream = PacketReader.advance stream.reader
   end
   module Writer = struct
-    type t = connection
+    include IO_lwt
+    type stream = connection
     type position = int64 with sexp
     type item = Protocol.Header.t * Protocol.Request.t
-    let write t = PacketWriter.write t.writeBuffers
-    let advance t = PacketWriter.advance t.writeBuffers
+    let write stream = PacketWriter.write stream.writeBuffers
+    let advance stream = PacketWriter.advance stream.writeBuffers
   end
 end
 
@@ -154,18 +158,20 @@ module Response = struct
   module PacketWriter = PacketWriter.Make(Protocol.Response)(WriteBufferStream)
 
   module Reader = struct
-    type t = connection
+    include IO_lwt
+    type stream = connection
     type position = int64 with sexp
     type item = Protocol.Header.t * Protocol.Response.t
-    let read t = PacketReader.read t.reader
-    let advance t = PacketReader.advance t.reader
+    let read stream = PacketReader.read stream.reader
+    let advance stream = PacketReader.advance stream.reader
   end
   module Writer = struct
-    type t = connection
+    include IO_lwt
+    type stream = connection
     type position = int64 with sexp
     type item = Protocol.Header.t * Protocol.Response.t
-    let write t = PacketWriter.write t.writeBuffers
-    let advance t = PacketWriter.advance t.writeBuffers
+    let write stream = PacketWriter.write stream.writeBuffers
+    let advance stream = PacketWriter.advance stream.writeBuffers
   end
 end
 

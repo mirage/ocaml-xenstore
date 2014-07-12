@@ -55,8 +55,10 @@ module type MONAD = sig
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 end
 
-module type IO = MONAD
-  with type 'a t = 'a Lwt.t
+module type IO = sig
+  include MONAD with type 'a t = 'a Lwt.t
+  val fail: exn -> 'a t
+end
 
 module type EVENTS = sig
   include IO
@@ -73,7 +75,9 @@ end
 module type STREAM = sig
   (** A stream of items. *)
 
-  type t
+  include IO
+
+  type stream
   (** The stream *)
 
   type item
@@ -84,7 +88,7 @@ module type STREAM = sig
       that repeated calls to [read] or [write] process the same data.
       To advance the stream call [advance new_position] *)
 
-  val advance: t -> position -> unit Lwt.t
+  val advance: stream -> position -> unit t
   (** [advanced buf position] declares that we have processed all data up to
       [position] and therefore any buffers may be recycled. *)
 end
@@ -94,8 +98,8 @@ module type READABLE = sig
 
   include STREAM
 
-  val read: t -> (position * item result) Lwt.t
-  (** [read t] returns the item at the current stream position. Note this
+  val read: stream -> (position * item result) t
+  (** [read stream] returns the item at the current stream position. Note this
       function does not advance the stream, so repeated calls should return
       the same data.
       To advance the stream, call [advance position]. *)
@@ -107,8 +111,8 @@ module type WRITABLE = sig
 
   include STREAM
 
-  val write: t -> item -> position Lwt.t
-  (** [write t item] writes a packet to the output at the current position
+  val write: stream -> item -> position t
+  (** [write stream item] writes a packet to the output at the current position
       and returns the next [position] value. This function does not advance
       the stream, so multiple calls will write at the same position.
       To advance the stream, call [advance position] *)
@@ -131,13 +135,13 @@ module type CONNECTION = sig
 
   module Request : sig
     type item = Protocol.Header.t * Protocol.Request.t
-    module Reader : READABLE with type t = connection and type item = item
-    module Writer : WRITABLE with type t = connection and type item = item
+    module Reader : READABLE with type stream = connection and type item = item
+    module Writer : WRITABLE with type stream = connection and type item = item
   end
   module Response : sig
     type item = Protocol.Header.t * Protocol.Response.t
-    module Reader : READABLE with type t = connection and type item = item
-    module Writer : WRITABLE with type t = connection and type item = item
+    module Reader : READABLE with type stream = connection and type item = item
+    module Writer : WRITABLE with type stream = connection and type item = item
   end
 
   val create: unit -> connection t

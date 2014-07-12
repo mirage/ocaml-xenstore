@@ -12,7 +12,7 @@ Library xenstore
   Pack:               true
   Path:               core
   Findlibname:        xenstore
-  Modules:            Protocol, Handle, Client, DomainWatch, BufferedReader, PacketReader, WriteBufferStream, PacketWriter, Logging, S
+  Modules:            Protocol, Handle, Client, DomainWatch, BufferedReader, PacketReader, WriteBufferStream, PacketWriter, Logging, IO_lwt, S
   BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax, lwt, lwt.syntax, uri, sexplib, sexplib.syntax, stringext
 
 Executable core_test

@@ -13,15 +13,15 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-open Lwt
-
 let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
 
 module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
   with type position = int64
   and type item = Cstruct.t) = struct
 
-  type t = WriteBuffers.t
+  include IO_lwt
+  
+  type stream = WriteBuffers.stream
   type position = WriteBuffers.position with sexp
   type item = Protocol.Header.t * Marshal.t
 

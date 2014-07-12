@@ -92,9 +92,10 @@ let cstruct_of_string x =
   c
 
 module CStructWindow = struct
+  include IO_lwt
   type position = int64 with sexp
   type item = Cstruct.t
-  type t = {
+  type stream = {
     buffer: Cstruct.t;
     mutable position: position;
     length: int;
@@ -102,12 +103,12 @@ module CStructWindow = struct
   let create buffer length =
     let position = 0L in
     { buffer; position; length }
-  let read t =
-    let position = Int64.to_int t.position in
-    let l = min (Cstruct.len t.buffer) (position + t.length) - position in
-    return (t.position, `Ok (Cstruct.sub t.buffer position l))
-  let advance t pos =
-    t.position <- pos;
+  let read stream =
+    let position = Int64.to_int stream.position in
+    let l = min (Cstruct.len stream.buffer) (position + stream.length) - position in
+    return (stream.position, `Ok (Cstruct.sub stream.buffer position l))
+  let advance stream pos =
+    stream.position <- pos;
     return ()
 end
 

@@ -13,11 +13,11 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-open Lwt
-
 module Make(Reader: S.READABLE
   with type position = int64
   and type item = Cstruct.t) = struct
+
+  include IO_lwt
 
   type position = Reader.position with sexp
   type item = Reader.item
@@ -27,27 +27,27 @@ module Make(Reader: S.READABLE
     uint64_t consumer;
   } as little_endian
 
-  type t = {
-    t: Reader.t;
+  type stream = {
+    stream: Reader.stream;
     output: Cstruct.t;
   }
 
-  let attach t output = { t; output }
+  let attach stream output = { stream; output }
 
-  let create t output =
+  let create stream output =
     set_hdr_producer output 0L;
     set_hdr_consumer output 0L;
-    attach t output
+    attach stream output
 
   (* read a bit more data from the underlying buffer, return what we have
      so far *)
-  let read t =
-    let producer = get_hdr_producer t.output in
-    let consumer = get_hdr_consumer t.output in
-    let buffer = Cstruct.shift t.output 16 in
+  let read stream =
+    let producer = get_hdr_producer stream.output in
+    let consumer = get_hdr_consumer stream.output in
+    let buffer = Cstruct.shift stream.output 16 in
     let len = Cstruct.len buffer in
 
-    Reader.read t.t >>= function
+    Reader.read stream.stream >>= function
     | offset, `Error x -> return (offset, `Error x)
     | offset, `Ok space ->
       (* copy as much as possible into our buffer *)
@@ -66,8 +66,8 @@ module Make(Reader: S.READABLE
       let to_write = Cstruct.sub buffer producer_wrapped n in
       Cstruct.blit space 0 to_write 0 n;
       let producer = Int64.(add producer (of_int n)) in
-      set_hdr_producer t.output producer;
-      Reader.advance t.t producer >>= fun () ->
+      set_hdr_producer stream.output producer;
+      Reader.advance stream.stream producer >>= fun () ->
 
       (* return everything we've got to the user *)
       let consumer_wrapped = Int64.(to_int (rem consumer (of_int len))) in
@@ -77,8 +77,7 @@ module Make(Reader: S.READABLE
       let space = Cstruct.sub buffer consumer_wrapped contiguous in
       return (consumer, `Ok space)
 
-  (* consume [up_to] *)
-  let advance t up_to =
-    set_hdr_consumer t.output up_to;
+  let advance stream up_to =
+    set_hdr_consumer stream.output up_to;
     return ()
 end

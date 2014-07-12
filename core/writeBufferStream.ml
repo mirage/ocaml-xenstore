@@ -21,31 +21,33 @@ module Make(Space: S.READABLE
   type position = Space.position with sexp
   type item = Space.item
 
+  include IO_lwt
+  
   cstruct hdr {
     uint64_t producer;
     uint64_t consumer;
   } as little_endian
 
-  type t = {
-    t: Space.t;
+  type stream = {
+    stream: Space.stream;
     output: Cstruct.t;
   }
 
-  let attach t output = { t; output }
+  let attach stream output = { stream; output }
 
-  let create t output =
+  let create stream output =
     set_hdr_producer output 0L;
     set_hdr_consumer output 0L;
-    attach t output
+    attach stream output
 
   (* Return the next contiguous buffer fragment available for writing *)
-  let read t =
+  let read stream =
     (* total space available is len - (producer - consumer_ but we only want to
        return contiguous space *)
-    let producer = get_hdr_producer t.output in
-    let consumer = get_hdr_consumer t.output in
+    let producer = get_hdr_producer stream.output in
+    let consumer = get_hdr_consumer stream.output in
     let used = Int64.(to_int (sub producer consumer)) in
-    let buffer = Cstruct.shift t.output 16 in
+    let buffer = Cstruct.shift stream.output 16 in
     let len = Cstruct.len buffer in
 
     let available = len - used in
@@ -55,11 +57,11 @@ module Make(Space: S.READABLE
     return (producer, `Ok (Cstruct.sub buffer producer_wrapped contiguous))
 
   (* Ensure all data [up_to] have been transmitted *)
-  let rec advance t up_to =
-    let buffer = Cstruct.shift t.output 16 in
+  let rec advance stream up_to =
+    let buffer = Cstruct.shift stream.output 16 in
     let len = Cstruct.len buffer in
-    let consumer = get_hdr_consumer t.output in
-    Space.read t.t >>= function
+    let consumer = get_hdr_consumer stream.output in
+    Space.read stream.stream >>= function
     | _, `Error x -> fail (Failure x)
     | offset, `Ok space ->
       ( if offset < consumer
@@ -68,7 +70,7 @@ module Make(Space: S.READABLE
       (* If we crashed on a previous run we might not have bumped the consumer
          pointer -- do it now *)
       let consumer = offset in
-      set_hdr_consumer t.output offset;
+      set_hdr_consumer stream.output offset;
 
       if consumer = up_to
       then return ()
@@ -83,7 +85,7 @@ module Make(Space: S.READABLE
         let to_write = Cstruct.sub buffer consumer_wrapped n in
         Cstruct.blit to_write 0 space 0 n;
         let consumer = Int64.(add consumer (of_int n)) in
-        Space.advance t.t consumer >>= fun () ->
-        advance t up_to
+        Space.advance stream.stream consumer >>= fun () ->
+        advance stream up_to
       end
 end

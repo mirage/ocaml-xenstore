@@ -24,15 +24,15 @@ module Make(Space: S.READABLE
     with type position = int64
     and type item = Cstruct.t
 
-  val attach: Space.t -> Cstruct.t -> t
-  (** [attach writer buffer] return a buffered writer layered on top of
-      [writer]. Data written here will be buffered, and only flushed to the
-      underlying writer when [ack] is called.
+  val attach: Space.stream -> Cstruct.t -> stream
+  (** [attach stream buffer] return a buffered READABLE layered on top of
+      [stream]. Data buffers read from here will be buffered, and only flushed
+      to the underlying stream when [advance] is called.
 
       This call does not initialise [buffer]. *)
 
-  val create: Space.t -> Cstruct.t -> t
-  (** [create writer buffer] return a buffered writer layered on top of
-      [writer]. Initialises the [buffer]. *)
+  val create: Space.stream -> Cstruct.t -> stream
+  (** [create stream buffer] return a buffered READABLE layered on top of
+      [stream]. Initialises the [buffer]. *)
 
 end

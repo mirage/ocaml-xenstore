@@ -25,7 +25,7 @@ module Make(Reader: S.READABLE
     with type position = int64
     and type item = Cstruct.t
 
-  val attach: Reader.t -> Cstruct.t -> t
+  val attach: Reader.stream -> Cstruct.t -> stream
   (** [attach reader buffer] return a buffered reader layered on top of
       [reader]. Data read from the underlying reader will be cached in
       [buffer]. In the case of xenstore, the ring contains 1024 readable
@@ -35,7 +35,7 @@ module Make(Reader: S.READABLE
 
       This call does not initialise [buffer]. *)
 
-  val create: Reader.t -> Cstruct.t -> t
+  val create: Reader.stream -> Cstruct.t -> stream
   (** [create reader buffer] return a buffered reader layered on top of
       [reader]. Initialises the [buffer]. *)
 end

@@ -18,9 +18,7 @@ open Lwt
 open Xenstore
 open S
 
-type 'a t = 'a Lwt.t
-let return x = return x
-let ( >>= ) m f = m >>= f
+include IO_lwt
 
 let debug fmt = Logging.debug "kernelspace" fmt
 let error fmt = Logging.error "kernelspace" fmt
@@ -67,54 +65,56 @@ end
 exception Ring_shutdown
 
 module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
-  type t = Connection.t
+  type stream = Connection.t
   open Connection
+  include IO_lwt
 
   type position = int64 with sexp
   type item = Cstruct.t
 
-  let read t =
+  let read stream =
     let rec loop from =
-      if t.shutdown
+      if stream.shutdown
       then fail Ring_shutdown
       else
-        let seq, available = Xenstore_ring.Ring.Back.read_prepare t.ring in
+        let seq, available = Xenstore_ring.Ring.Back.read_prepare stream.ring in
         let available_bytes = Cstruct.len available in
         if available_bytes = 0 then begin
-          A.after t.port from >>= fun from ->
+          A.after stream.port from >>= fun from ->
           loop from
         end else return (Int64.of_int32 seq, `Ok available) in
     loop A.program_start
 
-  let advance t seq =
-    Xenstore_ring.Ring.Back.read_commit t.ring (Int64.to_int32 seq);
-    Eventchn.(notify (init ()) t.port);
+  let advance stream seq =
+    Xenstore_ring.Ring.Back.read_commit stream.ring (Int64.to_int32 seq);
+    Eventchn.(notify (init ()) stream.port);
     return ()
 end
 
 module RingWriteBuffer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
-  type t = Connection.t
+  type stream = Connection.t
   open Connection
+  include IO_lwt
 
   type position = int64 with sexp
   type item = Cstruct.t
 
-  let read t =
+  let read stream =
     let rec loop from =
-      if t.shutdown
+      if stream.shutdown
       then fail Ring_shutdown
       else
-        let seq, available = Xenstore_ring.Ring.Back.write_prepare t.ring in
+        let seq, available = Xenstore_ring.Ring.Back.write_prepare stream.ring in
         let available_bytes = Cstruct.len available in
         if available_bytes = 0 then begin
-          A.after t.port from >>= fun from ->
+          A.after stream.port from >>= fun from ->
           loop from
         end else return (Int64.of_int32 seq, `Ok available) in
     loop A.program_start
 
-  let advance t seq =
-    Xenstore_ring.Ring.Back.write_commit t.ring (Int64.to_int32 seq);
-    Eventchn.(notify (init ()) t.port);
+  let advance stream seq =
+    Xenstore_ring.Ring.Back.write_commit stream.ring (Int64.to_int32 seq);
+    Eventchn.(notify (init ()) stream.port);
     return ()
 end
 
@@ -126,9 +126,7 @@ module Make
   (DS: DOMAIN_STATE)
   (FPM: FOREIGN_PAGE_MAPPER) = struct
 
-  type 'a t = 'a Lwt.t
-  let ( >>= ) = Lwt.( >>= )
-  let return = Lwt.return
+  include IO_lwt
 
   module Window = struct
     include A
@@ -143,8 +141,8 @@ module Make
 
   type connection = {
     conn: Connection.t;
-    reader: BufferedReader.t;
-    writeBuffers: WriteBufferStream.t;
+    reader: BufferedReader.stream;
+    writeBuffers: WriteBufferStream.stream;
   }
 
   module Request = struct
@@ -154,18 +152,20 @@ module Make
     module PacketWriter = PacketWriter.Make(Protocol.Request)(WriteBufferStream)
 
     module Reader = struct
-      type t = connection
+      include IO_lwt
+      type stream = connection
       type position = int64 with sexp
       type item = Protocol.Header.t * Protocol.Request.t
-      let read t = PacketReader.read t.reader
-      let advance t = PacketReader.advance t.reader
+      let read stream = PacketReader.read stream.reader
+      let advance stream = PacketReader.advance stream.reader
     end
     module Writer = struct
-      type t = connection
+      include IO_lwt
+      type stream = connection
       type position = int64 with sexp
       type item = Protocol.Header.t * Protocol.Request.t
-      let write t = PacketWriter.write t.writeBuffers
-      let advance t = PacketWriter.advance t.writeBuffers
+      let write stream = PacketWriter.write stream.writeBuffers
+      let advance stream = PacketWriter.advance stream.writeBuffers
     end
   end
 
@@ -176,18 +176,20 @@ module Make
     module PacketWriter = PacketWriter.Make(Protocol.Response)(WriteBufferStream)
 
     module Reader = struct
-      type t = connection
+      include IO_lwt
+      type stream = connection
       type position = int64 with sexp
       type item = Protocol.Header.t * Protocol.Response.t
-      let read t = PacketReader.read t.reader
-      let advance t = PacketReader.advance t.reader
+      let read stream = PacketReader.read stream.reader
+      let advance stream = PacketReader.advance stream.reader
     end
     module Writer = struct
-      type t = connection
+      include IO_lwt
+      type stream = connection
       type position = int64 with sexp
       type item = Protocol.Header.t * Protocol.Response.t
-      let write t = PacketWriter.write t.writeBuffers
-      let advance t = PacketWriter.advance t.writeBuffers
+      let write stream = PacketWriter.write stream.writeBuffers
+      let advance stream = PacketWriter.advance stream.writeBuffers
     end
   end
 

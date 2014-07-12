@@ -14,10 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
-  with type position = int64
-  and type item = Cstruct.t
-) : S.WRITABLE
-  with type stream = WriteBuffers.stream
-  and type position = int64
-  and type item = Protocol.Header.t * Marshal.t
+include S.IO

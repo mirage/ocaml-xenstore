@@ -90,6 +90,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
   type 'a t = 'a IO.t
   let ( >>= ) = IO.( >>= )
   let return = IO.return
+  let fail = IO.fail
 
   (* Represents a single acive connection to a server *)
   type client = {

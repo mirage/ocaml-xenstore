@@ -24,10 +24,8 @@ type domid = int
 
 module Make(E: EVENTS)(DS: DOMAIN_STATE) = struct
 
-  type 'a t = 'a Lwt.t
-  let ( >>= ) = Lwt.( >>= )
-  let return = Lwt.return
-
+  include IO_lwt
+  
   module Domid_Map = Map.Make(struct
     type t = int
     let compare (a: int) (b: int) = compare a b

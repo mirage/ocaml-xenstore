@@ -20,4 +20,4 @@ module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.READABLE
 ) : S.READABLE
   with type position = int64
   and  type item = Protocol.Header.t * Unmarshal.t
-  and  type t = Reader.t
+  and  type stream = Reader.stream

@@ -13,14 +13,13 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-open Lwt
-
 module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.READABLE
   with type position = int64
   and  type item = Cstruct.t) = struct
-  type t = Reader.t
+  type stream = Reader.stream
   type item = Protocol.Header.t * Unmarshal.t
   type position = Reader.position with sexp
+  include IO_lwt
 
   let rec read t =
     Reader.read t >>= function
