@@ -171,6 +171,7 @@ module Make
   end
 
   module Response = struct
+    module Reader = PacketReader.Make(BufferedReader)
     module Writer = PacketWriter.Make(BufferedWriter)
   end
 

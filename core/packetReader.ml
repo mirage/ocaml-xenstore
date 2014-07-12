@@ -19,7 +19,7 @@ module Make(Reader: S.WINDOW
   with type offset = int64
   and  type item = Cstruct.t) = struct
   type t = Reader.t
-  type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+  type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
   type offset = Reader.offset
 
   let rec next t =
@@ -40,9 +40,7 @@ module Make(Reader: S.WINDOW
           else begin
             let payload = Cstruct.sub space Protocol.Header.sizeof x.Protocol.Header.len in
             let offset = Int64.(add offset (of_int length)) in
-            match Protocol.Request.unmarshal x payload with
-            | `Ok y -> return (offset, `Ok (x, y))
-            | `Error y -> return (offset, `Error y)
+            return (offset, `Ok (x, payload))
           end in
         loop ()
     end

@@ -102,10 +102,13 @@ module type CONNECTION = sig
   module Request : sig
     module Reader : WINDOW
       with type offset = int64
-      and type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+      and type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
     module Writer : PACKET_WRITER
   end
   module Response : sig
+    module Reader : WINDOW
+      with type offset = int64
+      and type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
     module Writer : PACKET_WRITER
   end
 

@@ -19,5 +19,5 @@ module Make(Reader: S.WINDOW
   and  type item = Cstruct.t
 ) : S.WINDOW
   with type offset = int64
-  and  type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+  and  type item = [ `Ok of (Protocol.Header.t * Cstruct.t) | `Error of string ]
   and  type t = Reader.t
