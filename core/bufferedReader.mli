@@ -15,13 +15,13 @@
  *)
 
 
-module Make(Reader: S.WINDOW
+module Make(Reader: S.STREAM
   with type offset = int64
   and type item = Cstruct.t) : sig
-  (** Create a buffered WINDOW intended for reading on top of an unbuffered
+  (** Create a buffered STREAM intended for reading on top of an unbuffered
       one *)
 
-  include S.WINDOW
+  include S.STREAM
     with type offset = int64
     and type item = Cstruct.t
 

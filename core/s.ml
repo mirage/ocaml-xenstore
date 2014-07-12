@@ -15,9 +15,9 @@
  *)
 open Sexplib
 
-type ('a, 'b) result = [
+type 'a result = [
   | `Ok of 'a
-  | `Error of 'b
+  | `Error of string
 ]
 
 module type STRINGABLE = sig
@@ -34,13 +34,14 @@ end
 
 module type UNMARSHALABLE = sig
   type t
-  val unmarshal: Protocol.Header.t -> Cstruct.t -> (t, string) result
+  val unmarshal: Protocol.Header.t -> Cstruct.t -> t result
 end
 
 module type MARSHALABLE = sig
   type t
   val marshal: t -> Cstruct.t -> Cstruct.t
 end
+
 module type INTROSPECTABLE = sig
   type t
   val ls: t -> string list -> string list
@@ -57,7 +58,7 @@ end
 module type IO = MONAD
   with type 'a t = 'a Lwt.t
 
-module type STREAM = sig
+module type EVENTS = sig
   include IO
 
   type state
@@ -69,7 +70,7 @@ module type STREAM = sig
   val next: state -> (data * state) t
 end
 
-module type WINDOW = sig
+module type STREAM = sig
   (** A view of the underlying stream *)
 
   type t
@@ -78,15 +79,19 @@ module type WINDOW = sig
 
   type item
 
+(* peek *)
+(* use result type *)
   val next: t -> (offset * item) Lwt.t
   (** [next t] returns the next item from the stream, together with the offset
       which should be passed to [ack] *)
 
+(* drop *)
   val ack: t -> offset -> unit Lwt.t
   (** [ack buf offset] declares that we have processed all data up to [offset]
       and therefore any buffers may be recycled. *)
 end
 
+(* WRITER *)
 module type PACKET_WRITER = sig
   type t
 
@@ -98,6 +103,7 @@ module type PACKET_WRITER = sig
   (** [write t offset hdr marshal] writes a packet to the output at [offset],
       and returns the next [offset] value, suitable for [ack] *)
 
+(* flush.. but do we even need this? *)
   val ack: t -> offset -> unit Lwt.t
   (** [ack offset] ensures all data written before [offset] is flushed *)
 end
@@ -116,20 +122,20 @@ module type CONNECTION = sig
   val domain_of: connection -> int
 
   module Request : sig
-    module Reader : WINDOW
+    module Reader : STREAM
       with type t = connection
       and type offset = int64
-      and type item = [ `Ok of (Protocol.Header.t * Protocol.Request.t) | `Error of string ]
+      and type item = (Protocol.Header.t * Protocol.Request.t) result
     module Writer : PACKET_WRITER
       with type t = connection
       and type offset = int64
       and type item = Protocol.Request.t
   end
   module Response : sig
-    module Reader : WINDOW
+    module Reader : STREAM
       with type t = connection
       and type offset = int64
-      and type item = [ `Ok of (Protocol.Header.t * Protocol.Response.t) | `Error of string ]
+      and type item = (Protocol.Header.t * Protocol.Response.t) result
     module Writer : PACKET_WRITER
       with type t = connection
       and type offset = int64

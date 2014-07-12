@@ -15,7 +15,7 @@
  *)
 open Lwt
 
-module Make(Reader: S.WINDOW
+module Make(Reader: S.STREAM
   with type offset = int64
   and type item = Cstruct.t) = struct
 

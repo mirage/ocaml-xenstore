@@ -15,7 +15,7 @@
  *)
 open Lwt
 
-module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.WINDOW
+module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.STREAM
   with type offset = int64
   and  type item = Cstruct.t) = struct
   type t = Reader.t

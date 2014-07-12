@@ -22,7 +22,7 @@ let error fmt = Logging.error "domainWatch" fmt
 
 type domid = int
 
-module Make(E: STREAM)(DS: DOMAIN_STATE) = struct
+module Make(E: EVENTS)(DS: DOMAIN_STATE) = struct
 
   type 'a t = 'a Lwt.t
   let ( >>= ) = Lwt.( >>= )

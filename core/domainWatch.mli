@@ -17,7 +17,7 @@ open S
 
 type domid = int
 
-module Make(E: STREAM)(DS: DOMAIN_STATE) : STREAM
+module Make(E: EVENTS)(DS: DOMAIN_STATE) : EVENTS
   with type data = [ `Created of domid | `Destroyed of domid ] list
 (** Given a stream of signals saying something has happened, and a means
     of querying the current domain list, emit a stream of domain

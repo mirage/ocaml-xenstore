@@ -17,7 +17,7 @@ open Lwt
 
 let max_packet_size = Protocol.xenstore_payload_max + Protocol.Header.sizeof
 
-module Make(Marshal: S.MARSHALABLE)(Writer: S.WINDOW
+module Make(Marshal: S.MARSHALABLE)(Writer: S.STREAM
   with type offset = int64
   and type item = Cstruct.t) = struct
 

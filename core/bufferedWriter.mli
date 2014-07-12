@@ -14,16 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Writer: S.WINDOW
+module Make(Writer: S.STREAM
   with type offset = int64
   and type item = Cstruct.t) : sig
-  (** Create a buffered WINDOW intended for Writing on top of an unbuffered
+  (** Create a buffered STREAM intended for Writing on top of an unbuffered
       one *)
 
-  include S.WINDOW
+  include S.STREAM
     with type offset = int64
     and type item = Cstruct.t
-    
+
   val attach: Writer.t -> Cstruct.t -> t
   (** [attach writer buffer] return a buffered writer layered on top of
       [writer]. Data written here will be buffered, and only flushed to the

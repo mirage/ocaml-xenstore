@@ -14,10 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.WINDOW
+module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.STREAM
   with type offset = int64
   and  type item = Cstruct.t
-) : S.WINDOW
+) : S.STREAM
   with type offset = int64
   and  type item = [ `Ok of (Protocol.Header.t * Unmarshal.t) | `Error of string ]
   and  type t = Reader.t
