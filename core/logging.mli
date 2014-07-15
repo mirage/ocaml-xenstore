@@ -14,10 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
+val debug: string -> ('b, unit, string, unit) format4 -> 'b
+val info: string -> ('b, unit, string, unit) format4 -> 'b
+val warn: string -> ('b, unit, string, unit) format4 -> 'b
+val error: string -> ('b, unit, string, unit) format4 -> 'b
 
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
+type logger
+(** An in-memory non-blocking logger with a fixed size circular buffer.
+    If the buffer is full then some messages may be dropped. The logger
+    will replace runs of dropped messages with a single message with
+    a count of how many messages were dropped. *)
 
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+val logger: logger
+(** The xenstore logger *)
+
+val get: logger -> string list Lwt.t
+(** [get logger] returns any available log lines or, if none are available,
+    blocks until some are available. *)

@@ -14,10 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
-
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
-
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+type 'a t = 'a Lwt.t
+let return x = Lwt.return x
+let ( >>= ) = Lwt.( >>= )
+let fail = Lwt.fail

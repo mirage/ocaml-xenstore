@@ -14,10 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
+open Xenstore.S
 
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
-
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+module Make
+  (A: ACTIVATIONS with type channel = Eventchn.t)
+  (DS: DOMAIN_STATE)
+  (FPM: FOREIGN_PAGE_MAPPER) : TRANSPORT

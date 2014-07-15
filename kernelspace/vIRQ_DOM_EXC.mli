@@ -13,11 +13,8 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open Xenstore.S
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
-
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
-
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+module DOM_EXC_VIRQ(A: ACTIVATIONS with type channel = Eventchn.t) : STREAM
+  with type data = unit
+(** Xen will emit a DOM_EXC VIRQ every time a domain is created or destroyed *)

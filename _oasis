@@ -3,48 +3,18 @@ Name:        xenstore
 Version:     1.2.5
 Synopsis:    Xenstore protocol library
 Authors:     see CREDITS.md
-License:     LGPL-2.1 with OCaml linking exception
+License:     ISC
 Plugins:     META (0.3)
 BuildTools:  ocamlbuild
 
 Library xenstore
   Pack:               true
   CompiledObject:     best
+  Pack:               true
   Path:               core
   Findlibname:        xenstore
-  Modules:            Protocol, Handle, Client, S
-  BuildDepends:       lwt, cstruct (>= 0.6.0), cstruct.syntax, uri, sexplib
-
-Library xenstored
-  CompiledObject:     best
-  Pack:               true
-  Path:               server
-  Findlibname:        xenstored
-  Modules:            Logging, PRef, PSet, PMap, PQueue, PBinReader, PBinWriter, Logging_interface, Connection, Call, Trie, Symbol, Tree, Limits, Quota, Quota_interface, Perms, Node, Store, Mount, Database, Transaction, Server, Domain, Introduce, Heap_debug_interface
-  BuildDepends:       lwt, xenstore, irminsule.backend.git, sexplib
-
-# For backwards compat
-Library xenstore_client
-  CompiledObject:     best
-  Path:               core
-  Findlibname:        client
-  Findlibparent:      xenstore
-
-Library xenstore_unix
-  CompiledObject:     best
-  Path:               unix
-  Findlibname: 	      unix
-  FindlibParent:      xenstore
-  Modules:            Sockets
-  BuildDepends:       lwt, lwt.unix, xenstore
-
-#Library xenstore_legacy_unix
-#  CompiledObject:     best
-#  Path:               legacy_unix
-#  Findlibname: 	      legacy_unix
-#  FindlibParent:      xenstore
-#  Modules:            Xs_client_unix
-#  BuildDepends:       unix, threads, xenstore
+  Modules:            Protocol, Handle, Client, DomainWatch, BufferedReader, PacketReader, WriteBufferStream, PacketWriter, Logging, IO_lwt, S
+  BuildDepends:       cstruct (>= 0.6.0), cstruct.syntax, lwt, lwt.syntax, uri, sexplib, sexplib.syntax, stringext
 
 Executable core_test
   CompiledObject:     best
@@ -53,76 +23,33 @@ Executable core_test
   Build$:             flag(tests)
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, oUnit
-
-Executable server_test
-  CompiledObject:     best
-  Path:               server_test
-  MainIs:             server_test.ml
-  Build$:             flag(tests)
-  Custom:             true
-  Install:            false
-  BuildDepends:       lwt, xenstore, xenstored, oUnit
-
-Executable server_binary_test
-  CompiledObject:     best
-  Path:               server_test
-  MainIs:             binary.ml
-  Build$:             flag(tests)
-  Custom:             true
-  Install:            false
-  BuildDepends:       lwt, xenstore, xenstore.unix, xenstored, oUnit
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.userspace, oUnit
 
 Test core_test
   Run$:               flag(tests)
   Command:            $core_test
   WorkingDirectory:   core_test
 
-Test server_test
-  Run$:               flag(tests)
-  Command:            $server_test
-  WorkingDirectory:   server_test
-
-Executable oxenstored
+Library xenstore_userspace
   CompiledObject:     best
   Path:               userspace
-  MainIs:             main.ml
-  Custom:             true
-  Install:            false
-  CSources:           domains_stubs.c
-  CClib:              -lxenctrl
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix, xenstored, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
+  Findlibname:        userspace
+  FindlibParent:      xenstore
+  Modules:            Userspace
+  BuildDepends:       lwt, lwt.unix, xenstore, cstruct.lwt
+
+Library xenstore_kernelspace
+  CompiledObject:     best
+  Path:               kernelspace
+  Findlibname:        kernelspace
+  FindlibParent:      xenstore
+  Modules:            Kernelspace, PBuffer
+  BuildDepends:       lwt, lwt.unix, xenstore, io-page, xen-evtchn, shared-memory-ring, shared-memory-ring.xenstore
 
 Executable xs
   CompiledObject:     best
-  Path:               cli
-  MainIs:             cli.ml
+  Path:               xs
+  MainIs:             xs.ml
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
-
-Executable bench
-  CompiledObject:     best
-  Path:               bench
-  MainIs:             bench.ml
-  Custom:             true
-  Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix
-
-Executable dbgring
-  CompiledObject:     best
-  Path:               userspace
-  MainIs:             dbgring.ml
-  Custom:             true
-  Install:            false
-  CSources:           domains_stubs.c
-  CClib:              -lxenctrl
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix, xenstored, cmdliner, shared-memory-ring, shared-memory-ring.xenstore, xen-evtchn, xen-evtchn.unix, xen-evtchn.unix.activations, io-page, io-page.unix
-
-#Document api
-#  Title: Documentation and API reference
-#  Type: ocamlbuild (0.3)
-#  BuildTools+: ocamldoc
-#  XOcamlbuildPath: doc
-#  XOcamlbuildModules: Xs_protocol, Xs_handle, Xs_client_lwt, Xs_client_unix
-#  Install: false
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.userspace, cmdliner

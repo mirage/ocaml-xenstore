@@ -1,32 +1,35 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2d364887f86d8f647ef0720b11ace9df)
+# DO NOT EDIT (digest: cc1ceb782d6126aad2e06d2cfb15a6f3)
 version = "1.2.5"
 description = "Xenstore protocol library"
-requires = "lwt cstruct cstruct.syntax uri sexplib"
+requires =
+"cstruct cstruct.syntax lwt lwt.syntax uri sexplib sexplib.syntax stringext"
 archive(byte) = "xenstore.cma"
 archive(byte, plugin) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
 archive(native, plugin) = "xenstore.cmxs"
 exists_if = "xenstore.cma"
-package "unix" (
+package "userspace" (
  version = "1.2.5"
  description = "Xenstore protocol library"
- requires = "lwt lwt.unix xenstore"
- archive(byte) = "xenstore_unix.cma"
- archive(byte, plugin) = "xenstore_unix.cma"
- archive(native) = "xenstore_unix.cmxa"
- archive(native, plugin) = "xenstore_unix.cmxs"
- exists_if = "xenstore_unix.cma"
+ requires = "lwt lwt.unix xenstore cstruct.lwt"
+ archive(byte) = "xenstore_userspace.cma"
+ archive(byte, plugin) = "xenstore_userspace.cma"
+ archive(native) = "xenstore_userspace.cmxa"
+ archive(native, plugin) = "xenstore_userspace.cmxs"
+ exists_if = "xenstore_userspace.cma"
 )
 
-package "client" (
+package "kernelspace" (
  version = "1.2.5"
  description = "Xenstore protocol library"
- archive(byte) = "xenstore_client.cma"
- archive(byte, plugin) = "xenstore_client.cma"
- archive(native) = "xenstore_client.cmxa"
- archive(native, plugin) = "xenstore_client.cmxs"
- exists_if = "xenstore_client.cma"
+ requires =
+ "lwt lwt.unix xenstore io-page xen-evtchn shared-memory-ring shared-memory-ring.xenstore"
+ archive(byte) = "xenstore_kernelspace.cma"
+ archive(byte, plugin) = "xenstore_kernelspace.cma"
+ archive(native) = "xenstore_kernelspace.cmxa"
+ archive(native, plugin) = "xenstore_kernelspace.cmxs"
+ exists_if = "xenstore_kernelspace.cma"
 )
 # OASIS_STOP
 

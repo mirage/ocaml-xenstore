@@ -14,10 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
+exception Could_not_find_xenstore
+(** Thrown if we cannot make contact with xenstore using the normal addresses *)
 
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
+open Xenstore.S
 
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+include TRANSPORT

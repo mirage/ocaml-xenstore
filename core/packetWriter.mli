@@ -14,10 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
-
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
-
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
+  with type position = int64
+  and type item = Cstruct.t
+) : S.WRITABLE
+  with type stream = WriteBuffers.stream
+  and type position = int64
+  and type item = Protocol.Header.t * Marshal.t

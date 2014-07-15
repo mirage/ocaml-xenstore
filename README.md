@@ -1,41 +1,54 @@
-This repo contains:
-  1. a xenstore client library, a merge of the Mirage and XCP ones
-  2. a xenstore server library
-  3. a xenstore server instance which runs under Unix with libxc
-  4. a xenstore server instance which runs on mirage.
+XenStore protocol implementation for Mirage
+===========================================
 
-The client and the server libraries have sets of unit-tests.
+Layout of this project:
+  core/        : protocol parser/printer, Lwt-based client
+  core_test/   : unit tests for the protocol parser/printer
+  unix/        : userspace 'transport' over sockets and xenbus mmap
+  mirage/      : kernelspace 'transport' for Mirage
+  xs/          : example userspace CLI
 
-Notes on persistence modes
-==========================
+This code is all available under the standard Mirage license (ISC).
 
-The server supports 2 persistence modes:
-  1. none (default): nothing is remembered across server invocations
-  2. crash resilient: the process may be killed and restarted at any
-     time without loss of service
-     
-In crash resilient mode, all critical data is stored in an irminsule[1]
-git database. This data includes:
-  * all key/value pairs and metadata
-  * all interdomain ring domid/mfn/event-channel (so connections can
-    be re-established)
-  * all unsent watch events (clients will see each event at least once)
-  * all current watch registrations
-  * any partially-read packets from rings
-  * the highest used transaction id per connection
-  * all untransmitted reply packets
-  * all log settings
-  * all quota information
+How to use the client
+=====================
 
-The server will ensure that the side-effects of an operation will be
-persisted before any reply packet is transmitted.
+For Unix userspace, add the ocamlfind package 'xenstore.userspace'
+and create a 'Client':
+```
+#use "topfind";;
+#require "lwt.syntax";;
+#require "xenstore.userspace";;
 
-When the server restarts, the only visible artifacts should be:
-  1. possible duplicate watch events (we assume these are idempotent)
-  2. all outstanding transactions will be artificially aborted (client
-     is expected to restart the transaction anyway)
+open Lwt
+module Client = Xenstore.Client.Make(Userspace)
+```
+To perform a single non-transactional read or wrote:
+```
+lwt my_domid = Client.(immediate (read "domid"));;
+```
+To perform a transactional update:
+```
+Client.(transaction (
+  let open M in
+  write "a" "b" >>= fun () ->
+  write "c" "d" >>= fun () ->
+  return ()
+))
+```
+To wait for a condition to be met:
+```
+Client.(wait (
+  let open M in
+  read "hotplug-status" >>= fun status ->
+  read "hotplug-error" >>= fun error ->
+  match status, error with
+  | "", "" -> return `Retry
+  | status, _ when status <> "" -> return (`Ok status)
+  | _, error -> return (`Error error)
+))
 
-The irminsule database should be persisted to storage which is cleared
-on host restart. Ideally it should be stored to RAM (eg tmpfs) and not
-a physical disk (slow and unnecessarily durable).
+Open issues
+-----------
+  1. Xenstore.Client.Make is a nice name. Global 'Userspace' and 'Kernelspace' are a bit rude. Can these be made part of the Xenstore.* space somehow, even through they are optional?
 

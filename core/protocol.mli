@@ -1,22 +1,24 @@
 (*
  * Copyright (C) Citrix Systems Inc.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published
- * by the Free Software Foundation; version 2.1 only. with the special
- * exception on linking described in file LICENSE.
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
 (** XenStore protocol. *)
 
 type ('a, 'b) result = [
-| `Ok of 'a
-| `Error of 'b
+  | `Ok of 'a
+  | `Error of 'b
 ]
 
 val xenstore_payload_max: int
@@ -45,6 +47,7 @@ module Op : sig
     | Resume
     | Set_target
     | Restrict
+    | Reset_watches
   with sexp
   (** The type of xenstore operation. *)
 
@@ -170,14 +173,14 @@ end
 
 module Name : sig
   type predefined =
-  | IntroduceDomain
-  | ReleaseDomain
+    | IntroduceDomain
+    | ReleaseDomain
   with sexp
 
   type t =
-  | Predefined of predefined
-  | Absolute of Path.t
-  | Relative of Path.t
+    | Predefined of predefined
+    | Absolute of Path.t
+    | Relative of Path.t
   with sexp
   (** a Name.t refers to something which can be watched, read or
       written via the protocol. *)
@@ -198,7 +201,7 @@ module Name : sig
 
   val relative: t -> t -> t
   (** [relative t base]: if [t] and [base] are absolute and [base] is a prefix
-      of [t], return a relative path which refers to [t] when resolved 
+      of [t], return a relative path which refers to [t] when resolved
       relative to [base]. *)
 
   val to_path: t -> Path.t
@@ -228,6 +231,9 @@ module ACL : sig
   } with sexp
   (** an access control list *)
 
+  val to_string: t -> string
+  (** Print an ACL in the same format as 'xenstore-ls' *)
+
   val unmarshal: Cstruct.t -> (t, string) result
   (** [unmarshal buf] reads a [t] from [buf] or produces a descriptive error
       message. *)
@@ -240,29 +246,33 @@ end
 
 module Response : sig
   type t =
-  | Read of string
-  | Directory of string list
-  | Getperms of ACL.t
-  | Getdomainpath of string
-  | Transaction_start of int32
-  | Write
-  | Mkdir
-  | Rm
-  | Setperms
-  | Watch
-  | Unwatch
-  | Transaction_end
-  | Debug of string list
-  | Introduce
-  | Resume
-  | Release
-  | Set_target
-  | Restrict
-  | Isintroduced of bool
-  | Error of string
-  | Watchevent of Name.t * string
+    | Read of string
+    | Directory of string list
+    | Getperms of ACL.t
+    | Getdomainpath of string
+    | Transaction_start of int32
+    | Write
+    | Mkdir
+    | Rm
+    | Setperms
+    | Watch
+    | Unwatch
+    | Transaction_end
+    | Debug of string list
+    | Introduce
+    | Resume
+    | Release
+    | Set_target
+    | Restrict
+    | Isintroduced of bool
+    | Error of string
+    | Watchevent of Name.t * string
+    | Reset_watches
   with sexp
   (** the body of a response *)
+
+  val to_string: t -> string
+  (** [to_string t] returns a short human-readable description of [t] *)
 
   val get_ty: t -> Op.t
   (** [get_ty t] returns the operation code corresponding to [t] *)
@@ -279,31 +289,35 @@ end
 module Request : sig
 
   type path_op =
-  | Read
-  | Directory
-  | Getperms
-  | Write of string
-  | Mkdir
-  | Rm
-  | Setperms of ACL.t
+    | Read
+    | Directory
+    | Getperms
+    | Write of string
+    | Mkdir
+    | Rm
+    | Setperms of ACL.t
   with sexp
 
   type t =
-  | PathOp of string * path_op
-  | Getdomainpath of int
-  | Transaction_start
-  | Watch of string * string
-  | Unwatch of string * string
-  | Transaction_end of bool
-  | Debug of string list
-  | Introduce of int * Nativeint.t * int
-  | Resume of int
-  | Release of int
-  | Set_target of int * int
-  | Restrict of int
-  | Isintroduced of int
+    | PathOp of string * path_op
+    | Getdomainpath of int
+    | Transaction_start
+    | Watch of string * string
+    | Unwatch of string * string
+    | Transaction_end of bool
+    | Debug of string list
+    | Introduce of int * Nativeint.t * int
+    | Resume of int
+    | Release of int
+    | Set_target of int * int
+    | Restrict of int
+    | Isintroduced of int
+    | Reset_watches
   with sexp
   (** the payload of a request *)
+
+  val to_string: t -> string
+  (** [to_string t] returns a short human-readable description of [t] *)
 
   val get_ty: t -> Op.t
   (** [get_ty t] returns the operation code associated with [t] *)

@@ -1,15 +1,12 @@
 .PHONY: all clean install build
 all: build doc
 
+NAME=xenstore
 J=4
 
 export OCAMLRUNPARAM=b
 
 TESTS ?= --enable-tests
-ifneq "$(MIRAGE_OS)" ""
-TESTS := --disable-tests
-endif
-
 
 setup.bin: setup.ml
 	@ocamlopt.opt -o $@ $< || ocamlopt -o $@ $< || ocamlc -o $@ $<
@@ -32,13 +29,10 @@ install: setup.bin
 #	@./setup.bin -test
 test:
 	_build/core_test/core_test.native
-	_build/server_test/server_test.native
-	_build/server_test/binary.native
 
 
 reinstall: setup.bin
-	@ocamlfind remove xenstore || true
-	@ocamlfind remove xenstored || true
+	@ocamlfind remove $(NAME) || true
 	@./setup.bin -reinstall
 
 clean:

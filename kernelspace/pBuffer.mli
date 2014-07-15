@@ -13,11 +13,22 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open Sexplib.Std
+open Lwt
+open Xenstore
+open S
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
+type t
+(** A persistent buffer that will survive a process restart *)
 
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
+val create: int -> t Lwt.t
 
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+val destroy: t -> unit Lwt.t
+
+val get_cstruct: t -> Cstruct.t
+
+type handle
+
+val handle: t -> handle
+
+val lookup: handle -> t option Lwt.t

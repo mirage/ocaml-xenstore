@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 5b6c5ee6c8955871ee2ad4c95cff6ff5) *)
+(* DO NOT EDIT (digest: d2432af580bf638b9d2ce27dedb9edd7) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -39,10 +39,10 @@ module OASISExpr = struct
   open OASISGettext
 
 
-  type test = string 
+  type test = string
 
 
-  type flag = string 
+  type flag = string
 
 
   type t =
@@ -52,10 +52,10 @@ module OASISExpr = struct
     | EOr of t * t
     | EFlag of flag
     | ETest of test * string
-    
 
 
-  type 'a choices = (t * 'a) list 
+
+  type 'a choices = (t * 'a) list
 
 
   let eval var_get t =
@@ -430,10 +430,10 @@ module MyOCamlbuildBase = struct
   module OC = Ocamlbuild_pack.Ocaml_compiler
 
 
-  type dir = string 
-  type file = string 
-  type name = string 
-  type tag = string 
+  type dir = string
+  type file = string
+  type name = string
+  type tag = string
 
 
 (* # 62 "src/plugins/ocamlbuild/MyOCamlbuildBase.ml" *)
@@ -448,7 +448,7 @@ module MyOCamlbuildBase = struct
          * directory.
          *)
         includes:  (dir * dir list) list;
-      } 
+      }
 
 
   let env_filename =
@@ -598,37 +598,23 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml =
        [
           ("xenstore", ["core"], []);
-          ("xenstored", ["server"], []);
-          ("xenstore_client", ["core"], []);
-          ("xenstore_unix", ["unix"], [])
+          ("xenstore_userspace", ["userspace"], []);
+          ("xenstore_kernelspace", ["kernelspace"], [])
        ];
-     lib_c = [("oxenstored", "userspace", []); ("dbgring", "userspace", [])];
-     flags =
-       [
-          (["oasis_executable_oxenstored_cclib"; "link"],
-            [(OASISExpr.EBool true, S [A "-cclib"; A "-lxenctrl"])]);
-          (["oasis_executable_oxenstored_cclib"; "ocamlmklib"; "c"],
-            [(OASISExpr.EBool true, S [A "-lxenctrl"])]);
-          (["oasis_executable_dbgring_cclib"; "link"],
-            [(OASISExpr.EBool true, S [A "-cclib"; A "-lxenctrl"])]);
-          (["oasis_executable_dbgring_cclib"; "ocamlmklib"; "c"],
-            [(OASISExpr.EBool true, S [A "-lxenctrl"])])
-       ];
+     lib_c = [];
+     flags = [];
      includes =
        [
-          ("userspace", ["core"; "server"; "unix"]);
-          ("unix", ["core"]);
-          ("server_test", ["core"; "server"; "unix"]);
-          ("server", ["core"]);
-          ("core_test", ["core"]);
-          ("cli", ["core"; "unix"]);
-          ("bench", ["core"; "unix"])
+          ("xs", ["core"; "userspace"]);
+          ("userspace", ["core"]);
+          ("kernelspace", ["core"]);
+          ("core_test", ["core"; "userspace"])
        ]
   }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 633 "myocamlbuild.ml"
+# 619 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

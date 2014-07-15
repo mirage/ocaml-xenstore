@@ -14,10 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
+module Make(Space: S.READABLE
+  with type position = int64
+  and type item = Cstruct.t) : sig
+  (** Create a buffered STREAM intended for Writing on top of an unbuffered
+      one *)
 
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
+  include S.READABLE
+    with type position = int64
+    and type item = Cstruct.t
 
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+  val attach: Space.stream -> Cstruct.t -> stream
+  (** [attach stream buffer] return a buffered READABLE layered on top of
+      [stream]. Data buffers read from here will be buffered, and only flushed
+      to the underlying stream when [advance] is called.
+
+      This call does not initialise [buffer]. *)
+
+  val create: Space.stream -> Cstruct.t -> stream
+  (** [create stream buffer] return a buffered READABLE layered on top of
+      [stream]. Initialises the [buffer]. *)
+
+end

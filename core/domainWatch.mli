@@ -13,11 +13,12 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open S
 
-(** A multiplexing XenStore protocol client over a byte-level transport, using Lwt. *)
+type domid = int
 
-exception Malformed_watch_event
-exception Unexpected_rid of int32
-exception Dispatcher_failed
-
-module Make : functor(IO: S.CONNECTION) -> S.CLIENT
+module Make(E: EVENTS)(DS: DOMAIN_STATE) : EVENTS
+  with type data = [ `Created of domid | `Destroyed of domid ] list
+(** Given a stream of signals saying something has happened, and a means
+    of querying the current domain list, emit a stream of domain
+    `Created and `Destroyed events. *)
