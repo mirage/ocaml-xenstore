@@ -77,7 +77,7 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
       if stream.shutdown
       then fail Ring_shutdown
       else
-        let seq, available = Xenstore_ring.Ring.Back.read_prepare stream.ring in
+        let seq, available = Xenstore_ring.Ring.Back.Reader.read stream.ring in
         let available_bytes = Cstruct.len available in
         if available_bytes = 0 then begin
           A.after stream.port from >>= fun from ->
@@ -86,7 +86,7 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     loop A.program_start
 
   let advance stream seq =
-    Xenstore_ring.Ring.Back.read_commit stream.ring (Int64.to_int32 seq);
+    Xenstore_ring.Ring.Back.Reader.advance stream.ring (Int64.to_int32 seq);
     Eventchn.(notify (init ()) stream.port);
     return ()
 end
@@ -104,7 +104,7 @@ module RingWriteBuffer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
       if stream.shutdown
       then fail Ring_shutdown
       else
-        let seq, available = Xenstore_ring.Ring.Back.write_prepare stream.ring in
+        let seq, available = Xenstore_ring.Ring.Back.Writer.write stream.ring in
         let available_bytes = Cstruct.len available in
         if available_bytes = 0 then begin
           A.after stream.port from >>= fun from ->
@@ -113,7 +113,7 @@ module RingWriteBuffer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     loop A.program_start
 
   let advance stream seq =
-    Xenstore_ring.Ring.Back.write_commit stream.ring (Int64.to_int32 seq);
+    Xenstore_ring.Ring.Back.Writer.advance stream.ring (Int64.to_int32 seq);
     Eventchn.(notify (init ()) stream.port);
     return ()
 end
