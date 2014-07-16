@@ -2,12 +2,13 @@ XenStore protocol in OCaml
 ==========================
 
 Layout of this project:
-
+```
   core/        : protocol parser/printer, Lwt-based client
   core_test/   : unit tests for the protocol parser/printer
   unix/        : userspace 'transport' over sockets and xenbus mmap
   mirage/      : kernelspace 'transport' for Mirage
   xs/          : example userspace CLI
+```
 
 This code is all available under the standard Mirage license (ISC).
 
@@ -48,6 +49,7 @@ Client.(wait (
   | _, Some error -> return (`Error error)
   | Some status, _ -> return (`Ok status)
 ))
+```
 
 Open issues
 -----------
