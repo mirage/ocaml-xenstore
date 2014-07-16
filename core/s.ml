@@ -180,7 +180,8 @@ module type CLIENT = sig
   module M: MONAD with type 'a t = ctx -> 'a t
 
   val directory     : string -> ctx -> string list t
-  val read          : string -> ctx -> string t
+  val read_exn      : string -> ctx -> string t
+  val read          : string -> ctx -> string option t
   val write         : string -> string -> ctx -> unit t
   val rm            : string -> ctx -> unit t
   val mkdir         : string -> ctx -> unit t
