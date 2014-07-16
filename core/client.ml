@@ -263,8 +263,12 @@ module Make = functor(IO: S.CONNECTION) -> struct
   let directory path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Directory))
       (function Response.Directory ls -> return ls
               | x -> error "directory" x)
-  let read path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Read))
+  let read_exn path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Read))
       (function Response.Read x -> return x
+              | x -> error "read" x)
+  let read path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Read))
+      (function Response.Read x -> return (Some x)
+              | Response.Error "ENOENT" -> return None
               | x -> error "read" x)
   let write path data h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Write data))
       (function Response.Write -> return ()

@@ -5,6 +5,7 @@ trunk (unreleased)
 * replace old read/write interface with read;advance/write;advance for restartability
 * breaking API change: client: don't expose the client to users
 * breaking API change: client: use monads for immediate/transaction/wait compound operations
+* breaking API change: client: split 'read' into 'read_exn' and 'read'
 
 1.2.5 (04-Oct-2013):
 * Add Travis continuous integration scripts

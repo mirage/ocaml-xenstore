@@ -23,11 +23,17 @@ let error fmt = Xenstore.Logging.error "xs" fmt
 
 open Lwt
 
+exception Exit of int
+
 (* Implementations of 'simple' commands: *)
 
 let read path () =
-  Client.(immediate (read path)) >>= fun v ->
-  Lwt_io.write Lwt_io.stdout v
+  Client.(immediate (read path)) >>= function
+  | None ->
+    Lwt_io.write Lwt_io.stderr "Path does not exist.\n" >>= fun () ->
+    fail (Exit 1)
+  | Some v ->
+    Lwt_io.write Lwt_io.stdout v
 
 let write path value () =
   Client.(immediate (write path value))
@@ -103,12 +109,8 @@ let parse_expr s =
 (* Return true if [expr] holds. Used in the xenstore 'wait' operation *)
 let rec eval_expression expr xs = match expr with
   | Val path ->
-    begin try_lwt
-        Client.read path xs >>= fun k ->
-        return true
-      with Xenstore.Protocol.Enoent _ ->
-        return false
-    end
+    Client.read path xs >>= fun k ->
+    return (k <> None)
   | Not a ->
     lwt a' = eval_expression a xs in
     return (not(a'))
@@ -119,12 +121,8 @@ let rec eval_expression expr xs = match expr with
     lwt a' = eval_expression a xs and b' = eval_expression b xs in
     return (a' || b')
   | Eq (Val path, Val v) ->
-    begin try_lwt
-        Client.read path xs >>= fun v' ->
-        return (v = v')
-      with Xenstore.Protocol.Enoent _ ->
-        return false
-    end
+    Client.read path xs >>= fun v' ->
+    return (Some v = v')
   | _ -> fail Invalid_expression
 
 let wait expr () =
@@ -187,6 +185,7 @@ let command f common =
     `Error(false, String.concat "\n" lines)
      | Invalid_expression ->
        `Error(true, "My expression parser couldn't understand your expression")
+  | Exit x -> exit x
 
 (* Command-line interface *)
 

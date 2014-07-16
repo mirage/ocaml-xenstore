@@ -131,3 +131,4 @@ true: annot
 <client_lwt>: include
 <client_unix>: include
 <server>: include
+<core_test/core_test.ml>: pkg_cstruct.syntax, syntax_camlp4o

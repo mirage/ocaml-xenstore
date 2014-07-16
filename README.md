@@ -1,12 +1,14 @@
-XenStore protocol implementation for Mirage
-===========================================
+XenStore protocol in OCaml
+==========================
 
 Layout of this project:
+```
   core/        : protocol parser/printer, Lwt-based client
   core_test/   : unit tests for the protocol parser/printer
   unix/        : userspace 'transport' over sockets and xenbus mmap
   mirage/      : kernelspace 'transport' for Mirage
   xs/          : example userspace CLI
+```
 
 This code is all available under the standard Mirage license (ISC).
 
@@ -25,7 +27,7 @@ module Client = Xenstore.Client.Make(Userspace)
 ```
 To perform a single non-transactional read or wrote:
 ```
-lwt my_domid = Client.(immediate (read "domid"));;
+lwt my_domid = Client.(immediate (read_exn "domid"));;
 ```
 To perform a transactional update:
 ```
@@ -43,12 +45,14 @@ Client.(wait (
   read "hotplug-status" >>= fun status ->
   read "hotplug-error" >>= fun error ->
   match status, error with
-  | "", "" -> return `Retry
-  | status, _ when status <> "" -> return (`Ok status)
-  | _, error -> return (`Error error)
+  | None, None -> return `Retry
+  | _, Some error -> return (`Error error)
+  | Some status, _ -> return (`Ok status)
 ))
+```
 
 Open issues
 -----------
-  1. Xenstore.Client.Make is a nice name. Global 'Userspace' and 'Kernelspace' are a bit rude. Can these be made part of the Xenstore.* space somehow, even through they are optional?
+
+1. Xenstore.Client.Make is a nice name. Global 'Userspace' and 'Kernelspace' are a bit rude. Can these be made part of the Xenstore.* space somehow, even through they are optional?
 

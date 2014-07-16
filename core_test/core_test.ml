@@ -30,6 +30,7 @@ let failure_on_error = function
 let check_readme_typechecks () =
   let module Client = Xenstore.Client.Make(Userspace) in
   let open Lwt in
+  lwt my_domid = Client.(immediate (read_exn "domid")) in
   Client.(transaction (
     let open M in
     write "a" "b" >>= fun () ->
@@ -41,9 +42,9 @@ let check_readme_typechecks () =
     read "hotplug-status" >>= fun status ->
     read "hotplug-error" >>= fun error ->
     match status, error with
-    | "", "" -> return `Retry
-    | status, _ when status <> "" -> return (`Ok status)
-    | _, error -> return (`Error error)
+    | None, None -> return `Retry
+    | _, Some error -> return (`Error error)
+    | Some status, _ -> return (`Ok status)
   ))
 
 let unbox = function
