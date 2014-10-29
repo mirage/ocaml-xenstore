@@ -376,12 +376,15 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
         loop ()
       end
     in
-    finally loop
-      (fun () ->
-        let current_paths = Xs_handle.get_watched_paths h in
-        List.iter (fun p -> unwatch h p token) (elements current_paths);
-        with_mutex client.m (fun () -> Hashtbl.remove client.watchevents token);
-      );
+    let (_: Thread.t) =
+      Thread.create (fun () ->
+        finally loop (fun () ->
+          let current_paths = Xs_handle.get_watched_paths h in
+          List.iter (fun p -> unwatch h p token) (elements current_paths);
+          with_mutex client.m (fun () -> Hashtbl.remove client.watchevents token);
+        )
+      ) ()
+    in
     t
 
   let rec transaction client f =
