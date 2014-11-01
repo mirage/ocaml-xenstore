@@ -177,9 +177,9 @@ module Response = struct
 end
 
 let alloc (fd, sockaddr) =
-  let read_buffer = Cstruct.create max_packet_size in
+  let read_buffer = Cstruct.create (2 * max_packet_size) in
   let reader = BufferedReader.create (FDReader.make fd) read_buffer in
-  let write_buffer = Cstruct.create max_packet_size in
+  let write_buffer = Cstruct.create (2* max_packet_size) in
   let writeBuffers = WriteBufferStream.create (FDWriteBuffer.make fd) write_buffer in
   return { fd; sockaddr; reader; writeBuffers }
 
