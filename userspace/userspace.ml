@@ -52,13 +52,14 @@ module FDReader = struct
     let length = 0 in
     { fd; buffer; offset; length }
 
-  let read stream = match stream.length with
+  let read stream =
+    match stream.length with
     | 0 ->
-      Lwt_cstruct.read stream.fd stream.buffer >>= fun n ->
-      stream.length <- n;
-      return (stream.offset, `Ok (Cstruct.sub stream.buffer 0 n))
+      Lwt_cstruct.read stream.fd (Cstruct.shift stream.buffer stream.length) >>= fun n ->
+      stream.length <- stream.length + n;
+      return (stream.offset, `Ok (Cstruct.sub stream.buffer 0 stream.length))
     | n ->
-      return (stream.offset, `Ok (Cstruct.sub stream.buffer 0 n))
+      return (stream.offset, `Ok (Cstruct.sub stream.buffer 0 stream.length))
 
   let advance stream offset =
     let delta = Int64.(to_int (sub offset stream.offset)) in
