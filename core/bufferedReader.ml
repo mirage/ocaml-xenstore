@@ -72,8 +72,8 @@ module Make(Reader: S.READABLE
       (* return everything we've got to the user *)
       let consumer_wrapped = Int64.(to_int (rem consumer (of_int len))) in
       let to_buffer_end = len - consumer_wrapped in
+      let used = Int64.(to_int (sub producer consumer)) in
       let contiguous = min used to_buffer_end in
-
       let space = Cstruct.sub buffer consumer_wrapped contiguous in
       return (consumer, `Ok space)
 

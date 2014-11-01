@@ -32,22 +32,21 @@ module Make(Unmarshal: S.UNMARSHALABLE)(Reader: S.READABLE
         match Protocol.Header.unmarshal space with
         | `Error x -> return (offset, `Error x)
         | `Ok x ->
-          let rec loop () =
-            Reader.read t >>= function
-            | offset, `Error x -> return (offset, `Error x)
-            | offset, `Ok space ->
-              let length = Protocol.Header.sizeof + x.Protocol.Header.len in
-              let len = Cstruct.len space in
-              if len < length
-              then loop ()
-              else begin
-                let payload = Cstruct.sub space Protocol.Header.sizeof x.Protocol.Header.len in
-                let offset = Int64.(add offset (of_int length)) in
-                match Unmarshal.unmarshal x payload with
-                | `Ok body -> return (offset, `Ok (x, body))
-                | `Error x -> return (offset, `Error x)
-              end in
-            loop ()
+          let length = Protocol.Header.sizeof + x.Protocol.Header.len in
+          let rec loop space =
+            let len = Cstruct.len space in
+            if len < length then begin
+              Reader.read t >>= function
+              | offset, `Error x -> return (offset, `Error x)
+              | offset, `Ok space -> loop space
+            end else begin
+              let payload = Cstruct.sub space Protocol.Header.sizeof x.Protocol.Header.len in
+              let offset = Int64.(add offset (of_int length)) in
+              match Unmarshal.unmarshal x payload with
+              | `Ok body -> return (offset, `Ok (x, body))
+              | `Error x -> return (offset, `Error x)
+            end in
+          loop space
       end
 
   let advance t ofs =
