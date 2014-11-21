@@ -99,6 +99,7 @@ module Make = functor(IO: S.CONNECTION) -> struct
     mutable dispatcher_thread: unit Lwt.t;
     mutable dispatcher_shutting_down: bool;
     watchevents: (Token.t, Watcher.t) Hashtbl.t;
+    manual_watch_callbacks: (Token.t, (int * (string -> unit)) list) Hashtbl.t;
 
     mutable suspended : bool;
     suspended_m : Lwt_mutex.t;
@@ -131,11 +132,18 @@ module Make = functor(IO: S.CONNECTION) -> struct
     match payload with
     | Response.Watchevent(path, token) ->
       let token = Token.unmarshal token in
-      (* We may get old watches: silently drop these *)
       if Hashtbl.mem t.watchevents token then begin
+        (* It's one of our automatic watch events from [wait] *)
         Watcher.put (Hashtbl.find t.watchevents token) (Name.to_string path) >>= fun () ->
         dispatcher t
-      end else dispatcher t
+      end else if Hashtbl.mem t.manual_watch_callbacks token then begin
+        (* It's one of our manual watch events from the Lowlevel interface *)
+        List.iter (fun (_, fn) -> fn (Protocol.Name.to_string path)) (Hashtbl.find t.manual_watch_callbacks token);
+        dispatcher t
+      end else begin
+        (* It's an old watch event that was queued and we're not interested any more *)
+        dispatcher t
+      end
     | r ->
       begin
         let rid = hdr.Header.rid in
@@ -150,31 +158,6 @@ module Make = functor(IO: S.CONNECTION) -> struct
             dispatcher t
           end
       end
-
-  let make_unsafe () =
-    lwt transport = IO.create () in
-    let t = {
-      transport = transport;
-      rid_to_wakeup = Hashtbl.create 10;
-      dispatcher_thread = return ();
-      dispatcher_shutting_down = false;
-      watchevents = Hashtbl.create 10;
-      suspended = false;
-      suspended_m = Lwt_mutex.create ();
-      suspended_c = Lwt_condition.create ();
-    } in
-    t.dispatcher_thread <- dispatcher t;
-    return t
-
-  let make () =
-    Lwt_mutex.with_lock client_cache_m
-      (fun () -> match !client_cache with
-         | Some c -> return c
-         | None ->
-           lwt c = make_unsafe () in
-           client_cache := Some c;
-           return c
-      )
 
   let suspend () =
     match_lwt Lwt_mutex.with_lock client_cache_m (fun () -> return !client_cache) with
@@ -260,6 +243,13 @@ module Make = functor(IO: S.CONNECTION) -> struct
     | Response.Error x        -> raise (Error x)
     | x              -> raise (Error (Printf.sprintf "%s: unexpected response: %s" hint (Sexplib.Sexp.to_string_hum (Response.sexp_of_t x))))
 
+  let watch path token h = rpc (Handle.watch h path) (Request.Watch(path, Token.marshal token))
+      (function Response.Watch -> return ()
+              | x -> error "watch" x)
+  let unwatch path token h = rpc (Handle.watch h path) (Request.Unwatch(path, Token.marshal token))
+      (function Response.Unwatch -> return ()
+              | x -> error "unwatch" x)
+
   let directory path h = rpc (Handle.accessed_path h path) Request.(PathOp(path, Directory))
       (function Response.Directory ls -> return ls
               | x -> error "directory" x)
@@ -291,18 +281,82 @@ module Make = functor(IO: S.CONNECTION) -> struct
   let getdomainpath domid h = rpc h (Request.Getdomainpath domid)
       (function Response.Getdomainpath x -> return x
               | x -> error "getdomainpath" x)
-  let watch path token h = rpc (Handle.watch h path) (Request.Watch(path, Token.marshal token))
-      (function Response.Watch -> return ()
-              | x -> error "watch" x)
-  let unwatch path token h = rpc (Handle.watch h path) (Request.Unwatch(path, Token.marshal token))
-      (function Response.Unwatch -> return ()
-              | x -> error "unwatch" x)
   let introduce domid store_mfn store_port h = rpc h (Request.Introduce(domid, store_mfn, store_port))
       (function Response.Introduce -> return ()
               | x -> error "introduce" x)
   let set_target stubdom_domid domid h = rpc h (Request.Set_target(stubdom_domid, domid))
       (function Response.Set_target -> return ()
               | x -> error "set_target" x)
+
+  module LowLevel = struct
+
+    type connection = client
+
+    let make_unsafe () =
+      lwt transport = IO.create () in
+      let t = {
+        transport = transport;
+        rid_to_wakeup = Hashtbl.create 10;
+        dispatcher_thread = return ();
+        dispatcher_shutting_down = false;
+        watchevents = Hashtbl.create 37;
+        manual_watch_callbacks = Hashtbl.create 37;
+        suspended = false;
+        suspended_m = Lwt_mutex.create ();
+        suspended_c = Lwt_condition.create ();
+      } in
+      t.dispatcher_thread <- dispatcher t;
+      return t
+
+    let make () =
+      Lwt_mutex.with_lock client_cache_m
+        (fun () -> match !client_cache with
+           | Some c -> return c
+           | None ->
+             lwt c = make_unsafe () in
+             client_cache := Some c;
+             return c
+        )
+
+    type callback = Protocol.Token.t * int
+
+    let next_id =
+      let counter = ref 0 in
+      fun () ->
+        let c = !counter in
+        incr counter;
+        c
+
+    let add_watch_callback t path fn =
+      let token = Token.unmarshal path in
+      let existing =
+        if Hashtbl.mem t.manual_watch_callbacks token
+        then Hashtbl.find t.manual_watch_callbacks token
+        else [] in
+      let counter = next_id () in
+      (* We set the token to be the path *)
+      Hashtbl.replace t.manual_watch_callbacks token ((counter, fn) :: existing);
+      watch path token (Handle.no_transaction t) >>= fun () ->
+      return (token, counter)
+
+    let del_watch_callback t (token, counter) =
+       let path = Token.marshal token in
+       if Hashtbl.mem t.manual_watch_callbacks token then begin
+         let existing = Hashtbl.find t.manual_watch_callbacks token in
+         let removed = List.filter (fun (c, _) -> c <> counter) existing in
+         if existing = [] then begin
+           unwatch path token (Handle.no_transaction t) >>= fun () ->
+           Hashtbl.remove t.manual_watch_callbacks token;
+           return ()
+         end else begin
+           Hashtbl.replace t.manual_watch_callbacks token removed;
+           return ()
+         end
+       end else return ()
+  end
+
+  let make = LowLevel.make
+
   let immediate f =
     make () >>= fun client ->
     f (Handle.no_transaction client)
