@@ -83,7 +83,7 @@ stub_domain_getinfolist(value lowest_domid, value number_requested, value result
     syslog(LOG_ERR, "xc_domain_getinfolist(%p, %d, %d, %p) = %d:%s", (void*) xch, lowest_domid_, number_requested_, result_, error->code, xc_error_code_to_desc(error->code));
     caml_failwith("xc_domain_getinfolist failed");
   }
-  CAMLreturn(Int_val(ret));
+  CAMLreturn(Val_int(ret));
 }
 
 CAMLprim value stub_sizeof_domaininfo_t(value unit)
