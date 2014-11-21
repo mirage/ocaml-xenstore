@@ -289,37 +289,6 @@ let rec accept_forever fd process =
   let (_: unit Lwt.t list) = List.map (fun x -> alloc x >>= process) conns in
   accept_forever fd process
 
-(*
-type offset = unit with sexp
-
-let get_read_offset _ = return ()
-let get_write_offset _ = return ()
-
-let flush _ _ = return ()
-
-let enqueue t hdr response =
-  let reply_buf = t.write_buffer in
-  let payload_buf = Cstruct.shift reply_buf Protocol.Header.sizeof in
-  let next = Protocol.Response.marshal response payload_buf in
-  let length = next.Cstruct.off - payload_buf.Cstruct.off in
-  let hdr = Protocol.Header.({ hdr with len = length }) in
-  ignore (Protocol.Header.marshal hdr reply_buf);
-  write t (Cstruct.sub t.write_buffer 0 (Protocol.Header.sizeof + length))
-
-let recv t _ =
-  let hdr = Cstruct.sub t.read_buffer 0 Protocol.Header.sizeof in
-  read t hdr >>= fun () ->
-  match Protocol.Header.unmarshal hdr with
-  | `Error x -> return ((), `Error x)
-  | `Ok x ->
-    let payload = Cstruct.sub t.read_buffer Protocol.Header.sizeof x.Protocol.Header.len in
-    read t payload >>= fun () ->
-    begin match Protocol.Request.unmarshal x payload with
-      | `Error y -> return ((), `Error y)
-      | `Ok y -> return ((), `Ok (x, y))
-    end
-*)
-
 module Introspect = struct
   type t = connection
 
