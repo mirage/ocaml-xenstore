@@ -36,7 +36,6 @@ let getdomaininfo_buf = Cstruct.of_bigarray (Io_page.get (batch_size * sizeof / 
 let domain_getinfolist lowest_domid =
   let number_found = stub_domain_getinfolist lowest_domid batch_size getdomaininfo_buf in
   let rec parse buf n acc =
-Printf.fprintf stderr "len(buf) = %d sizeof = %d number_found = %d n = %d %b\n%!" (Cstruct.len buf) sizeof number_found n (n = number_found);
     if n = number_found
     then acc
     else parse (Cstruct.shift buf sizeof) (n + 1) (stub_domaininfo_t_parse buf :: acc) in

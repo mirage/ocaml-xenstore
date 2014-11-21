@@ -42,7 +42,8 @@ module Make(Marshal: S.MARSHALABLE)(WriteBuffers: S.READABLE
       let length = next.Cstruct.off - payload_buf.Cstruct.off in
       let hdr = Protocol.Header.({ hdr with len = length }) in
       ignore (Protocol.Header.marshal hdr space);
-      return (Int64.(add offset (of_int (Protocol.Header.sizeof + length))))
+      let last_byte = Int64.(add offset (of_int (Protocol.Header.sizeof + length))) in
+      return last_byte
 
   let advance t ofs =
     WriteBuffers.advance t ofs
