@@ -91,7 +91,7 @@ module RingReader(A: ACTIVATIONS with type channel = Eventchn.t) = struct
     return ()
 end
 
-module RingWriteBuffer(A: ACTIVATIONS with type channel = Eventchn.t) = struct
+module RingWriter(A: ACTIVATIONS with type channel = Eventchn.t) = struct
   type stream = Connection.t
   open Connection
   include IO_lwt
@@ -134,7 +134,7 @@ module Make
   end
 
   module Reader = RingReader(Window)
-  module WriteBuffer = RingWriteBuffer(Window)
+  module WriteBuffer = RingWriter(Window)
 
   module BufferedReader = BufferedReader.Make(Reader)
   module WriteBufferStream = WriteBufferStream.Make(WriteBuffer)

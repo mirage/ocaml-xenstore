@@ -25,12 +25,4 @@ val unmap_foreign: Io_page.t -> unit
 val map_fd: Unix.file_descr -> int -> Io_page.t
 (** [map_fd fd size] memory maps [size] bytes from the open file [fd] *)
 
-type domain = {
-  domid: int;     (** unique id for a given domain *)
-  dying: bool;    (** the domain is being cleaned up *)
-  shutdown: bool; (** the domain has stopped running *)
-}
-(** The state of a domain *)
-
-val list: unit -> domain list
-(** [list ()] returns a list of known domains *)
+include S.DOMAIN_STATE

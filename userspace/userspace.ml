@@ -47,7 +47,7 @@ module FDReader = struct
   include IO_lwt
 
   let make fd =
-    let buffer = Cstruct.create 1024 in
+    let buffer = Cstruct.create max_packet_size in
     let offset = 0L in
     let length = 0 in
     { fd; buffer; offset; length }
@@ -87,7 +87,7 @@ let complete op fd buf =
   then fail End_of_file
   else return ()
 
-module FDWriteBuffer = struct
+module FDWriter = struct
   type stream = {
     fd: Lwt_unix.file_descr;
     buffer: Cstruct.t;
@@ -99,7 +99,7 @@ module FDWriteBuffer = struct
   include IO_lwt
 
   let make fd =
-    let buffer = Cstruct.create 1024 in
+    let buffer = Cstruct.create max_packet_size in
     let offset = 0L in
     { fd; buffer; offset }
 
@@ -116,23 +116,20 @@ module FDWriteBuffer = struct
     return ()
 end
 
-module BufferedReader = BufferedReader.Make(FDReader)
-module WriteBufferStream = WriteBufferStream.Make(FDWriteBuffer)
-
 (* Individual connections *)
 type connection = {
   fd: Lwt_unix.file_descr;
   sockaddr: Lwt_unix.sockaddr;
-  reader: BufferedReader.stream;
-  writeBuffers: WriteBufferStream.stream;
+  reader: FDReader.stream;
+  writeBuffers: FDWriter.stream;
 }
 
 
 module Request = struct
   type item = Protocol.Header.t * Protocol.Request.t
 
-  module PacketReader = PacketReader.Make(Protocol.Request)(BufferedReader)
-  module PacketWriter = PacketWriter.Make(Protocol.Request)(WriteBufferStream)
+  module PacketReader = PacketReader.Make(Protocol.Request)(FDReader)
+  module PacketWriter = PacketWriter.Make(Protocol.Request)(FDWriter)
 
   module Reader = struct
     include IO_lwt
@@ -155,8 +152,8 @@ end
 module Response = struct
   type item = Protocol.Header.t * Protocol.Response.t
 
-  module PacketReader = PacketReader.Make(Protocol.Response)(BufferedReader)
-  module PacketWriter = PacketWriter.Make(Protocol.Response)(WriteBufferStream)
+  module PacketReader = PacketReader.Make(Protocol.Response)(FDReader)
+  module PacketWriter = PacketWriter.Make(Protocol.Response)(FDWriter)
 
   module Reader = struct
     include IO_lwt
@@ -177,10 +174,8 @@ module Response = struct
 end
 
 let alloc (fd, sockaddr) =
-  let read_buffer = Cstruct.create (2 * max_packet_size) in
-  let reader = BufferedReader.create (FDReader.make fd) read_buffer in
-  let write_buffer = Cstruct.create (2* max_packet_size) in
-  let writeBuffers = WriteBufferStream.create (FDWriteBuffer.make fd) write_buffer in
+  let reader = FDReader.make fd in
+  let writeBuffers = FDWriter.make fd in
   return { fd; sockaddr; reader; writeBuffers }
 
 let xenstored_socket = ref "/var/run/xenstored/socket"
@@ -288,37 +283,6 @@ let rec accept_forever fd process =
   lwt conns, _ (*exn_option*) = Lwt_unix.accept_n fd 16 in
   let (_: unit Lwt.t list) = List.map (fun x -> alloc x >>= process) conns in
   accept_forever fd process
-
-(*
-type offset = unit with sexp
-
-let get_read_offset _ = return ()
-let get_write_offset _ = return ()
-
-let flush _ _ = return ()
-
-let enqueue t hdr response =
-  let reply_buf = t.write_buffer in
-  let payload_buf = Cstruct.shift reply_buf Protocol.Header.sizeof in
-  let next = Protocol.Response.marshal response payload_buf in
-  let length = next.Cstruct.off - payload_buf.Cstruct.off in
-  let hdr = Protocol.Header.({ hdr with len = length }) in
-  ignore (Protocol.Header.marshal hdr reply_buf);
-  write t (Cstruct.sub t.write_buffer 0 (Protocol.Header.sizeof + length))
-
-let recv t _ =
-  let hdr = Cstruct.sub t.read_buffer 0 Protocol.Header.sizeof in
-  read t hdr >>= fun () ->
-  match Protocol.Header.unmarshal hdr with
-  | `Error x -> return ((), `Error x)
-  | `Ok x ->
-    let payload = Cstruct.sub t.read_buffer Protocol.Header.sizeof x.Protocol.Header.len in
-    read t payload >>= fun () ->
-    begin match Protocol.Request.unmarshal x payload with
-      | `Error y -> return ((), `Error y)
-      | `Ok y -> return ((), `Ok (x, y))
-    end
-*)
 
 module Introspect = struct
   type t = connection

@@ -18,3 +18,9 @@ depends: [
   "shared-memory-ring"
   "cmdliner"
 ]
+depexts: [
+  [["debian"] ["libxen-dev" "uuid-dev"]]
+  [["ubuntu"] ["libxen-dev" "uuid-dev"]]
+  [["centos"] ["xen-devel"]]
+  [["xenserver"] ["xen-dom0-libs-devel" "xen-libs-devel"]]
+]

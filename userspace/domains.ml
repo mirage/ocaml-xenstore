@@ -16,7 +16,7 @@ external map_foreign: int -> nativeint -> Io_page.t = "stub_map_foreign"
 external unmap_foreign: Io_page.t -> unit           = "stub_unmap_foreign"
 external map_fd: Unix.file_descr -> int -> Io_page.t = "stub_mmap"
 
-type domain = {
+type t = {
   domid: int;
   dying: bool;
   shutdown: bool;
@@ -24,14 +24,14 @@ type domain = {
 
 external stub_sizeof_domaininfo_t: unit -> int                    = "stub_sizeof_domaininfo_t"
 external stub_domain_getinfolist:  int -> int -> Cstruct.t -> int = "stub_domain_getinfolist"
-external stub_domaininfo_t_parse:  Cstruct.t -> domain            = "stub_domaininfo_t_parse"
+external stub_domaininfo_t_parse:  Cstruct.t -> t                 = "stub_domaininfo_t_parse"
 
 open Lwt
 
 let batch_size = 512 (* number of domains to query in one hypercall *)
 
 let sizeof = stub_sizeof_domaininfo_t ()
-let getdomaininfo_buf = Cstruct.of_bigarray (Io_page.get (batch_size * sizeof))
+let getdomaininfo_buf = Cstruct.of_bigarray (Io_page.get (batch_size * sizeof / 4096))
 
 let domain_getinfolist lowest_domid =
   let number_found = stub_domain_getinfolist lowest_domid batch_size getdomaininfo_buf in

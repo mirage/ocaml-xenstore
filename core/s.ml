@@ -189,8 +189,6 @@ module type CLIENT = sig
   val debug         : string list -> ctx -> string list t
   val restrict      : int -> ctx -> unit t
   val getdomainpath : int -> ctx -> string t
-  val watch         : string -> Protocol.Token.t -> ctx -> unit t
-  val unwatch       : string -> Protocol.Token.t -> ctx -> unit t
   val introduce     : int -> nativeint -> int -> ctx -> unit t
   val set_target    : int -> int -> ctx -> unit t
 
@@ -201,6 +199,28 @@ module type CLIENT = sig
   (** [transaction op] executes [op] as a transaction *)
 
   val wait: (ctx -> [ `Ok of 'a | `Error of 'b | `Retry ] t) -> [ `Ok of 'a | `Error of 'b ] t
+  (** [wait f] runs [f ctx] until it returns [`Ok | `Error], transparently
+      registering and unregistering watches to wait for keys to change *)
+
+  module LowLevel : sig
+    (** Low-level functions for dealing with watches. Most clients should use
+        the [wait] function above *)
+
+    type connection
+
+    val make: unit -> connection t
+    (** [make ()] returns a connection to Xenstore. Multiple calls to this]
+        function will return the same connection. *)
+
+    type callback
+
+    val add_watch_callback: connection -> string -> (string -> unit) -> callback t
+    (** [add_watch_callback connection path token cb] registers a watch callback handler
+        which will be called when watches fire on [path]. Since watches are recursive
+        by default the exact path which has changed is supplied as an argument to [cb]. *)
+
+    val del_watch_callback: connection -> callback -> unit t
+  end
 end
 
 module type ACTIVATIONS = sig
