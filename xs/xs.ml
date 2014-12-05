@@ -42,6 +42,20 @@ let directory path () =
   Client.(immediate (directory path)) >>= fun ls ->
   Lwt_list.iter_s (fun x -> Lwt_io.write Lwt_io.stdout (x ^ "\n")) ls
 
+let watch path () =
+  Client.LowLevel.make ()
+  >>= fun connection ->
+  Client.LowLevel.add_watch_callback connection path
+    (fun path ->
+      Printf.fprintf stderr "%s\n%!" path
+    )
+  >>= fun _ ->
+  let rec loop_forever () =
+    Lwt_unix.sleep 3600.
+    >>= fun () ->
+    loop_forever () in
+  loop_forever ()
+
 let ( |> ) a b = b a
 
 (* Used for expressing a xenstore 'wait' condition and also in
@@ -275,13 +289,26 @@ let wait_cmd =
   Term.(ret( (pure command) $ (pure wait $ expr) $ common_options_t )),
   Term.info "wait" ~sdocs:_common_options ~doc ~man
 
+let watch_cmd =
+  let doc = "watch a path and print the watch events" in
+  let man = [
+    `S "DESCRIPTION";
+    `P "Watch a single path and print all the events received from xenstore.";
+    `P "This is a low-level API. Most users should use the 'wait' command instead.";
+  ] @ help in
+  let path =
+    let doc = "The path to watch" in
+    Arg.(value & pos 0 string "/" & info [] ~docv:"PATH" ~doc) in
+  Term.(ret( (pure command) $ (pure watch $ path) $ common_options_t )),
+  Term.info "watch" ~sdocs:_common_options ~doc ~man
+
 let default_cmd =
   let doc = "manipulate XenStore" in
   let man = help in
   Term.(ret (pure (fun _ -> `Help (`Pager, None)) $ common_options_t)),
   Term.info "xs" ~version:"1.0.0" ~sdocs:_common_options ~doc ~man
 
-let cmds = [ read_cmd; write_cmd; directory_cmd; wait_cmd ]
+let cmds = [ read_cmd; write_cmd; directory_cmd; wait_cmd; watch_cmd ]
 
 let _ =
   match Term.eval_choice default_cmd cmds with
