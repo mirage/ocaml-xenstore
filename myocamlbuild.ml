@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: e96d6e8943b4aa40d0c27887891b741f) *)
+(* DO NOT EDIT (digest: 6109ad5cd6941012dff2b67f3fff2eea) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -610,24 +610,26 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml =
        [
           ("xenstore", ["core"], []);
-          ("xenstore_userspace", ["userspace"], []);
+          ("xenstore_unix", ["unix"], []);
+          ("xenstore_xenctrl", ["xenctrl"], []);
           ("xenstore_kernelspace", ["kernelspace"], [])
        ];
-     lib_c = [("xenstore_userspace", "userspace", [])];
+     lib_c = [("xenstore_xenctrl", "xenctrl", [])];
      flags =
        [
-          (["oasis_library_xenstore_userspace_cclib"; "link"],
+          (["oasis_library_xenstore_xenctrl_cclib"; "link"],
             [(OASISExpr.EBool true, S [A "-cclib"; A "-lxenctrl"])]);
-          (["oasis_library_xenstore_userspace_cclib"; "ocamlmklib"; "c"],
+          (["oasis_library_xenstore_xenctrl_cclib"; "ocamlmklib"; "c"],
             [(OASISExpr.EBool true, S [A "-lxenctrl"])])
        ];
      includes =
        [
-          ("xs", ["core"; "userspace"]);
-          ("userspace", ["core"]);
+          ("xs", ["core"; "unix"]);
+          ("xenctrl", ["core"]);
+          ("unix", ["core"]);
           ("kernelspace", ["core"]);
-          ("examples", ["core"; "userspace"]);
-          ("core_test", ["core"; "userspace"])
+          ("examples", ["core"; "xenctrl"]);
+          ("core_test", ["core"; "unix"])
        ]
   }
   ;;
@@ -636,6 +638,6 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 640 "myocamlbuild.ml"
+# 642 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

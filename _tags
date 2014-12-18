@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0c1ada3b2baad60ee5b9d6d565007b03)
+# DO NOT EDIT (digest: 18c6cf150c0a4f0ac4640fc4b2db63ec)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -36,40 +36,21 @@ true: annot, bin_annot
 <core/*.ml{,i,y}>: pkg_sexplib.syntax
 <core/*.ml{,i,y}>: pkg_stringext
 <core/*.ml{,i,y}>: pkg_uri
-# Library xenstore_userspace
-"userspace/xenstore_userspace.cmxs": use_xenstore_userspace
-<userspace/xenstore_userspace.{cma,cmxa}>: oasis_library_xenstore_userspace_cclib
-"userspace/libxenstore_userspace_stubs.lib": oasis_library_xenstore_userspace_cclib
-"userspace/dllxenstore_userspace_stubs.dll": oasis_library_xenstore_userspace_cclib
-"userspace/libxenstore_userspace_stubs.a": oasis_library_xenstore_userspace_cclib
-"userspace/dllxenstore_userspace_stubs.so": oasis_library_xenstore_userspace_cclib
-<userspace/xenstore_userspace.{cma,cmxa}>: use_libxenstore_userspace_stubs
-<userspace/*.ml{,i,y}>: pkg_cstruct
-<userspace/*.ml{,i,y}>: pkg_cstruct.lwt
-<userspace/*.ml{,i,y}>: pkg_cstruct.syntax
-<userspace/*.ml{,i,y}>: pkg_io-page
-<userspace/*.ml{,i,y}>: pkg_io-page.unix
-<userspace/*.ml{,i,y}>: pkg_lwt
-<userspace/*.ml{,i,y}>: pkg_lwt.syntax
-<userspace/*.ml{,i,y}>: pkg_lwt.unix
-<userspace/*.ml{,i,y}>: pkg_sexplib
-<userspace/*.ml{,i,y}>: pkg_sexplib.syntax
-<userspace/*.ml{,i,y}>: pkg_stringext
-<userspace/*.ml{,i,y}>: pkg_uri
-<userspace/*.ml{,i,y}>: use_xenstore
-"userspace/domains_stubs.c": pkg_cstruct
-"userspace/domains_stubs.c": pkg_cstruct.lwt
-"userspace/domains_stubs.c": pkg_cstruct.syntax
-"userspace/domains_stubs.c": pkg_io-page
-"userspace/domains_stubs.c": pkg_io-page.unix
-"userspace/domains_stubs.c": pkg_lwt
-"userspace/domains_stubs.c": pkg_lwt.syntax
-"userspace/domains_stubs.c": pkg_lwt.unix
-"userspace/domains_stubs.c": pkg_sexplib
-"userspace/domains_stubs.c": pkg_sexplib.syntax
-"userspace/domains_stubs.c": pkg_stringext
-"userspace/domains_stubs.c": pkg_uri
-"userspace/domains_stubs.c": use_xenstore
+# Library xenstore_unix
+"unix/xenstore_unix.cmxs": use_xenstore_unix
+<unix/*.ml{,i,y}>: pkg_cstruct
+<unix/*.ml{,i,y}>: pkg_cstruct.lwt
+<unix/*.ml{,i,y}>: pkg_cstruct.syntax
+<unix/*.ml{,i,y}>: pkg_io-page
+<unix/*.ml{,i,y}>: pkg_io-page.unix
+<unix/*.ml{,i,y}>: pkg_lwt
+<unix/*.ml{,i,y}>: pkg_lwt.syntax
+<unix/*.ml{,i,y}>: pkg_lwt.unix
+<unix/*.ml{,i,y}>: pkg_sexplib
+<unix/*.ml{,i,y}>: pkg_sexplib.syntax
+<unix/*.ml{,i,y}>: pkg_stringext
+<unix/*.ml{,i,y}>: pkg_uri
+<unix/*.ml{,i,y}>: use_xenstore
 # Executable core_test
 <core_test/core_test.{native,byte}>: pkg_cstruct
 <core_test/core_test.{native,byte}>: pkg_cstruct.lwt
@@ -85,7 +66,7 @@ true: annot, bin_annot
 <core_test/core_test.{native,byte}>: pkg_stringext
 <core_test/core_test.{native,byte}>: pkg_uri
 <core_test/core_test.{native,byte}>: use_xenstore
-<core_test/core_test.{native,byte}>: use_xenstore_userspace
+<core_test/core_test.{native,byte}>: use_xenstore_unix
 <core_test/*.ml{,i,y}>: pkg_cstruct
 <core_test/*.ml{,i,y}>: pkg_cstruct.lwt
 <core_test/*.ml{,i,y}>: pkg_cstruct.syntax
@@ -100,8 +81,42 @@ true: annot, bin_annot
 <core_test/*.ml{,i,y}>: pkg_stringext
 <core_test/*.ml{,i,y}>: pkg_uri
 <core_test/*.ml{,i,y}>: use_xenstore
-<core_test/*.ml{,i,y}>: use_xenstore_userspace
+<core_test/*.ml{,i,y}>: use_xenstore_unix
 <core_test/core_test.{native,byte}>: custom
+# Library xenstore_xenctrl
+"xenctrl/xenstore_xenctrl.cmxs": use_xenstore_xenctrl
+<xenctrl/xenstore_xenctrl.{cma,cmxa}>: oasis_library_xenstore_xenctrl_cclib
+"xenctrl/libxenstore_xenctrl_stubs.lib": oasis_library_xenstore_xenctrl_cclib
+"xenctrl/dllxenstore_xenctrl_stubs.dll": oasis_library_xenstore_xenctrl_cclib
+"xenctrl/libxenstore_xenctrl_stubs.a": oasis_library_xenstore_xenctrl_cclib
+"xenctrl/dllxenstore_xenctrl_stubs.so": oasis_library_xenstore_xenctrl_cclib
+<xenctrl/xenstore_xenctrl.{cma,cmxa}>: use_libxenstore_xenctrl_stubs
+<xenctrl/*.ml{,i,y}>: pkg_cstruct
+<xenctrl/*.ml{,i,y}>: pkg_cstruct.lwt
+<xenctrl/*.ml{,i,y}>: pkg_cstruct.syntax
+<xenctrl/*.ml{,i,y}>: pkg_io-page
+<xenctrl/*.ml{,i,y}>: pkg_io-page.unix
+<xenctrl/*.ml{,i,y}>: pkg_lwt
+<xenctrl/*.ml{,i,y}>: pkg_lwt.syntax
+<xenctrl/*.ml{,i,y}>: pkg_lwt.unix
+<xenctrl/*.ml{,i,y}>: pkg_sexplib
+<xenctrl/*.ml{,i,y}>: pkg_sexplib.syntax
+<xenctrl/*.ml{,i,y}>: pkg_stringext
+<xenctrl/*.ml{,i,y}>: pkg_uri
+<xenctrl/*.ml{,i,y}>: use_xenstore
+"xenctrl/domains_stubs.c": pkg_cstruct
+"xenctrl/domains_stubs.c": pkg_cstruct.lwt
+"xenctrl/domains_stubs.c": pkg_cstruct.syntax
+"xenctrl/domains_stubs.c": pkg_io-page
+"xenctrl/domains_stubs.c": pkg_io-page.unix
+"xenctrl/domains_stubs.c": pkg_lwt
+"xenctrl/domains_stubs.c": pkg_lwt.syntax
+"xenctrl/domains_stubs.c": pkg_lwt.unix
+"xenctrl/domains_stubs.c": pkg_sexplib
+"xenctrl/domains_stubs.c": pkg_sexplib.syntax
+"xenctrl/domains_stubs.c": pkg_stringext
+"xenctrl/domains_stubs.c": pkg_uri
+"xenctrl/domains_stubs.c": use_xenstore
 # Library xenstore_kernelspace
 "kernelspace/xenstore_kernelspace.cmxs": use_xenstore_kernelspace
 <kernelspace/*.ml{,i,y}>: pkg_cstruct
@@ -133,7 +148,7 @@ true: annot, bin_annot
 <xs/xs.{native,byte}>: pkg_stringext
 <xs/xs.{native,byte}>: pkg_uri
 <xs/xs.{native,byte}>: use_xenstore
-<xs/xs.{native,byte}>: use_xenstore_userspace
+<xs/xs.{native,byte}>: use_xenstore_unix
 <xs/*.ml{,i,y}>: pkg_cmdliner
 <xs/*.ml{,i,y}>: pkg_cstruct
 <xs/*.ml{,i,y}>: pkg_cstruct.lwt
@@ -148,7 +163,7 @@ true: annot, bin_annot
 <xs/*.ml{,i,y}>: pkg_stringext
 <xs/*.ml{,i,y}>: pkg_uri
 <xs/*.ml{,i,y}>: use_xenstore
-<xs/*.ml{,i,y}>: use_xenstore_userspace
+<xs/*.ml{,i,y}>: use_xenstore_unix
 <xs/xs.{native,byte}>: custom
 # Executable domain_watcher
 <examples/domain_watcher.{native,byte}>: pkg_cstruct
@@ -164,7 +179,7 @@ true: annot, bin_annot
 <examples/domain_watcher.{native,byte}>: pkg_stringext
 <examples/domain_watcher.{native,byte}>: pkg_uri
 <examples/domain_watcher.{native,byte}>: use_xenstore
-<examples/domain_watcher.{native,byte}>: use_xenstore_userspace
+<examples/domain_watcher.{native,byte}>: use_xenstore_xenctrl
 <examples/*.ml{,i,y}>: pkg_cstruct
 <examples/*.ml{,i,y}>: pkg_cstruct.lwt
 <examples/*.ml{,i,y}>: pkg_cstruct.syntax
@@ -178,7 +193,7 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: pkg_stringext
 <examples/*.ml{,i,y}>: pkg_uri
 <examples/*.ml{,i,y}>: use_xenstore
-<examples/*.ml{,i,y}>: use_xenstore_userspace
+<examples/*.ml{,i,y}>: use_xenstore_xenctrl
 <examples/domain_watcher.{native,byte}>: custom
 # OASIS_STOP
 true: annot

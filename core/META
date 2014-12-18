@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 187a3c64519d5fd4f5aba8a293bbfca6)
+# DO NOT EDIT (digest: e680d3c067de421cbe73c712b28a78fc)
 version = "1.2.5"
 description = "Xenstore protocol library"
 requires =
@@ -9,15 +9,26 @@ archive(byte, plugin) = "xenstore.cma"
 archive(native) = "xenstore.cmxa"
 archive(native, plugin) = "xenstore.cmxs"
 exists_if = "xenstore.cma"
-package "userspace" (
+package "xenctrl" (
  version = "1.2.5"
  description = "Xenstore protocol library"
  requires = "lwt lwt.unix xenstore cstruct.lwt io-page io-page.unix"
- archive(byte) = "xenstore_userspace.cma"
- archive(byte, plugin) = "xenstore_userspace.cma"
- archive(native) = "xenstore_userspace.cmxa"
- archive(native, plugin) = "xenstore_userspace.cmxs"
- exists_if = "xenstore_userspace.cma"
+ archive(byte) = "xenstore_xenctrl.cma"
+ archive(byte, plugin) = "xenstore_xenctrl.cma"
+ archive(native) = "xenstore_xenctrl.cmxa"
+ archive(native, plugin) = "xenstore_xenctrl.cmxs"
+ exists_if = "xenstore_xenctrl.cma"
+)
+
+package "unix" (
+ version = "1.2.5"
+ description = "Xenstore protocol library"
+ requires = "lwt lwt.unix xenstore cstruct.lwt io-page io-page.unix"
+ archive(byte) = "xenstore_unix.cma"
+ archive(byte, plugin) = "xenstore_unix.cma"
+ archive(native) = "xenstore_unix.cmxa"
+ archive(native, plugin) = "xenstore_unix.cmxs"
+ exists_if = "xenstore_unix.cma"
 )
 
 package "kernelspace" (
