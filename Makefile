@@ -4,6 +4,11 @@ all: build doc
 NAME=xenstore
 J=4
 
+include config.mk
+config.mk:
+	echo Please re-run configure
+	exit 1
+
 export OCAMLRUNPARAM=b
 
 TESTS ?= --enable-tests

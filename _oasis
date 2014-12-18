@@ -7,6 +7,10 @@ License:     ISC
 Plugins:     META (0.3)
 BuildTools:  ocamlbuild
 
+Flag xenctrl
+  Description:        build Unix userspace bindings
+  Default:            false
+
 Library xenstore
   Pack:               true
   CompiledObject:     best
@@ -23,17 +27,26 @@ Executable core_test
   Build$:             flag(tests)
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.userspace, oUnit
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix, oUnit
 
 Test core_test
   Run$:               flag(tests)
   Command:            $core_test
   WorkingDirectory:   core_test
 
-Library xenstore_userspace
+Library xenstore_unix
   CompiledObject:     best
-  Path:               userspace
-  Findlibname:        userspace
+  Path:               unix
+  Findlibname:        unix
+  FindlibParent:      xenstore
+  Modules:            Userspace
+  BuildDepends:       lwt, lwt.unix, xenstore, cstruct.lwt, io-page, io-page.unix
+
+Library xenstore_xenctrl
+  Build$:             flag(xenctrl)
+  CompiledObject:     best
+  Path:               xenctrl
+  Findlibname:        xenctrl
   FindlibParent:      xenstore
   CSources:           domains_stubs.c
   CCLib:              -lxenctrl
@@ -54,12 +67,13 @@ Executable xs
   MainIs:             xs.ml
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.userspace, cmdliner
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.unix, cmdliner
 
 Executable domain_watcher
+  Build$:             flag(xenctrl)
   CompiledObject:     best
   Path:               examples
   MainIs:             domain_watcher.ml
   Custom:             true
   Install:            false
-  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.userspace
+  BuildDepends:       lwt, lwt.unix, xenstore, xenstore.xenctrl
