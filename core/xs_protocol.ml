@@ -172,6 +172,8 @@ module Parser = struct
 
   let xenstore_payload_max = 4096 (* xen/include/public/io/xs_wire.h *)
 
+  let allow_oversize_packets = ref true
+
   type state =
     | Unknown_operation of int32
     | Parser_failed of string
@@ -203,7 +205,7 @@ module Parser = struct
        This will leave the guest connection is a bad state and will
        be hard to recover from without restarting the connection
        (ie rebooting the guest) *)
-    let len = max 0 (min xenstore_payload_max len) in
+    let len = if !allow_oversize_packets then len else max 0 (min xenstore_payload_max len) in
 
     begin match Op.of_int32 ty with
     | Some ty ->
