@@ -670,6 +670,7 @@ end
 
 exception Enoent of string
 exception Eagain
+exception Eexist
 exception Invalid
 exception Error of string
 
@@ -679,6 +680,7 @@ let response hint sent received f = match get_ty sent, get_ty received with
       | "ENOENT" -> raise (Enoent hint)
       | "EAGAIN" -> raise Eagain
       | "EINVAL" -> raise Invalid
+      | "EEXIST" -> raise Eexist
       | s -> raise (Error s)
     end
   | x, y when x = y ->
