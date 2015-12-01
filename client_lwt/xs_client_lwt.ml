@@ -345,20 +345,22 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
           lwt result = f h in
           wakeup wakener result;
           return true
-        with Eagain ->
-          return false in
+        with
+        | Eagain -> return false
+        | ex -> wakeup_exn wakener ex; return true in
       if finished
       then return ()
       else adjust_paths () >> loop ()
     in
-    let (_: unit Lwt.t) =
+    Lwt.async (fun () ->
       try_lwt
         loop ()
       finally
         let current_paths = Xs_handle.get_watched_paths h in
         lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths) in
         Hashtbl.remove client.watchevents token;
-        return () in
+        return ()
+    );
     result
 
   let rec transaction client f =
