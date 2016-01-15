@@ -198,7 +198,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let enqueue_watch t event =
     with_mutex t.incoming_watches_m
       (fun () ->
-	if Queue.length t.incoming_watches = 1024
+	if Queue.length t.incoming_watches = 65536
 	then t.queue_overflowed := true
 	else Queue.push event t.incoming_watches;
 	Condition.signal t.incoming_watches_c
