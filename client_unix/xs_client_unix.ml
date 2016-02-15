@@ -321,7 +321,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let restrict h domid = rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
   let getdomainpath h domid = rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
   let watch h path token = rpc "watch" (Xs_handle.watch h path) (Request.Watch(path, token)) Unmarshal.ok
-  let unwatch h path token = rpc "unwatch" (Xs_handle.watch h path) (Request.Unwatch(path, token)) Unmarshal.ok
+  let unwatch h path token = rpc "unwatch" (Xs_handle.unwatch h path) (Request.Unwatch(path, token)) Unmarshal.ok
   let introduce h domid store_mfn store_port = rpc "introduce" h (Request.Introduce(domid, store_mfn, store_port)) Unmarshal.ok
   let set_target h stubdom_domid domid = rpc "set_target" h (Request.Set_target(stubdom_domid, domid)) Unmarshal.ok
   let immediate client f = f (Xs_handle.no_transaction client)
