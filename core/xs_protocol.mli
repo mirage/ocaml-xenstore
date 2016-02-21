@@ -225,6 +225,7 @@ end
 
 exception Enoent of string (** Raised when a named key does not exist. *)
 exception Eagain           (** Raised when a transaction must be repeated. *)
+exception Eexist           (** Raised when a watch already exists. *)
 exception Invalid
 exception Error of string  (** Generic catch-all error. *)
 
