@@ -218,7 +218,6 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
             | Some w -> Watcher.put w path
             | None -> if not(startswith auto_watch_prefix token) then enqueue_watch t (path, token)
             end;
-            dispatcher t
           | _ ->
             handle_exn t Malformed_watch_event
         end;
