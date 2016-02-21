@@ -73,6 +73,8 @@ end
 
 module Parser : sig
 
+  val allow_oversize_packets: bool ref
+
   type state =
     | Unknown_operation of int32 (** received an unexpected message type *)
     | Parser_failed of string    (** we failed to parse a header *)

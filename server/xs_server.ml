@@ -100,6 +100,7 @@ module Server = functor(T: TRANSPORT) -> struct
 			T.destroy t
 
 	let serve_forever () =
+		Parser.allow_oversize_packets := false;
 		lwt server = T.listen () in
 		T.accept_forever server handle_connection
 end
