@@ -1,6 +1,6 @@
 OASISFormat: 0.3
 Name:        xenstore
-Version:     1.2.5
+Version:     1.3.0
 Synopsis:    Xenstore protocol library
 Authors:     see CREDITS.md
 License:     LGPL-2.1 with OCaml linking exception
@@ -67,10 +67,26 @@ Test server_test
   Command:            $server_test
   WorkingDirectory:   server_test
 
-Document api
+Document core
   Title: Documentation and API reference
   Type: ocamlbuild (0.3)
   BuildTools+: ocamldoc
-  XOcamlbuildPath: doc
-  XOcamlbuildModules: Xs_protocol, Xs_handle, Xs_client_lwt, Xs_client_unix
+  XOcamlbuildPath: core
+  XOcamlbuildModules: Xs_protocol, Xs_handle
+  Install: false
+
+Document client_lwt
+  Title: Documentation and API reference
+  Type: ocamlbuild (0.3)
+  BuildTools+: ocamldoc
+  XOcamlbuildPath: client_lwt
+  XOcamlbuildModules: Xs_client_lwt
+  Install: false
+
+Document client_unix
+  Title: Documentation and API reference
+  Type: ocamlbuild (0.3)
+  BuildTools+: ocamldoc
+  XOcamlbuildPath: client_unix
+  XOcamlbuildModules: Xs_client_unix
   Install: false

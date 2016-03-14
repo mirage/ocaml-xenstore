@@ -82,8 +82,3 @@ true: annot, bin_annot
 <server_test/*.ml{,i,y}>: use_xenstore_server
 <server_test/server_test.{native,byte}>: custom
 # OASIS_STOP
-true: annot
-<core>: include
-<client_lwt>: include
-<client_unix>: include
-<server>: include
