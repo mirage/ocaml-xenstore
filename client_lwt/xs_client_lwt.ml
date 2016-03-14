@@ -62,6 +62,16 @@ end
 let ( |> ) a b = b a
 let ( ++ ) f g x = f (g x)
 
+let finally f g =
+  Lwt.catch
+    (fun () ->
+      f () >>= fun result ->
+      g () >>= fun () ->
+      Lwt.return result
+    ) (fun e ->
+      g () >>= fun () ->
+      Lwt.fail e)
+
 module StringSet = Xs_handle.StringSet
 
 module Watcher = struct
@@ -94,9 +104,14 @@ module Watcher = struct
   let get (x: t) =
     Lwt_mutex.with_lock x.m
       (fun () ->
-        while_lwt x.paths = StringSet.empty && not x.cancelling do
-          Lwt_condition.wait ~mutex:x.m x.c
-        done >>
+        let rec loop () =
+          if x.paths = StringSet.empty && not x.cancelling then begin
+            Lwt_condition.wait ~mutex:x.m x.c
+            >>= fun () ->
+            loop ()
+          end else Lwt.return () in
+        loop ()
+        >>= fun () ->
         let results = x.paths in
         x.paths <- StringSet.empty;
 	return results
@@ -145,49 +160,55 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
   (* Multiple threads will call 'make' in parallel. We must ensure only
      one client is created. *)
 
-  let recv_one t = match_lwt (PS.recv t.ps) with
+  let recv_one t =
+    PS.recv t.ps
+    >>= function
     | Ok x -> return x
-    | Exception e -> raise_lwt e
+    | Exception e -> Lwt.fail e
   let send_one t = PS.send t.ps
 
   let handle_exn t e =
     Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
-    lwt () = begin 
+    begin 
       match e with
       | Xs_protocol.Response_parser_failed x ->
       (* Lwt_io.hexdump Lwt_io.stderr x *)
          return ()
-      | _ -> return () end in
+      | _ -> return ()
+    end >>= fun () ->
     t.dispatcher_shutting_down <- true; (* no more hashtable entries after this *)
     (* all blocking threads are failed with our exception *)
-    lwt () = Lwt_mutex.with_lock t.suspended_m (fun () ->
+    Lwt_mutex.with_lock t.suspended_m (fun () ->
       Printf.fprintf stderr "Propagating exception to %d threads\n%!" (Hashtbl.length t.rid_to_wakeup);
       Hashtbl.iter (fun _ u -> Lwt.wakeup_later_exn u e) t.rid_to_wakeup;
-      return ()) in
-    raise_lwt e
+      return ())
+    >>= fun () ->
+    Lwt.fail e
 
   let rec dispatcher t =
-    lwt pkt = try_lwt recv_one t with e -> handle_exn t e in
+    Lwt.catch (fun () -> recv_one t) (handle_exn t)
+    >>= fun pkt ->
     match get_ty pkt with
       | Op.Watchevent  ->
-        lwt () = begin match Unmarshal.list pkt with
+        begin match Unmarshal.list pkt with
           | Some [path; token] ->
             let token = Token.of_string token in
             (* We may get old watches: silently drop these *)
-            if Hashtbl.mem t.watchevents token
-            then Watcher.put (Hashtbl.find t.watchevents token) path >> dispatcher t
-            else dispatcher t
+            if Hashtbl.mem t.watchevents token then begin
+              Watcher.put (Hashtbl.find t.watchevents token) path
+              >>= fun () -> dispatcher t
+            end else dispatcher t
           | _ ->
             handle_exn t Malformed_watch_event
-          end in
+        end >>= fun () ->
         dispatcher t
       | _ ->
         let rid = get_rid pkt in
-        lwt thread = Lwt_mutex.with_lock t.suspended_m (fun () -> 
+        Lwt_mutex.with_lock t.suspended_m (fun () -> 
           if Hashtbl.mem t.rid_to_wakeup rid
           then return (Some (Hashtbl.find t.rid_to_wakeup rid))
-          else return None) in
-        match thread with
+          else return None)
+        >>= function
           | None -> handle_exn t (Unexpected_rid rid)
           | Some thread -> 
             begin
@@ -197,7 +218,8 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
 
 
   let make_unsafe () =
-    lwt transport = IO.create () in
+    IO.create ()
+    >>= fun transport ->
     let t = {
       transport = transport;
       ps = PS.make transport;
@@ -219,28 +241,36 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
         (fun () -> match !client_cache with
            | Some c -> return c
            | None ->
-             lwt c = make_unsafe () in
+             make_unsafe ()
+             >>= fun c ->
              client_cache := Some c;
              return c
         )
 
   let suspend t =
-    lwt () = Lwt_mutex.with_lock t.suspended_m
+    Lwt_mutex.with_lock t.suspended_m
       (fun () -> 
         t.suspended <- true;
-        while_lwt (Hashtbl.length t.rid_to_wakeup > 0) do
-          Lwt_condition.wait ~mutex:t.suspended_m t.suspended_c
-        done) in
+        let rec loop () =
+          if Hashtbl.length t.rid_to_wakeup > 0 then begin
+            Lwt_condition.wait ~mutex:t.suspended_m t.suspended_c
+            >>= fun () ->
+            loop ()
+          end else Lwt.return () in
+        loop ()
+      )
+    >>= fun () ->
       Hashtbl.iter (fun _ watcher -> Watcher.cancel watcher) t.watchevents;
       Lwt.cancel t.dispatcher_thread;
       return ()
 
   let resume_unsafe t =
-    lwt () = Lwt_mutex.with_lock t.suspended_m (fun () -> 
+    Lwt_mutex.with_lock t.suspended_m (fun () -> 
       t.suspended <- false;
       t.dispatcher_shutting_down <- false;
       Lwt_condition.broadcast t.suspended_c (); 
-      return ()) in
+      return ())
+    >>= fun () ->
     t.dispatcher_thread <- dispatcher t;
     return ()
 
@@ -267,23 +297,28 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
     let t, u = wait () in
     let c = get_client h in
     if c.dispatcher_shutting_down
-    then raise_lwt Dispatcher_failed
+    then Lwt.fail Dispatcher_failed
     else begin
-      lwt () = Lwt_mutex.with_lock c.suspended_m (fun () ->
-        lwt () = while_lwt c.suspended do
-          Lwt_condition.wait ~mutex:c.suspended_m c.suspended_c
-        done in
+      Lwt_mutex.with_lock c.suspended_m (fun () ->
+        let rec loop () =
+          if c.suspended then begin
+            Lwt_condition.wait ~mutex:c.suspended_m c.suspended_c
+            >>= fun () ->
+            loop ()
+          end else Lwt.return () in
+        loop ()
+        >>= fun () ->
         Hashtbl.add c.rid_to_wakeup rid u;   
-        lwt () = send_one c request in
-        return ()) in
-      lwt res = t in
-      lwt () = Lwt_mutex.with_lock c.suspended_m 
+        send_one c request
+      ) >>= fun () ->
+      t >>= fun res ->
+      Lwt_mutex.with_lock c.suspended_m 
         (fun () -> 
           Hashtbl.remove c.rid_to_wakeup rid;
           Lwt_condition.broadcast c.suspended_c (); 
-          return ()) in
-      try_lwt
-        return (response hint request res unmarshal)
+          return ())
+      >>= fun () ->
+      return (response hint request res unmarshal)
  end
 
   let directory h path = rpc "directory" (Xs_handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
@@ -325,14 +360,17 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       let current_paths = Xs_handle.get_watched_paths h in
       (* Paths which weren't read don't need to be watched: *)
       let old_paths = diff current_paths (Xs_handle.get_accessed_paths h) in
-      lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements old_paths) in
+      Lwt_list.iter_s (fun p -> unwatch h p token) (elements old_paths)
+      >>= fun () ->
       (* Paths which were read do need to be watched: *)
       let new_paths = diff (Xs_handle.get_accessed_paths h) current_paths in
-      lwt () = Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths) in
+      Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths)
+      >>= fun () ->
       (* If we're watching the correct set of paths already then just block *)
       if old_paths = empty && (new_paths = empty)
       then begin
-        lwt results = Watcher.get watcher in
+        Watcher.get watcher
+        >>= fun results ->
         (* an empty results set means we've been cancelled: trigger cleanup *)
         if results = empty
         then fail (Failure "goodnight")
@@ -340,37 +378,47 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       end else return () in
     (* Main client loop: *)
     let rec loop () =
-      lwt finished =
-        try_lwt
-          lwt result = f h in
+      Lwt.catch
+        (fun () ->
+          f h
+          >>= fun result ->
           wakeup wakener result;
           return true
-        with
-        | Eagain -> return false
-        | ex -> wakeup_exn wakener ex; return true in
-      if finished
-      then return ()
-      else adjust_paths () >> loop ()
+        ) (function
+          | Eagain -> return false
+          | ex -> wakeup_exn wakener ex; return true)
+      >>= function
+      | true -> return ()
+      | false ->
+        adjust_paths ()
+        >>= fun () ->
+        loop ()
     in
     Lwt.async (fun () ->
-      try_lwt
-        loop ()
-      finally
-        let current_paths = Xs_handle.get_watched_paths h in
-        lwt () = Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths) in
-        Hashtbl.remove client.watchevents token;
-        return ()
+      finally loop
+        (fun () ->
+          let current_paths = Xs_handle.get_watched_paths h in
+          Lwt_list.iter_s (fun p -> unwatch h p token) (elements current_paths)
+          >>= fun () ->
+          Hashtbl.remove client.watchevents token;
+          return ()
+        )
     );
     result
 
   let rec transaction client f =
-    lwt tid = rpc "transaction_start" (Xs_handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
+    rpc "transaction_start" (Xs_handle.no_transaction client) Request.Transaction_start Unmarshal.int32
+    >>= fun tid ->
     let h = Xs_handle.transaction client tid in
-    lwt result = f h in
-    try_lwt
-      lwt res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
-      if res' = "OK" then return result else raise_lwt (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
-    with Eagain ->
-      transaction client f
+    f h
+    >>= fun result ->
+    Lwt.catch
+    (fun () ->
+      rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string
+      >>= fun res' ->
+      if res' = "OK" then return result else Lwt.fail (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
+    ) (function
+        | Eagain -> transaction client f
+        | e -> Lwt.fail e)
 end
 
