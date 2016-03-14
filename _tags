@@ -1,8 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: f48c3953573a875c97ded5c289e39917)
-# Ignore VCS directories, you can use the same kind of rule outside 
-# OASIS_START/STOP if you want to exclude directories that contains 
+# DO NOT EDIT (digest: 3221ba60a1c9e99516acf28254e61a4e)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
+true: annot, bin_annot
 <**/.svn>: -traverse
 <**/.svn>: not_hygienic
 ".bzr": -traverse
@@ -15,21 +16,21 @@
 "_darcs": not_hygienic
 # Library xenstore
 "core/xenstore.cmxs": use_xenstore
-<core/*.ml{,i}>: pkg_cstruct
-<core/*.ml{,i}>: pkg_cstruct.syntax
+<core/*.ml{,i,y}>: pkg_cstruct
+<core/*.ml{,i,y}>: pkg_cstruct.ppx
 # Library xenstore_client_lwt
 "client_lwt/xenstore_client_lwt.cmxs": use_xenstore_client_lwt
-<client_lwt/*.ml{,i}>: use_xenstore
-<client_lwt/*.ml{,i}>: pkg_lwt
-<client_lwt/*.ml{,i}>: pkg_cstruct
-<client_lwt/*.ml{,i}>: pkg_cstruct.syntax
+<client_lwt/*.ml{,i,y}>: pkg_cstruct
+<client_lwt/*.ml{,i,y}>: pkg_cstruct.ppx
+<client_lwt/*.ml{,i,y}>: pkg_lwt
+<client_lwt/*.ml{,i,y}>: use_xenstore
 # Library xenstore_client_unix
 "client_unix/xenstore_client_unix.cmxs": use_xenstore_client_unix
-<client_unix/*.ml{,i}>: use_xenstore
-<client_unix/*.ml{,i}>: pkg_unix
-<client_unix/*.ml{,i}>: pkg_threads
-<client_unix/*.ml{,i}>: pkg_cstruct
-<client_unix/*.ml{,i}>: pkg_cstruct.syntax
+<client_unix/*.ml{,i,y}>: pkg_cstruct
+<client_unix/*.ml{,i,y}>: pkg_cstruct.ppx
+<client_unix/*.ml{,i,y}>: pkg_threads
+<client_unix/*.ml{,i,y}>: pkg_unix
+<client_unix/*.ml{,i,y}>: use_xenstore
 # Library xenstore_server
 "server/xenstore_server.cmxs": use_xenstore_server
 "server/logging.cmx": for-pack(Xenstore_server)
@@ -48,43 +49,40 @@
 "server/junk.cmx": for-pack(Xenstore_server)
 "server/introduce.cmx": for-pack(Xenstore_server)
 "server/heap_debug_interface.cmx": for-pack(Xenstore_server)
-<server/*.ml{,i}>: use_xenstore
-<server/*.ml{,i}>: pkg_lwt
-<server/*.ml{,i}>: pkg_cstruct
-<server/*.ml{,i}>: pkg_cstruct.syntax
+<server/*.ml{,i,y}>: pkg_cstruct
+<server/*.ml{,i,y}>: pkg_cstruct.ppx
+<server/*.ml{,i,y}>: pkg_lwt
+<server/*.ml{,i,y}>: use_xenstore
 # Executable xs_test
-<core_test/xs_test.{native,byte}>: use_xenstore
-<core_test/xs_test.{native,byte}>: pkg_lwt
-<core_test/xs_test.{native,byte}>: pkg_oUnit
-<core_test/xs_test.{native,byte}>: pkg_lwt.unix
 <core_test/xs_test.{native,byte}>: pkg_cstruct
-<core_test/xs_test.{native,byte}>: pkg_cstruct.syntax
-<core_test/*.ml{,i}>: use_xenstore
-<core_test/*.ml{,i}>: pkg_lwt
-<core_test/*.ml{,i}>: pkg_oUnit
-<core_test/*.ml{,i}>: pkg_lwt.unix
-<core_test/*.ml{,i}>: pkg_cstruct
-<core_test/*.ml{,i}>: pkg_cstruct.syntax
+<core_test/xs_test.{native,byte}>: pkg_cstruct.ppx
+<core_test/xs_test.{native,byte}>: pkg_lwt
+<core_test/xs_test.{native,byte}>: pkg_lwt.unix
+<core_test/xs_test.{native,byte}>: pkg_oUnit
+<core_test/xs_test.{native,byte}>: use_xenstore
+<core_test/*.ml{,i,y}>: pkg_cstruct
+<core_test/*.ml{,i,y}>: pkg_cstruct.ppx
+<core_test/*.ml{,i,y}>: pkg_lwt
+<core_test/*.ml{,i,y}>: pkg_lwt.unix
+<core_test/*.ml{,i,y}>: pkg_oUnit
+<core_test/*.ml{,i,y}>: use_xenstore
 <core_test/xs_test.{native,byte}>: custom
 # Executable server_test
-<server_test/server_test.{native,byte}>: use_xenstore_server
-<server_test/server_test.{native,byte}>: use_xenstore
+<server_test/server_test.{native,byte}>: pkg_cstruct
+<server_test/server_test.{native,byte}>: pkg_cstruct.ppx
 <server_test/server_test.{native,byte}>: pkg_lwt
 <server_test/server_test.{native,byte}>: pkg_oUnit
-<server_test/server_test.{native,byte}>: pkg_cstruct
-<server_test/server_test.{native,byte}>: pkg_cstruct.syntax
-<server_test/*.ml{,i}>: use_xenstore_server
-<server_test/*.ml{,i}>: use_xenstore
-<server_test/*.ml{,i}>: pkg_lwt
-<server_test/*.ml{,i}>: pkg_oUnit
-<server_test/*.ml{,i}>: pkg_cstruct
-<server_test/*.ml{,i}>: pkg_cstruct.syntax
+<server_test/server_test.{native,byte}>: use_xenstore
+<server_test/server_test.{native,byte}>: use_xenstore_server
+<server_test/*.ml{,i,y}>: pkg_cstruct
+<server_test/*.ml{,i,y}>: pkg_cstruct.ppx
+<server_test/*.ml{,i,y}>: pkg_lwt
+<server_test/*.ml{,i,y}>: pkg_oUnit
+<server_test/*.ml{,i,y}>: use_xenstore
+<server_test/*.ml{,i,y}>: use_xenstore_server
 <server_test/server_test.{native,byte}>: custom
 # OASIS_STOP
 true: annot
-<*/*.ml>: syntax_camlp4o
-<client_lwt/*.ml>: pkg_lwt.syntax
-<server/*.ml>: pkg_lwt.syntax
 <core>: include
 <client_lwt>: include
 <client_unix>: include
