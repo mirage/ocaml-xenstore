@@ -54,7 +54,8 @@ module Server = functor(T: TRANSPORT) -> struct
 	module PS = PacketStream(T)
 
 	let handle_connection t =
-		lwt address = T.address_of t in
+		T.address_of t
+                >>= fun address ->
 		let interface = T.namespace_of t in
 		let c = Connection.create address interface in
 		let channel = PS.make t in
@@ -69,38 +70,51 @@ module Server = functor(T: TRANSPORT) -> struct
 					PS.send channel (Xs_protocol.(Response.(print (Watchevent(path, token)) 0l 0l)))
 				) q in
 		let (background_watch_event_flusher: unit Lwt.t) =
-			while_lwt true do
+                        let rec forever () =
 				Lwt_mutex.with_lock m
 					(fun () ->
-						lwt () = while_lwt Queue.length c.Connection.watch_events = 0 do
-							Lwt_condition.wait ~mutex:m c.Connection.cvar
-						done in
+                                                let rec loop () =
+                                                        if Queue.length c.Connection.watch_events = 0 then begin
+							  Lwt_condition.wait ~mutex:m c.Connection.cvar
+						          >>= fun () ->
+                                                          loop ()
+                                                        end else return () in
+                                                loop ()
+                                                >>= fun () ->
 						flush_watch_events (take_watch_events ())
 					)
-			done in
+                                >>= fun () ->
+                                forever () in
+                        forever () in
 
-		try_lwt
-			lwt () =
-			while_lwt true do
-				lwt request = match_lwt (PS.recv channel) with
-					| Ok x -> return x
-					| Exception e -> raise_lwt e in
+		Lwt.catch (fun () ->
+                        let rec forever () =
+                                ( PS.recv channel
+                                  >>= function
+				  | Ok x -> return x
+				  | Exception e -> Lwt.fail e )
+                                >>= fun request ->
 				let events = take_watch_events () in
 				let reply = Call.reply store c request in
 				Lwt_mutex.with_lock m
 					(fun () ->
-						lwt () = flush_watch_events events in	
+						flush_watch_events events
+                                                >>= fun () ->
 						PS.send channel reply
 					)
-			done in
+                                >>= fun () ->
+                                forever () in
+                        forever ()
+                        >>= fun () ->
 			T.destroy t
-		with e ->
+                ) (fun e ->
 			Lwt.cancel background_watch_event_flusher;
 			Connection.destroy address;
-			T.destroy t
+			T.destroy t)
 
 	let serve_forever () =
 		Parser.allow_oversize_packets := false;
-		lwt server = T.listen () in
+		T.listen ()
+                >>= fun server ->
 		T.accept_forever server handle_connection
 end

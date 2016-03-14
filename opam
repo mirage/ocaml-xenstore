@@ -1,5 +1,5 @@
 opam-version: "1.2"
-maintainer:   "dave.scott@eu.citrix.com"
+maintainer:   "dave@recoil.org"
 authors:      [
   "Vincent Hanquez"
   "Thomas Gazagnaire"
@@ -19,7 +19,8 @@ remove: ["ocamlfind" "remove" "xenstore"]
 
 depends: [
   "ocamlfind" {build}
-  "cstruct" {>= "0.6.0"}
+  "cstruct" {>= "1.9.0"}
+  "ppx_tools"
   "lwt"
   "camlp4" {build}
   "ounit" {build}
@@ -30,3 +31,4 @@ depexts: [
   [["centos"] ["xen-devel"]]
   [["xenserver"] ["xen-dom0-libs-devel" "xen-libs-devel"]]
 ]
+available: [ ocaml-version >= "4.02.0" ]

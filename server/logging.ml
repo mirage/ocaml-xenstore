@@ -57,7 +57,8 @@ let get (logger: logger) =
 	then return_lines all
 	else begin
 		(* Block for at least one line *)
-		lwt all = Lwt_stream.nget 1 logger.stream in
+		Lwt_stream.nget 1 logger.stream
+                >>= fun all ->
 		return_lines all
 	end
 
