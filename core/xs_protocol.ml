@@ -139,12 +139,14 @@ type t = {
   data: Buffer.t;
 }
 
-cstruct header {
-  uint32_t ty;
-  uint32_t rid;
-  uint32_t tid;
-  uint32_t len
-} as little_endian
+[%%cstruct
+type header = {
+  ty: uint32_t;
+  rid: uint32_t;
+  tid: uint32_t;
+  len: uint32_t;
+} [@@little_endian]
+]
 
 let to_string pkt =
   let header = Cstruct.create sizeof_header in
