@@ -406,5 +406,11 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     with Eagain when (attempts > 1) ->
       transaction_attempts (attempts-1) client f
 
+  (** Deprecated: retries for ever on repeated Eagain *)
+  let rec transaction client f =
+    let (h, result) = _transaction_leave_open client f in
+    try _commit h result
+    with Eagain -> transaction client f
+
 end
 
