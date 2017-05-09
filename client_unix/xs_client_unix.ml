@@ -386,15 +386,31 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     in
     t
 
-  let rec transaction client f =
+  let _transaction_leave_open client f =
     let tid = rpc "transaction_start" (Xs_handle.no_transaction client) Request.Transaction_start Unmarshal.int32 in
     let h = Xs_handle.transaction client tid in
     let result = f h in
-    try
-      let res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
-      if res' = "OK" then result else raise (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
-    with Eagain ->
-      transaction client f
+    (h, result)
+
+  let _commit h result =
+    let res' = rpc "transaction_end" h (Request.Transaction_end true) Unmarshal.string in
+    if res' = "OK" then result else raise (Error (Printf.sprintf "Unexpected transaction result: %s" res'))
+
+  let transaction_one_try client f =
+    let (h, result) = _transaction_leave_open client f in
+    _commit h result
+
+  let rec transaction_attempts attempts client f =
+    let (h, result) = _transaction_leave_open client f in
+    try _commit h result
+    with Eagain when (attempts > 1) ->
+      transaction_attempts (attempts-1) client f
+
+  (** Deprecated: retries for ever on repeated Eagain *)
+  let rec transaction client f =
+    let (h, result) = _transaction_leave_open client f in
+    try _commit h result
+    with Eagain -> transaction client f
 
 end
 

@@ -66,9 +66,22 @@ module Client : functor(IO: IO) -> sig
   val immediate : client -> (handle -> 'a IO.t) -> 'a IO.t
   (** Access xenstore with individual operations. *)
 
-  val transaction : client -> (handle -> 'a IO.t) -> 'a IO.t
+  val transaction_one_try : client -> (handle -> 'a IO.t) -> 'a IO.t
   (** Access xenstore with a single transaction.  On conflict the
-      operation will be repeated. *)
+      Eagain error will not be handled but will be passed up to the
+      caller. *)
+
+  val transaction_attempts : int -> client -> (handle -> 'a IO.t) -> 'a IO.t
+  (** Access xenstore with a single transaction.  On conflict the
+      operation may be attempted again, up to a total of (max attempts 1)
+      attempts. If the last of those fails with a conflict, the Eagain
+      exception will be raised to the caller. *)
+
+  val transaction : client -> (handle -> 'a IO.t) -> 'a IO.t
+  (** DEPRECATED!
+      Access xenstore with a single transaction.  On conflict the
+      operation will be repeated INDEFINITELY, with no guarantee
+      of eventual success or termination. *)
 
   val wait : client -> (handle -> 'a IO.t) -> 'a Task.u
   (** Wait for some condition to become true and return a value.  The
