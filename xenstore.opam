@@ -25,10 +25,4 @@ depends: [
   "lwt"
   "ounit" {build}
 ]
-depexts: [
-  [["debian"] ["libxen-dev" "uuid-dev"]]
-  [["ubuntu"] ["libxen-dev" "uuid-dev"]]
-  [["centos"] ["xen-devel"]]
-  [["xenserver"] ["xen-dom0-libs-devel" "xen-libs-devel"]]
-]
 available: [ ocaml-version >= "4.02.0" ]
