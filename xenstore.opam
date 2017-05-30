@@ -10,6 +10,7 @@ authors:      [
 homepage:     "https://github.com/mirage/ocaml-xenstore"
 bug-reports:  "https://github.com/mirage/ocaml-xenstore/issues"
 dev-repo:     "https://github.com/mirage/ocaml-xenstore.git"
+doc:          "https://mirage.github.io/ocaml-xenstore"
 
 build: [
   [ "jbuilder" "subst"] {pinned}
