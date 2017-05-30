@@ -1,0 +1,8 @@
+(library
+ ((name xenstore)
+  (public_name xenstore)
+  (wrapped false)
+  (libraries (cstruct cstruct.ppx))
+  (preprocess (pps (cstruct.ppx)))
+))
+

@@ -12,13 +12,13 @@ bug-reports:  "https://github.com/mirage/ocaml-xenstore/issues"
 dev-repo:     "https://github.com/mirage/ocaml-xenstore.git"
 
 build: [
-  [make "all"]
+  [ "jbuilder" "subst"] {pinned}
+  [ "jbuilder" "build" "-p" name "-j" jobs ]
 ]
-install: [make "install"]
-remove: ["ocamlfind" "remove" "xenstore"]
 
 depends: [
   "ocamlfind" {build}
+  "jbuilder"  {build & >="1.0+beta9"}
   "cstruct" {>= "1.9.0"}
   "ppx_tools"
   "lwt"
