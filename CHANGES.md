@@ -1,4 +1,4 @@
-1.3.0 (14-Mar-2016):
+## 1.3.0 (2016-03-14):
 * Add EEXIST exception to the interface
 * Allow Ocaml xenstore clients to receive oversized replies from xenstored
 * Return the task for a wait asynchronously
@@ -9,32 +9,32 @@
 * Fix a non-tail call in the dispatcher
 * Switch to ppx from camlp4
 
-1.2.5 (04-Oct-2013):
+## 1.2.5 (2013-10-04):
 * Add Travis continuous integration scripts
 * fix a spurious EQUOTA failure when processing transactions
 
-1.2.4 (11-Sep-2013):
+## 1.2.4 (2013-09-11):
 * fix watches
 
-1.2.3 (27-Aug-2013):
+## 1.2.3 (2013-08-27):
 * export a signature, which can be satisfied by both Unix userspace
   and xen kernelspace clients
 
-1.2.2 (6-Aug-2013):
+## 1.2.2 (2013-08-06):
 * Generate documentation with make doc.
 * Documentation improvements/uniformization.
 * Xs_handle rewritten in a more functional style.
 * Function names now are equal to mirage ones.
 * Renamed Xs_client to Xs_client_lwt.
 
-1.2.1 (15-Mar-2013):
+## 1.2.1 (2013-03-15):
 * Drop packets which are too large
 
-1.2.0 (08-Feb-2013):
+## 1.2.0 (2013-02-08):
 * Use the latest cstruct >=0.6.0 API.
 
-1.1.0 (15-Dec-2012):
+## 1.1.0 (2012-12-15):
 * Add suspend/resume support to the Xenstore client
 
-1.0.0 (5-Oct-2012):
+## 1.0.0 (2012-10-05):
 * Initial public release.
