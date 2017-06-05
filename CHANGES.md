@@ -1,3 +1,11 @@
+## 1.4.0 (2017-06-05):
+* Mark `Xs_client_unix.transaction` as deprecated in favour of
+  `transaction_one_try` and `transaction_attempts`
+* Don't link PPX rewriting libraries into clients via the META file
+* Reformat CHANGES.md to be more topkg-friendly
+* Add `ppx_cstruct` as a build dependency
+* Build with jbuilder and release with topkg
+
 ## 1.3.0 (2016-03-14):
 * Add EEXIST exception to the interface
 * Allow Ocaml xenstore clients to receive oversized replies from xenstored
