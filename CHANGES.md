@@ -1,3 +1,9 @@
+## 1.4.0 (2017-06-08):
+* Add terminating replacements for transaction function
+* Switch to jbuilder
+* Release with topkg
+* Use Docker in travis
+
 ## 1.3.0 (2016-03-14):
 * Add EEXIST exception to the interface
 * Allow Ocaml xenstore clients to receive oversized replies from xenstored
