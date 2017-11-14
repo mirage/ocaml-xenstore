@@ -3,4 +3,5 @@
   (public_name xenstore.unix)
   (wrapped false)
   (libraries (unix threads xenstore))
+  (flags (:standard -safe-string))
 ))

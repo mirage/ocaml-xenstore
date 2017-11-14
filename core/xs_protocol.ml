@@ -183,11 +183,11 @@ module Parser = struct
     | Packet of t
 
   type parse =
-    | ReadingHeader of int * string
+    | ReadingHeader of int * bytes
     | ReadingBody of t
     | Finished of state
 
-  let start () = ReadingHeader (0, String.make header_size '\000')
+  let start () = ReadingHeader (0, Bytes.make header_size '\000')
 
   let state = function
     | ReadingHeader(got_already, _) -> Need_more_data (header_size - got_already)
@@ -224,21 +224,21 @@ module Parser = struct
     | None -> Finished (Unknown_operation ty)
     end
 
-  let input state bytes =
+  let input state (bytes : string) =
     match state with
-      | ReadingHeader(got_already, str) ->
-  String.blit bytes 0 str got_already (String.length bytes);
-  let got_already = got_already + (String.length bytes) in
-  if got_already < header_size
-  then ReadingHeader(got_already, str)
-  else parse_header str
-      | ReadingBody x ->
-  Buffer.add_string x.data bytes;
-  let needed = x.len - (Buffer.length x.data) in
-  if needed > 0
-  then ReadingBody x
-  else Finished (Packet x)
-      | Finished f -> Finished f
+    | ReadingHeader(got_already, (str : bytes)) ->
+      Bytes.blit_string bytes 0 str got_already (String.length bytes);
+      let got_already = got_already + (String.length bytes) in
+      if got_already < header_size
+      then ReadingHeader(got_already, str)
+      else parse_header (Bytes.to_string str)
+    | ReadingBody x ->
+      Buffer.add_string x.data bytes;
+      let needed = x.len - (Buffer.length x.data) in
+      if needed > 0
+      then ReadingBody x
+      else Finished (Packet x)
+    | Finished f -> Finished f
 end
 
 (* Should we switch to an explicit stream abstraction here? *)
@@ -248,7 +248,7 @@ module type IO = sig
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 
   type channel
-  val read: channel -> string -> int -> int -> int t
+  val read: channel -> bytes -> int -> int -> int t
   val write: channel -> string -> int -> int -> unit t
 end
 
@@ -281,12 +281,12 @@ module PacketStream = functor(IO: IO) -> struct
       t.incoming_pkt <- start ();
       return (Ok pkt)
     | Need_more_data x ->
-      let buf = String.make x '\000' in
+      let buf = Bytes.make x '\000' in
       IO.read t.channel buf 0 x
       >>= (function
       | 0 -> return (Exception EOF)
       | n ->
-        let fragment = String.sub buf 0 n in
+        let fragment = Bytes.sub_string buf 0 n in
 	    t.incoming_pkt <- input t.incoming_pkt fragment;
 	    recv t)
     | Unknown_operation x -> return (Exception (Unknown_xenstore_operation x))
