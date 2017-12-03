@@ -12,8 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 
-let debug fmt = Logging.debug "quota" fmt
-let info  fmt = Logging.info  "quota" fmt
 let warn  fmt = Logging.warn  "quota" fmt
 
 exception Limit_reached
@@ -67,7 +65,7 @@ let create () =
 
 let copy quota = { cur = (Hashtbl.copy quota.cur) }
 
-let del quota id = Hashtbl.remove quota.cur id
+(*let del quota id = Hashtbl.remove quota.cur id*)
 
 let check quota id size =
 	if size > !maxsize then (

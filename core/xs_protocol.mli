@@ -102,7 +102,7 @@ module type IO = sig
   val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
 
   type channel
-  val read: channel -> string -> int -> int -> int t
+  val read: channel -> bytes -> int -> int -> int t
   val write: channel -> string -> int -> int -> unit t
 end
 

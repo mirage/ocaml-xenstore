@@ -20,7 +20,7 @@ type ('a, 'b) either = Right of 'a | Left of 'b
 (** apply the clean_f function after fct function has been called.
  * Even if fct raises an exception, clean_f is applied
  *)
-let exnhook = ref None 
+let exnhook = ref None
 
 let finally' fct clean_f =
 	let result = try
@@ -89,23 +89,23 @@ let list_tl_multi n l =
 
 let hexify s =
 	let hexseq_of_char c = Printf.sprintf "%02x" (Char.code c) in
-	let hs = String.create (String.length s * 2) in
+	let hs = Bytes.create (String.length s * 2) in
 	for i = 0 to String.length s - 1
 	do
 		let seq = hexseq_of_char s.[i] in
-		hs.[i * 2] <- seq.[0];
-		hs.[i * 2 + 1] <- seq.[1];
+		Bytes.set hs (i * 2) seq.[0];
+		Bytes.set hs (i * 2 + 1) seq.[1];
 	done;
-	hs
+	Bytes.to_string hs
 
 let unhexify hs =
 	let char_of_hexseq seq0 seq1 = Char.chr (int_of_string (Printf.sprintf "0x%c%c" seq0 seq1)) in
-	let s = String.create (String.length hs / 2) in
-	for i = 0 to String.length s - 1
+	let s = Bytes.create (String.length hs / 2) in
+	for i = 0 to Bytes.length s - 1
 	do
-		s.[i] <- char_of_hexseq hs.[i * 2] hs.[i * 2 + 1]
+		Bytes.set s i @@ char_of_hexseq hs.[i * 2] hs.[i * 2 + 1]
 	done;
-	s
+	Bytes.to_string s
 
 let trim_path path =
 	try

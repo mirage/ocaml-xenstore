@@ -157,13 +157,13 @@ let access_type_disabled = function
 let access_type_enabled x = not(access_type_disabled x)
 
 let sanitize_data data =
-	let data = String.copy data in
-	for i = 0 to String.length data - 1
+	let data = Bytes.of_string data in
+	for i = 0 to Bytes.length data - 1
 	do
-		if data.[i] = '\000' then
-			data.[i] <- ' '
+		if Bytes.get data i = '\000' then
+			Bytes.set data i ' '
 	done;
-	String.escaped data
+	String.escaped (Bytes.to_string data)
 
 let access_logging ~con ~tid ?(data="") access_type =
 	if access_type_enabled access_type then begin

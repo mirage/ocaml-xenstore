@@ -4,5 +4,6 @@
   (wrapped false)
   (libraries (cstruct))
   (preprocess (pps (cstruct.ppx)))
+  (flags (:standard -safe-string))
 ))
 

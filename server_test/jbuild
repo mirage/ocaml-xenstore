@@ -1,6 +1,7 @@
 (executables
  ((names (server_test))
   (libraries (lwt lwt.unix xenstore xenstore.server oUnit))
+  (flags (:standard -safe-string))
 ))
 (alias
  ((name    runtest)
