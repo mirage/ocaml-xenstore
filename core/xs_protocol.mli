@@ -103,7 +103,7 @@ module type IO = sig
 
   type channel
   val read: channel -> bytes -> int -> int -> int t
-  val write: channel -> string -> int -> int -> unit t
+  val write: channel -> bytes -> int -> int -> unit t
 end
 
 exception Unknown_xenstore_operation of int32
@@ -120,7 +120,7 @@ module PacketStream : functor(IO: IO) -> sig
   val send: stream -> t -> unit IO.t
 end
 
-val to_string : t -> string
+val to_bytes : t -> bytes
 val get_tid : t -> int32
 val get_ty : t -> Op.t
 val get_data : t -> string

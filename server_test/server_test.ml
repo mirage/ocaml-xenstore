@@ -32,7 +32,7 @@ let failure f reply =
 	match Xs_protocol.get_ty reply with
 		| Xs_protocol.Op.Error -> f reply
 		| _ ->
-			failwith (Printf.sprintf "Expected failure, got success: %s" (Junk.hexify(Xs_protocol.to_string reply)))
+			failwith (Printf.sprintf "Expected failure, got success: %s" (Junk.hexify(Bytes.to_string @@ Xs_protocol.to_bytes reply)))
 
 let list f reply = match Xs_protocol.Unmarshal.list reply with
 	| Some x -> f x

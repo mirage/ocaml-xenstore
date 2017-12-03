@@ -41,7 +41,7 @@ module type TRANSPORT = sig
 
   type channel
   val read: channel -> bytes -> int -> int -> int Lwt.t
-  val write: channel -> string -> int -> int -> unit Lwt.t
+  val write: channel -> bytes -> int -> int -> unit Lwt.t
   val destroy: channel -> unit Lwt.t
   val address_of: channel -> Xs_protocol.address Lwt.t
 

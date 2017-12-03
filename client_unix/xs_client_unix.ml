@@ -41,7 +41,7 @@ module type IO = sig
   val create: unit -> channel t
   val destroy: channel -> unit t
   val read: channel -> bytes -> int -> int -> int t
-  val write: channel -> string -> int -> int -> unit t
+  val write: channel -> bytes -> int -> int -> unit t
 end
 
 module StringSet = Xs_handle.StringSet

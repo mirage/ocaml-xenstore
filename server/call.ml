@@ -143,7 +143,7 @@ let reply_exn store c (request: t) : Response.payload =
 		else Connection.get_transaction c tid in
 	let payload : Xs_protocol.Request.payload = match Xs_protocol.Request.parse (request: t) with
 		| None ->
- 			error "Failed to parse request: got %s" (hexify (Xs_protocol.to_string request));
+ 			error "Failed to parse request: got %s" (hexify (Bytes.to_string @@ Xs_protocol.to_bytes request));
 			raise Parse_failure
 		| Some x -> x in
 
