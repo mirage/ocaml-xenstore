@@ -14,7 +14,6 @@
 
 (** A multiplexing xenstore protocol client over a byte-level transport *)
 
-open Thread
 open Xs_protocol
 
 let finally f g =
@@ -44,9 +43,6 @@ module type IO = sig
   val read: channel -> bytes -> int -> int -> int t
   val write: channel -> string -> int -> int -> unit t
 end
-
-let ( |> ) a b = b a
-let ( ++ ) f g x = f (g x)
 
 module StringSet = Xs_handle.StringSet
 
@@ -187,7 +183,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let handle_exn t e =
     error "Caught: %s\n%!" (Printexc.to_string e);
     begin match e with
-      | Xs_protocol.Response_parser_failed x ->
+      | Xs_protocol.Response_parser_failed _ ->
       (* Lwt_io.hexdump Lwt_io.stderr x *)
          ()
       | _ -> ()

@@ -51,7 +51,7 @@ let read t (perms: Perms.t) (path: Store.Path.t) =
 
 let exists t perms path = try ignore(read t perms path); true with Store.Path.Doesnt_exist _ -> false
 
-let write t creator perms path value =
+let write _t _creator perms path value =
 	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
 		| "default" :: "number-of-entries" :: [] ->
@@ -93,7 +93,7 @@ let list t perms path =
 	| _ -> []
 
 
-let rm t perms path =
+let rm _t perms path =
 	Perms.has perms Perms.CONFIGURE;
 	match Store.Path.to_string_list path with
 	| "number-of-entries" :: domid :: [] ->

@@ -54,7 +54,7 @@ let test_coalesce oldroot currentroot path =
 			let pnode = Store.lookup currentroot (Store.Path.get_parent path) in
 			match pnode with
 			| None       -> false (* ok it doesn't exists, just bail out. *)
-			| Some pnode -> true
+			| Some _pnode -> true
 			)
 		| _ ->
 			false
@@ -96,7 +96,7 @@ let get_operations t = List.rev t.operations
 let set_read_lowpath t path = t.read_lowpath <- get_lowest path t.read_lowpath
 let set_write_lowpath t path = t.write_lowpath <- get_lowest path t.write_lowpath
 
-let exists t perms path = Store.exists t.store path
+let exists t _perms path = Store.exists t.store path
 
 let write t creator perm path value =
 	let path_existed = exists t perm path in
@@ -143,7 +143,7 @@ let commit ~con t =
 	let has_commited =
 	match t.ty with
 	| No                         -> true
-	| Full (id, oldroot, cstore) ->
+	| Full (_id, oldroot, cstore) ->
 		let commit_partial oldroot cstore store =
 			(* get the lowest path of the query and verify that it hasn't
 			   been modified by others transactions. *)

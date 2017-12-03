@@ -107,7 +107,7 @@ module Server = functor(T: TRANSPORT) -> struct
                         forever ()
                         >>= fun () ->
 			T.destroy t
-                ) (fun e ->
+                ) (fun _ ->
 			Lwt.cancel background_watch_event_flusher;
 			Connection.destroy address;
 			T.destroy t)

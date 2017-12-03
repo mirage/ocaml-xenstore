@@ -67,7 +67,7 @@ let copy quota = { cur = (Hashtbl.copy quota.cur) }
 
 (*let del quota id = Hashtbl.remove quota.cur id*)
 
-let check quota id size =
+let check _quota id size =
 	if size > !maxsize then (
 		warn "domain %u err create entry: data too big %d" id size;
 		raise Data_too_big
