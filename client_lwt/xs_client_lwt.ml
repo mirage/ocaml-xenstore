@@ -29,7 +29,7 @@ module type IO = sig
   val create: unit -> channel t
   val destroy: channel -> unit t
   val read: channel -> bytes -> int -> int -> int t
-  val write: channel -> string -> int -> int -> unit t
+  val write: channel -> bytes -> int -> int -> unit t
 end
 
 module type S = sig
@@ -58,9 +58,6 @@ module type S = sig
   val introduce : handle -> int -> nativeint -> int -> unit Lwt.t
   val set_target : handle -> int -> int -> unit Lwt.t
 end
-
-let ( |> ) a b = b a
-let ( ++ ) f g x = f (g x)
 
 let finally f g =
   Lwt.catch
@@ -171,7 +168,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
     Printf.fprintf stderr "Caught: %s\n%!" (Printexc.to_string e);
     begin 
       match e with
-      | Xs_protocol.Response_parser_failed x ->
+      | Xs_protocol.Response_parser_failed _ ->
       (* Lwt_io.hexdump Lwt_io.stderr x *)
          return ()
       | _ -> return ()

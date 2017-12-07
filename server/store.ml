@@ -12,7 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 let debug fmt = Logging.debug "store" fmt
-let error fmt = Logging.debug "error" fmt
 
 open Junk
 
@@ -77,8 +76,6 @@ let del_all_children node =
 
 let rec recurse fct node = fct node; List.iter (recurse fct) node.children
 
-let unpack node = (Symbol.to_string node.name, node.perms, node.value)
-
 end
 
 let char_is_valid c =
@@ -104,7 +101,7 @@ let path_of_string = function
 			if not(is_valid path)
 			then invalid_arg "valid paths contain only ([a-z]|[A-Z]|[0-9]|-|_|@])+";
 			path
-		| path ->
+		| _ ->
 			invalid_arg "valid paths have a /-prefix"
 		end
 
@@ -174,7 +171,6 @@ let create path connection_path =
 
 let to_name x = Name.Absolute x
 
-let of_string = path_of_string
 let to_string = path_to_string
 let to_string_list x = x
 let of_string_list x = x
@@ -274,12 +270,10 @@ type t =
 	mutable quota: Quota.t;
 }
 
-let get_root store = store.root
 let set_root store root =
 	debug "Updating root of store";
 	store.root <- root
 
-let get_quota store = store.quota
 let set_quota store quota = store.quota <- quota
 
 (* modifying functions *)
@@ -416,39 +410,6 @@ let exists store path =
 			Path.apply store.root path check_exist
 		with Not_found -> false
 
-(* others utils *)
-let traversal root_node f =
-	let rec _traversal path node =
-		f path node;
-		List.iter (_traversal (path @ [ Symbol.to_string node.Node.name ])) node.Node.children
-		in
-	_traversal [] root_node
-		
-let dump_store_buf root_node =
-	let buf = Buffer.create 8192 in
-	let dump_node path node =
-		let pathstr = String.concat "/" path in
-		Printf.bprintf buf "%s/%s{%s}" pathstr (Symbol.to_string node.Node.name)
-		               (String.escaped (Xs_protocol.ACL.to_string node.Node.perms));
-		if String.length node.Node.value > 0 then
-			Printf.bprintf buf " = %s\n" (String.escaped node.Node.value)
-		else
-			Printf.bprintf buf "\n";
-		in
-	traversal root_node dump_node;
-	buf
-
-let dump_store chan root_node =
-	let buf = dump_store_buf root_node in
-	output_string chan (Buffer.contents buf);
-	Buffer.reset buf
-
-let dump_fct store f = traversal store.root f
-let dump store out_chan = dump_store out_chan store.root
-let dump_stdout store = dump_store stdout store.root
-let dump_buffer store = dump_store_buf store.root
-
-
 (* modifying functions with quota udpate *)
 let set_node store path node orig_quota mod_quota =
 	let root = Path.set_node store.root path node in
@@ -490,7 +451,7 @@ let setperms store perm path nperms =
 	try
 		match lookup store.root path with
 			| None -> Path.doesnt_exist path
-			| Some node ->
+			| Some _ ->
 				store.root <- path_setperms store perm path nperms
 	with
 		| Not_found -> Path.doesnt_exist path
@@ -510,15 +471,3 @@ let copy store = {
 
 let mark_symbols store =
 	Node.recurse (fun node -> Symbol.mark_as_used node.Node.name) store.root
-
-let incr_transaction_coalesce store =
-	store.stat_transaction_coalesce <- store.stat_transaction_coalesce + 1
-let incr_transaction_abort store =
-	store.stat_transaction_abort <- store.stat_transaction_abort + 1
-
-let stats store =
-	let nb_nodes = ref 0 in
-	traversal store.root (fun path node ->
-		incr nb_nodes
-	);
-	!nb_nodes, store.stat_transaction_abort, store.stat_transaction_coalesce

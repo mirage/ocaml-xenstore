@@ -14,7 +14,7 @@ exception Unsupported
 
 module Unsupported = struct
 	let exists _ _ _ = raise Unsupported
-	let mkdir ?with_watch _ _ _ _ = raise Unsupported
+	let mkdir ?with_watch:_ _ _ _ _ = raise Unsupported
 	let read _ _ _ = raise Unsupported
 	let write _ _ _ _ _ = raise Unsupported
 	let list _ _ _ = raise Unsupported

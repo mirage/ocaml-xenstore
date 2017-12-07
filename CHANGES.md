@@ -1,3 +1,9 @@
+## 2.0.0 (2017-12-06):
+* Fix build with OCaml 4.04 (and `-safe-string`)
+* Remove unnecessary dependency on `ocamlfind` and make `ounit` a test
+  dependency
+* Ensure the CI runs the unit tests
+
 ## 1.4.0 (2017-06-08):
 * Add terminating replacements for transaction function
 * Switch to jbuilder

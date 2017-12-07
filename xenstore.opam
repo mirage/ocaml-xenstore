@@ -13,17 +13,18 @@ dev-repo:     "https://github.com/mirage/ocaml-xenstore.git"
 doc:          "https://mirage.github.io/ocaml-xenstore"
 
 build: [
-  [ "jbuilder" "subst"] {pinned}
-  [ "jbuilder" "build" "-p" name "-j" jobs ]
+  ["jbuilder" "subst" "-p" name "--name" name] {pinned}
+  ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 
+build-test: ["jbuilder" "runtest" "-p" name]
+
 depends: [
-  "ocamlfind" {build}
   "jbuilder"  {build & >="1.0+beta9"}
   "cstruct" {>= "1.9.0"}
   "ppx_cstruct" {build}
   "ppx_tools" {build}
   "lwt"
-  "ounit" {build}
+  "ounit" {test}
 ]
-available: [ ocaml-version >= "4.02.0" ]
+available: [ ocaml-version >= "4.04.0" ]

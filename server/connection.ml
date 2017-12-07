@@ -12,7 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 
-let debug fmt = Logging.debug "connection" fmt
 let info  fmt = Logging.info  "connection" fmt
 let error fmt = Logging.debug "connection" fmt
 
@@ -342,7 +341,7 @@ module Interface = struct
 		| [ "watch" ] ->
 			let all = Hashtbl.fold (fun _ w acc -> w @ acc) c.watches [] in
 			List.map string_of_int (between 0 (List.length all - 1))
-		| [ "watch"; n ] -> [ "name"; "token"; "total-events" ]
+		| [ "watch"; _ ] -> [ "name"; "token"; "total-events" ]
 		| "backend" :: rest ->
 			begin match c.interface with
 			| None -> []

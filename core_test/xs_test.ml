@@ -52,7 +52,7 @@ let acl_parser _ =
 let test_packet_parser choose pkt () =
     let open Xs_protocol in
     let p = ref (Parser.start ()) in
-    let s = to_string pkt in
+    let s = Bytes.to_string @@ to_bytes pkt in
     let i = ref 0 in
     let finished = ref false in
     while not !finished do
@@ -211,7 +211,7 @@ let _ =
 	  "packet_printing" >:::
 		  (List.map (fun example ->
 			  let description = Xs_protocol.Op.to_string example.op in
-			  description >:: (fun () -> assert_equal ~msg:description ~printer:hexstring example.wire_fmt (Xs_protocol.to_string example.packet))
+			  description >:: (fun () -> assert_equal ~msg:description ~printer:hexstring example.wire_fmt (Bytes.to_string @@ Xs_protocol.to_bytes example.packet))
 		  ) example_packets) in
   let suite = "xenstore" >:::
     [

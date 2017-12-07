@@ -12,12 +12,10 @@
  * GNU Lesser General Public License for more details.
  *)
 
-open Lwt
 open Xs_protocol
 open Junk
 
 let ( |> ) a b = b a
-let ( ++ ) f g x = f (g x)
 
 let debug fmt = Logging.debug "call" fmt
 let error fmt = Logging.error "call" fmt
@@ -42,7 +40,7 @@ let get_namespace_implementation path = match Store.Path.to_string_list path wit
 
 (* Perform a 'simple' operation (not a Transaction_start or Transaction_end)
    and create a response. *)
-let op_exn store c t (payload: Request.payload) : Response.payload =
+let op_exn _store c t (payload: Request.payload) : Response.payload =
 	let connection_path = c.Connection.domainpath in
 	let resolve data = Store.Path.create data connection_path in
 
@@ -145,7 +143,7 @@ let reply_exn store c (request: t) : Response.payload =
 		else Connection.get_transaction c tid in
 	let payload : Xs_protocol.Request.payload = match Xs_protocol.Request.parse (request: t) with
 		| None ->
- 			error "Failed to parse request: got %s" (hexify (Xs_protocol.to_string request));
+ 			error "Failed to parse request: got %s" (hexify (Bytes.to_string @@ Xs_protocol.to_bytes request));
 			raise Parse_failure
 		| Some x -> x in
 
@@ -191,11 +189,11 @@ let reply_exn store c (request: t) : Response.payload =
 			Introduce.(introduce { domid = domid; mfn = mfn; remote_port = remote_port });
 			Connection.fire (Xs_protocol.Op.Write, Store.Name.introduceDomain);
 			Response.Introduce
-		| Request.Resume(domid) ->
+		| Request.Resume _ ->
 			Perms.has c.Connection.perm Perms.RESUME;
 			(* register domain *)
 			Response.Resume
-		| Request.Release(domid) ->
+		| Request.Release _ ->
 			Perms.has c.Connection.perm Perms.RELEASE;
 			(* unregister domain *)
 			Connection.fire (Xs_protocol.Op.Write, Store.Name.releaseDomain);
@@ -212,7 +210,7 @@ let reply_exn store c (request: t) : Response.payload =
 			Perms.has c.Connection.perm Perms.RESTRICT;
 			c.Connection.perm <- Perms.restrict c.Connection.perm domid;
 			Response.Restrict
-		| Request.Isintroduced domid ->
+		| Request.Isintroduced _ ->
 			Perms.has c.Connection.perm Perms.ISINTRODUCED;
 			Response.Isintroduced false
 		| Request.Error msg ->
@@ -263,7 +261,7 @@ let reply store c request =
 				| Quota.Limit_reached              -> reply "EQUOTA", default
 				| Quota.Data_too_big               -> reply "E2BIG",  default
 				| Quota.Transaction_opened         -> reply "EQUOTA", default
-				| (Failure "int_of_string")        -> reply "EINVAL", default
+				| Failure _												 -> reply "EINVAL", default
 				| Namespace.Unsupported            -> reply "ENOTSUP",default
 				| _                                -> reply "EIO",    default
 			end in

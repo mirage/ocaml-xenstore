@@ -14,11 +14,7 @@
 
 let info fmt = Logging.info "perms" fmt
 
-open Junk
-
 exception Permission_denied
-
-type domid = int
 
 (* permission of connections *)
 open Xs_protocol.ACL
@@ -59,12 +55,6 @@ let restrict (connection:t) domid =
 		{ connection with main = (domid, perms) }
 	| _                -> raise Permission_denied
 
-let elt_to_string (i,p) =
-	Printf.sprintf "%i%S" i (String.concat "" (List.map String.of_char (List.map char_of_perm p)))
-
-let to_string connection =
-	Printf.sprintf "%s%s" (elt_to_string connection.main) (default "" (may elt_to_string connection.target))
-
 type permission =
 	| READ
 	| WRITE
@@ -78,7 +68,7 @@ type permission =
 	| RESTRICT
 	| CONFIGURE
 
-let has (t: t) p =
+let has (t: t) _p =
 	if not(is_dom0 t) then raise Permission_denied
 
 (* check if owner of the current connection and of the current node are the same *)
