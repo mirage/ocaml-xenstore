@@ -1,3 +1,7 @@
+## dev
+
+* Use modern `ppx_cstruct` dependency for build.
+
 ## 2.0.0 (2017-12-06):
 * Fix build with OCaml 4.04 (and `-safe-string`)
 * Remove unnecessary dependency on `ocamlfind` and make `ounit` a test
