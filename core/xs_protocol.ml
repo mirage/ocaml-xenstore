@@ -73,15 +73,26 @@ let to_string = function
   | Restrict          -> "restrict"
 end
 
-let rec split_string ?limit:(limit=(-1)) c s =
-  let i = try String.index s c with Not_found -> -1 in
-  let nlimit = if limit = -1 || limit = 0 then limit else limit - 1 in
-  if i = -1 || nlimit = 0 then
-    [ s ]
-  else
-    let a = String.sub s 0 i
-    and b = String.sub s (i + 1) (String.length s - i - 1) in
-    a :: (split_string ~limit: nlimit c b)
+let split_string ?limit:(limit=max_int) c s =
+  let len = String.length s in
+  let next_c from =
+    try
+      Some (String.index_from s from c)
+    with
+    | Not_found -> None
+  in
+  let decr n = max 0 (n-1) in
+  let rec loop n from acc =
+    match decr n, next_c from with
+    | 0, _
+    | _, None ->
+      (* No further instances of c, or we've reached limit *)
+      String.sub s from (len - from) :: acc
+    | n', Some idx ->
+      let a = String.sub s from (idx - from) in
+      (loop[@tailcall]) n' (idx + 1) (a :: acc)
+  in loop limit 0 [] |> List.rev
+
 
 module ACL = struct
   type perm =
