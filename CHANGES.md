@@ -1,5 +1,6 @@
-## dev
+## 2.0.1 (2018-08-01)
 
+* Improved efficiency of unmarshalling code
 * Use modern `ppx_cstruct` dependency for build.
 
 ## 2.0.0 (2017-12-06):
