@@ -1,8 +1,5 @@
 *.swp
 _build/
-*.docdir
-*.native
-*.byte
 *~
 #*
 *#
