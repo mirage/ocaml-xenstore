@@ -32,7 +32,7 @@ module Name : sig
 
 	type t
 	(** The name of an entity which may be watched. Note that not all these
-		entities are stored in the xenstore tree (e.g. @introduceDomain) *)
+                entities are stored in the xenstore tree (e.g. [@introduceDomain]) *)
 
 	val introduceDomain: t
 	(** The special watch when a domain is created *)
