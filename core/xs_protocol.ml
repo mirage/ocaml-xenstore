@@ -11,7 +11,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  *)
-open Pervasives
 
 let ( |> ) f g = g f
 let ( ++ ) f g x = f (g x)
