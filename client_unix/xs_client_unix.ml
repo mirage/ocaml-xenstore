@@ -69,28 +69,28 @@ module Watcher = struct
   let put (x: t) path =
     with_mutex x.m
       (fun () ->
-        x.paths <- StringSet.add path x.paths;
-        Condition.signal x.c
+         x.paths <- StringSet.add path x.paths;
+         Condition.signal x.c
       )
 
   (** Return a set of modified paths, or an empty set if we're cancelling *)
   let get (x: t) =
     with_mutex x.m
       (fun () ->
-        while x.paths = StringSet.empty && not x.cancelling do
-          Condition.wait x.c x.m
-        done;
-        let results = x.paths in
-        x.paths <- StringSet.empty;
-        results
+         while x.paths = StringSet.empty && not x.cancelling do
+           Condition.wait x.c x.m
+         done;
+         let results = x.paths in
+         x.paths <- StringSet.empty;
+         results
       )
 
   (** Called to shutdown the watcher and trigger an orderly cleanup *)
   let cancel (x: t) =
     with_mutex x.m
       (fun () ->
-        x.cancelling <- true;
-        Condition.signal x.c
+         x.cancelling <- true;
+         Condition.signal x.c
       )
 end
 
@@ -116,25 +116,25 @@ module Task = struct
     c = Condition.create ();
   }
   let wakeup u thing = with_mutex u.m
-    (fun () ->
-      u.thing <- Some thing;
-      Condition.signal u.c
-    )
+      (fun () ->
+         u.thing <- Some thing;
+         Condition.signal u.c
+      )
   let on_cancel u on_cancel = u.on_cancel <- on_cancel
   let cancel u = with_mutex u.m
-    (fun () ->
-      u.cancelling <- true;
-      Condition.signal u.c
-    );
+      (fun () ->
+         u.cancelling <- true;
+         Condition.signal u.c
+      );
     u.on_cancel ()
   let wait u = with_mutex u.m  (fun () ->
-    let rec loop () =
-      if u.cancelling then raise Cancelled
-      else match u.thing with
-      | None -> Condition.wait u.c u.m; loop ()
-      | Some thing -> thing in
-    loop ()
-  )
+      let rec loop () =
+        if u.cancelling then raise Cancelled
+        else match u.thing with
+          | None -> Condition.wait u.c u.m; loop ()
+          | Some thing -> thing in
+      loop ()
+    )
 end
 
 type watch_callback = string * string -> unit
@@ -168,7 +168,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     queue_overflowed : bool ref;
     incoming_watches_m : Mutex.t;
     incoming_watches_c : Condition.t;
-      
+
     mutable extra_watch_callback: ((string * string) -> unit);
     m: Mutex.t;
   }
@@ -184,8 +184,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     error "Caught: %s\n%!" (Printexc.to_string e);
     begin match e with
       | Xs_protocol.Response_parser_failed _ ->
-      (* Lwt_io.hexdump Lwt_io.stderr x *)
-         ()
+        (* Lwt_io.hexdump Lwt_io.stderr x *)
+        ()
       | _ -> ()
     end;
     t.dispatcher_shutting_down <- true;
@@ -194,63 +194,63 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let enqueue_watch t event =
     with_mutex t.incoming_watches_m
       (fun () ->
-	if Queue.length t.incoming_watches = 65536
-	then t.queue_overflowed := true
-	else Queue.push event t.incoming_watches;
-	Condition.signal t.incoming_watches_c
+         if Queue.length t.incoming_watches = 65536
+         then t.queue_overflowed := true
+         else Queue.push event t.incoming_watches;
+         Condition.signal t.incoming_watches_c
       )
 
   let rec dispatcher t =
     let pkt = try recv_one t with e -> handle_exn t e in
     match get_ty pkt with
-      | Op.Watchevent  ->
-        begin match Unmarshal.list pkt with
-          | Some [path; token] ->
-            (* All 'extra' non-automatic watches are passed to the extra_watch_callback.
-               Note this can include old watches which were still queued in
-			   the server when an 'unwatch' is received. *)
-            let w = with_mutex t.m (fun () -> find_opt t.watchevents token) in
-            begin match w with
+    | Op.Watchevent  ->
+      begin match Unmarshal.list pkt with
+        | Some [path; token] ->
+          (* All 'extra' non-automatic watches are passed to the extra_watch_callback.
+             Note this can include old watches which were still queued in
+             			   the server when an 'unwatch' is received. *)
+          let w = with_mutex t.m (fun () -> find_opt t.watchevents token) in
+          begin match w with
             | Some w -> Watcher.put w path
             | None -> if not(startswith auto_watch_prefix token) then enqueue_watch t (path, token)
-            end;
-          | _ ->
-            handle_exn t Malformed_watch_event
-        end;
-        dispatcher t
-      | _ ->
-        let rid = get_rid pkt in
-        let u = with_mutex t.m (fun () -> find_opt t.rid_to_wakeup rid) in
-        begin match u with
+          end;
+        | _ ->
+          handle_exn t Malformed_watch_event
+      end;
+      dispatcher t
+    | _ ->
+      let rid = get_rid pkt in
+      let u = with_mutex t.m (fun () -> find_opt t.rid_to_wakeup rid) in
+      begin match u with
         | Some u -> Task.wakeup u pkt
         | None -> error "Unexpected rid: %ld\n%!" rid
-        end;
-        dispatcher t
+      end;
+      dispatcher t
 
   let dequeue_watches t =
     while true do
       try 
-	let event = with_mutex t.incoming_watches_m
-	  (fun () ->
-	    while Queue.is_empty t.incoming_watches && not(!(t.queue_overflowed)) do
-	      Condition.wait t.incoming_watches_c t.incoming_watches_m
-	    done;
-	    if !(t.queue_overflowed) then begin
-	      raise Watch_overflow;
-	    end;
-	    Queue.pop t.incoming_watches
-	  ) in
-	let () = t.extra_watch_callback event in
-	()
+        let event = with_mutex t.incoming_watches_m
+            (fun () ->
+               while Queue.is_empty t.incoming_watches && not(!(t.queue_overflowed)) do
+                 Condition.wait t.incoming_watches_c t.incoming_watches_m
+               done;
+               if !(t.queue_overflowed) then begin
+                 raise Watch_overflow;
+               end;
+               Queue.pop t.incoming_watches
+            ) in
+        let () = t.extra_watch_callback event in
+        ()
       with 
-	| Watch_overflow as e ->
-	  error "Caught watch_overflow. Not retrying.";
-	  raise e
-	| e ->
-	  error "Caught '%s' while dequeuing watches. Ignoring.\n%!" (Printexc.to_string e);
+      | Watch_overflow as e ->
+        error "Caught watch_overflow. Not retrying.";
+        raise e
+      | e ->
+        error "Caught '%s' while dequeuing watches. Ignoring.\n%!" (Printexc.to_string e);
     done
-      
-	
+
+
 
   let make () =
     let transport = IO.create () in
@@ -280,15 +280,15 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let set_watch_callback client cb = client.extra_watch_callback <- cb
 
   let make_rid =
-	  let counter = ref 0l in
-	  let m = Mutex.create () in
-	  fun () ->
-		  with_mutex m
-			  (fun () ->
-				  let result = !counter in
-				  counter := Int32.succ !counter;
-				  result
-			  )
+    let counter = ref 0l in
+    let m = Mutex.create () in
+    fun () ->
+      with_mutex m
+        (fun () ->
+           let result = !counter in
+           counter := Int32.succ !counter;
+           result
+        )
 
   let rpc hint h payload unmarshal =
     let open Xs_handle in
@@ -299,11 +299,11 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     if c.dispatcher_shutting_down
     then raise Dispatcher_failed
     else begin
-        with_mutex c.m (fun () -> Hashtbl.add c.rid_to_wakeup rid t);
-        send_one c request;
-        let res = Task.wait t in
-        with_mutex c.m (fun () -> Hashtbl.remove c.rid_to_wakeup rid);
-        response hint request res unmarshal
+      with_mutex c.m (fun () -> Hashtbl.add c.rid_to_wakeup rid t);
+      send_one c request;
+      let res = Task.wait t in
+      with_mutex c.m (fun () -> Hashtbl.remove c.rid_to_wakeup rid);
+      response hint request res unmarshal
     end
 
   let directory h path = rpc "directory" (Xs_handle.accessed_path h path) Request.(PathOp(path, Directory)) Unmarshal.list
@@ -336,8 +336,8 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     let t = Task.make () in
     Task.on_cancel t
       (fun () ->
-        (* Trigger an orderly cleanup in the background: *)
-        Watcher.cancel watcher
+         (* Trigger an orderly cleanup in the background: *)
+         Watcher.cancel watcher
       );
     let h = Xs_handle.watching client in
     (* Adjust the paths we're watching (if necessary) and block (if possible) *)
@@ -373,12 +373,12 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
     in
     let (_: Thread.t) =
       Thread.create (fun () ->
-        finally loop (fun () ->
-          let current_paths = Xs_handle.get_watched_paths h in
-          List.iter (fun p -> unwatch h p token) (elements current_paths);
-          with_mutex client.m (fun () -> Hashtbl.remove client.watchevents token);
-        )
-      ) ()
+          finally loop (fun () ->
+              let current_paths = Xs_handle.get_watched_paths h in
+              List.iter (fun p -> unwatch h p token) (elements current_paths);
+              with_mutex client.m (fun () -> Hashtbl.remove client.watchevents token);
+            )
+        ) ()
     in
     t
 
