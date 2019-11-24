@@ -13,9 +13,9 @@
  *)
 
 type address = {
-	domid: int;
-	mfn: nativeint;
-	remote_port: int;
+  domid: int;
+  mfn: nativeint;
+  remote_port: int;
 }
 
 let (stream: address Lwt_stream.t), introduce_fn = Lwt_stream.create ()
