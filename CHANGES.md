@@ -1,3 +1,10 @@
+## 2.1.1 (2019-11-24)
+
+* Do not open Pervasives unnecessarily. Avoids a warning on
+  4.08 in dev builds on Dune (#44 @talex5)
+* Update opam metadata to remove the `build`-only dep on Dune
+  (#45 @craigfe)
+
 ## 2.1.0 (2019-02-03)
 
 * Upgrade opam metadata to 2.0 format (@avsm)
