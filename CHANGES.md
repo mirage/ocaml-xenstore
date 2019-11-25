@@ -1,4 +1,4 @@
-## 2.1.1 (2019-11-24)
+## 2.1.1 (2019-11-24)
 
 * Do not open Pervasives unnecessarily. Avoids a warning on
   4.08 in dev builds on Dune (#44 @talex5)
