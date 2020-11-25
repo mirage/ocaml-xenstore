@@ -335,6 +335,22 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
 
   let counter = ref 0l
 
+  let rec add_watches h token = function
+    | [] -> Lwt.return_unit
+    | p :: ps ->
+      Lwt.try_bind
+        (fun () -> watch h p token)
+        (fun () -> add_watches h token ps)
+        (fun ex ->
+           (* If we fail to add all the watches (e.g. because we exceeded our watch quota)
+              then mark the remaining paths as unwatched so we don't try to release them. *)
+           (p :: ps) |> List.iter (fun p ->
+               let _ : _ Xs_handle.t = Xs_handle.unwatch h p in
+               ()
+             );
+           Lwt.fail ex
+        )
+
   let wait client f =
     let open StringSet in
     counter := Int32.succ !counter;
@@ -361,7 +377,7 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       >>= fun () ->
       (* Paths which were read do need to be watched: *)
       let new_paths = diff (Xs_handle.get_accessed_paths h) current_paths in
-      Lwt_list.iter_s (fun p -> watch h p token) (elements new_paths)
+      add_watches h token (elements new_paths)
       >>= fun () ->
       (* If we're watching the correct set of paths already then just block *)
       if old_paths = empty && (new_paths = empty)
