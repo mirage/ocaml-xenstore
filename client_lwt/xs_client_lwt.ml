@@ -403,9 +403,11 @@ module Client = functor(IO: IO with type 'a t = 'a Lwt.t) -> struct
       >>= function
       | true -> return ()
       | false ->
-        adjust_paths ()
-        >>= fun () ->
-        loop ()
+        Lwt.try_bind adjust_paths loop
+          (fun ex ->
+             wakeup_exn wakener ex;
+             Lwt.return_unit
+          )
     in
     Lwt.async (fun () ->
         finally loop
