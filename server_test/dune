@@ -1,6 +1,6 @@
 (executables
  (names server_test)
- (libraries lwt lwt.unix xenstore xenstore.server oUnit)
+ (libraries lwt lwt.unix xenstore xenstore.server ounit2)
  (flags :standard -safe-string))
 
 (alias
