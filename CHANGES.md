@@ -1,3 +1,9 @@
+## v2.2.0 (2022-07-26)
+
+* Fix crash if watch quto is exceeded (#47 @talex5)
+* Switch to ounit2 (#49 @Alessandro-Barbieri)
+* Add license to opam metadata (#48 @psafont)
+
 ## 2.1.1 (2019-11-24)
 
 * Do not open Pervasives unnecessarily. Avoids a warning on
