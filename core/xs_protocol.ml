@@ -149,15 +149,32 @@ type t = {
   data: Buffer.t;
 }
 
-let header_size = 16
+(*
+type header = {
+  ty: int32;
+  rid: int32;
+  tid: int32;
+  len: int32;
+}
+*)
+let get_header_ty b = Bytes.get_int32_le b 0
+let set_header_ty b v = Bytes.set_int32_le b 0 v
+let get_header_rid b = Bytes.get_int32_le b 4
+let set_header_rid b v = Bytes.set_int32_le b 4 v
+let get_header_tid b = Bytes.get_int32_le b 8
+let set_header_tid b v = Bytes.set_int32_le b 8 v
+let get_header_len b = Bytes.get_int32_le b 12
+let set_header_len b v = Bytes.set_int32_le b 12 v
+let sizeof_header = 16
+
 let to_bytes pkt =
   let len = Buffer.length pkt.data in
-  let result = Bytes.create (header_size+len) in
-  Bytes.set_int32_le result 0 @@ Op.to_int32 pkt.ty ;
-  Bytes.set_int32_le result 4 pkt.rid ;
-  Bytes.set_int32_le result 8 pkt.tid ;
-  Bytes.set_int32_le result 12 @@ Int32.of_int len ;
-  Bytes.blit (Buffer.to_bytes pkt.data) 0 result header_size len ;
+  let result = Bytes.create (sizeof_header + len) in
+  set_header_ty result @@ Op.to_int32 pkt.ty ;
+  set_header_rid result pkt.rid ;
+  set_header_tid result pkt.tid ;
+  set_header_len result @@ Int32.of_int len ;
+  Bytes.blit (Buffer.to_bytes pkt.data) 0 result sizeof_header len ;
   result
 
 let get_tid pkt = pkt.tid
@@ -189,18 +206,18 @@ module Parser = struct
     | ReadingBody of t
     | Finished of state
 
-  let start () = ReadingHeader (0, Bytes.make header_size '\000')
+  let start () = ReadingHeader (0, Bytes.make sizeof_header '\000')
 
   let state = function
-    | ReadingHeader(got_already, _) -> Need_more_data (header_size - got_already)
+    | ReadingHeader(got_already, _) -> Need_more_data (sizeof_header - got_already)
     | ReadingBody pkt -> Need_more_data (pkt.len - (Buffer.length pkt.data))
     | Finished r -> r
 
   let parse_header bytes =
-    let ty  = Bytes.get_int32_le bytes 0 in
-    let rid = Bytes.get_int32_le bytes 4 in
-    let tid = Bytes.get_int32_le bytes 8 in
-    let len = Bytes.get_int32_le bytes 12 in
+    let ty  = get_header_ty bytes in
+    let rid = get_header_rid bytes in
+    let tid = get_header_tid bytes in
+    let len = get_header_len bytes in
     let len = Int32.to_int len in
     (* A packet which is bigger than xenstore_payload_max is illegal.
        This will leave the guest connection is a bad state and will
@@ -229,7 +246,7 @@ module Parser = struct
       let len = String.length bytes in
       Bytes.blit_string bytes 0 str got_already len ;
       let got_already = got_already + len in
-      if got_already < header_size
+      if got_already < sizeof_header
       then ReadingHeader(got_already, str)
       else parse_header str
     | ReadingBody x ->
