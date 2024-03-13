@@ -225,11 +225,11 @@ module Unmarshal : sig
   val ok : t -> unit option
 end
 
-exception Enoent of string (** Raised when a named key does not exist. *)
-exception Eagain           (** Raised when a transaction must be repeated. *)
-exception Eexist           (** Raised when a watch already exists. *)
+exception Enoent of string (* Raised when a named key does not exist. *)
+exception Eagain           (* Raised when a transaction must be repeated. *)
+exception Eexist           (* Raised when a watch already exists. *)
 exception Invalid
-exception Error of string  (** Generic catch-all error. *)
+exception Error of string  (* Generic catch-all error. *)
 
 val response: string -> t -> t -> (t -> 'a option) -> 'a
 (** [response debug_hint sent received unmarshal] returns the
