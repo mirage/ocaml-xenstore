@@ -2,4 +2,4 @@
  (name xenstore)
  (public_name xenstore)
  (wrapped false)
- (flags :standard -safe-string))
+)
