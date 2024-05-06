@@ -1,3 +1,8 @@
+## v2.3.0 (2024-05-06)
+
+* remove cstruct and ppx_cstruct dependency (#52 @palainp)
+* require OCaml 4.08 (for Bytes.set_int32_le) (#52 @palainp)
+
 ## v2.2.0 (2022-07-26)
 
 * Fix crash if watch quota is exceeded (#47 @talex5)
