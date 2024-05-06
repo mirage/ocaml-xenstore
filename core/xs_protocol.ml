@@ -170,10 +170,10 @@ let sizeof_header = 16
 let to_bytes pkt =
   let len = Buffer.length pkt.data in
   let result = Bytes.create (sizeof_header + len) in
-  set_header_ty result @@ Op.to_int32 pkt.ty ;
+  set_header_ty result (Op.to_int32 pkt.ty) ;
   set_header_rid result pkt.rid ;
   set_header_tid result pkt.tid ;
-  set_header_len result @@ Int32.of_int len ;
+  set_header_len result (Int32.of_int len) ;
   Bytes.blit (Buffer.to_bytes pkt.data) 0 result sizeof_header len ;
   result
 
