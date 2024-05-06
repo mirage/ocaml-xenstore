@@ -1,5 +1,4 @@
 (library
  (name xenstore)
  (public_name xenstore)
- (wrapped false)
-)
+ (wrapped false))
