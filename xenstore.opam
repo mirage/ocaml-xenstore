@@ -12,10 +12,8 @@ doc: "https://mirage.github.io/ocaml-xenstore/"
 bug-reports: "https://github.com/mirage/ocaml-xenstore/issues"
 license: "LGPL-2.1-only WITH OCaml-LGPL-linking-exception"
 depends: [
-  "ocaml" {>= "4.04.0"}
+  "ocaml" {>= "4.08.0"}
   "dune" {>= "1.0"}
-  "cstruct" {>= "3.2.0"}
-  "ppx_cstruct" {>= "3.2.0"}
   "lwt"
   "ounit2" {with-test}
 ]

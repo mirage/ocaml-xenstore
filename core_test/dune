@@ -1,7 +1,6 @@
 (executables
  (names xs_test)
- (libraries lwt lwt.unix xenstore ounit2)
- (flags :standard -safe-string))
+ (libraries lwt lwt.unix xenstore ounit2))
 
 (alias
  (name runtest)

@@ -1,5 +1,4 @@
 (library
  (name xenstore_server)
  (public_name xenstore.server)
- (libraries lwt xenstore)
- (flags :standard -safe-string))
+ (libraries lwt xenstore))
