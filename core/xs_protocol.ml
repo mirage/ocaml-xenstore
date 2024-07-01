@@ -502,7 +502,7 @@ module Request = struct
     let args = split_string ~limit:2 '\000' data in
     match args with
     | a :: b :: [] -> a, b
-    | a :: [] -> a, "" (* terminating NULL removed by get_data *)
+    | a :: [] -> a, "" (* terminating NUL removed by get_data *)
     | _            ->
       raise Parse_failure
 
@@ -619,7 +619,7 @@ module Request = struct
 
   let data_of_payload = function
     | PathOp(path, Write value) ->
-      path ^ "\000" ^ value (* no NULL at the end *)
+      path ^ "\000" ^ value (* no NUL at the end *)
     | PathOp(path, Setperms perms) ->
       data_concat [ path; ACL.to_string perms ]
     | PathOp(path, _) -> data_concat [ path ]
