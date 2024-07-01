@@ -85,10 +85,7 @@ let char_is_valid c =
   || (c >= '0' && c <= '9')
   || c = '_' || c = '-' || c = '@'
 
-let name_is_valid name =
-  name <> ""
-  && String.fold_left (fun accu c -> accu && char_is_valid c) true name
-
+let name_is_valid name = name <> "" && String.for_all char_is_valid name
 let is_valid = List.for_all name_is_valid
 
 type path = string list
