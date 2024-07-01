@@ -80,6 +80,7 @@ let op_exn _store c t (payload : Request.payload) : Response.payload =
       | Directory ->
           let entries = Impl.list t c.Connection.perm path in
           Response.Directory entries
+      | Directory_part _ -> raise Parse_failure
       | Getperms ->
           let v = Impl.getperms t c.Connection.perm path in
           Response.Getperms v

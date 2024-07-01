@@ -40,6 +40,8 @@ module Op : sig
     | Resume
     | Set_target
     | Invalid
+    | Reset_watches
+    | Directory_part  (** The type of xenstore operation. *)
 
   val to_string : t -> string
   val of_int32 : int32 -> t option
@@ -162,6 +164,7 @@ module Response : sig
     | Isintroduced of bool
     | Error of string
     | Watchevent of string * string
+    | Directory_part of int64 * string
 
   val ty_of_payload : payload -> Op.t
   val prettyprint_payload : payload -> string
@@ -172,6 +175,7 @@ module Request : sig
   type path_op =
     | Read
     | Directory
+    | Directory_part of int
     | Getperms
     | Write of string
     | Mkdir
@@ -209,6 +213,7 @@ module Unmarshal : sig
   val int32 : t -> int32 option
   val unit : t -> unit option
   val ok : t -> unit option
+  val raw : t -> string option
 end
 
 exception Enoent of string (* Raised when a named key does not exist. *)

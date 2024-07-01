@@ -38,6 +38,8 @@ module Op = struct
     | Resume
     | Set_target
     | Invalid
+    | Reset_watches
+    | Directory_part
 
   (* The index of the value in the array is the integer representation used
      by the wire protocol. Every element of t exists exactly once in the array. *)
@@ -64,6 +66,8 @@ module Op = struct
      ; Resume
      ; Set_target
      ; Invalid
+     ; Reset_watches
+     ; Directory_part
     |]
 
   let of_int32 i =
@@ -105,6 +109,8 @@ module Op = struct
     | Resume -> "resume"
     | Set_target -> "set_target"
     | Invalid -> "invalid"
+    | Reset_watches -> "reset_watches"
+    | Directory_part -> "directory_part"
 end
 
 let split_string ~limit c s =
@@ -212,6 +218,7 @@ let get_data pkt =
     Buffer.sub pkt.data 0 (pkt.len - 1)
   else Buffer.contents pkt.data
 
+let get_raw_data pkt = Buffer.contents pkt.data
 let get_rid pkt = pkt.rid
 
 module Parser = struct
@@ -375,6 +382,9 @@ module Response = struct
     | Isintroduced of bool
     | Error of string
     | Watchevent of string * string
+    | Directory_part of int64 * string
+  (* Not a string list like Directory because we need to add another null
+     character at the end of the last packet *)
 
   let prettyprint_payload =
     let open Printf in
@@ -399,6 +409,7 @@ module Response = struct
     | Isintroduced x -> sprintf "Isintroduced %b" x
     | Error x -> sprintf "Error %s" x
     | Watchevent (x, y) -> sprintf "Watchevent %s %s" x y
+    | Directory_part (gen, ls) -> sprintf "Directory_part %Ld %s" gen ls
 
   let ty_of_payload = function
     | Read _ -> Op.Read
@@ -421,6 +432,7 @@ module Response = struct
     | Resume -> Op.Resume
     | Release -> Op.Release
     | Set_target -> Op.Set_target
+    | Directory_part _ -> Op.Directory_part
 
   let ok = "OK\000"
 
@@ -434,6 +446,9 @@ module Response = struct
     | Isintroduced b -> data_concat [ (if b then "T" else "F") ]
     | Watchevent (path, token) -> data_concat [ path; token ]
     | Error x -> data_concat [ x ]
+    | Directory_part (gen, ls) ->
+        let gen = Int64.to_string gen in
+        gen ^ "\000" ^ ls
     | _ -> ok
 
   let print x tid rid = create tid rid (ty_of_payload x) (data_of_payload x)
@@ -443,6 +458,7 @@ module Request = struct
   type path_op =
     | Read
     | Directory
+    | Directory_part of int (* offset *)
     | Getperms
     | Write of string
     | Mkdir
@@ -470,6 +486,8 @@ module Request = struct
   let prettyprint_pathop x = function
     | Read -> sprintf "Read %s" x
     | Directory -> sprintf "Directory %s" x
+    | Directory_part offset ->
+        sprintf "Directory_part %s %s" x (string_of_int offset)
     | Getperms -> sprintf "Getperms %s" x
     | Write v -> sprintf "Write %s %s" x v
     | Mkdir -> sprintf "Mkdir %s" x
@@ -494,6 +512,7 @@ module Request = struct
 
   exception Parse_failure
   exception Deprecated
+  exception Unimplemented
 
   let strings data = String.split_on_char '\000' data
 
@@ -511,9 +530,10 @@ module Request = struct
   let acl x =
     match ACL.of_string x with Some x -> x | None -> raise Parse_failure
 
+  let is_digit c = c >= '0' && c <= '9'
+
   let domid s =
     let v = ref 0 in
-    let is_digit c = c >= '0' && c <= '9' in
     let len = String.length s in
     let i = ref 0 in
     while !i < len && not (is_digit s.[!i]) do
@@ -533,6 +553,11 @@ module Request = struct
     match get_ty request with
     | Op.Read -> PathOp (data |> one_string, Read)
     | Op.Directory -> PathOp (data |> one_string, Directory)
+    | Op.Directory_part ->
+        let path, off = two_strings data in
+        let off = int_of_string off in
+        PathOp (path, Directory_part off)
+    | Op.Reset_watches -> raise Unimplemented
     | Op.Getperms -> PathOp (data |> one_string, Getperms)
     | Op.Getdomainpath -> Getdomainpath (data |> one_string |> domid)
     | Op.Transaction_start -> Transaction_start
@@ -583,6 +608,7 @@ module Request = struct
 
   let ty_of_payload = function
     | PathOp (_, Directory) -> Op.Directory
+    | PathOp (_, Directory_part _) -> Op.Directory_part
     | PathOp (_, Read) -> Op.Read
     | PathOp (_, Getperms) -> Op.Getperms
     | Debug _ -> Op.Debug
@@ -611,6 +637,8 @@ module Request = struct
     | PathOp (path, Write value) ->
         path ^ "\000" ^ value (* no NUL at the end *)
     | PathOp (path, Setperms perms) -> data_concat [ path; ACL.to_string perms ]
+    | PathOp (path, Directory_part value) ->
+        data_concat [ path; string_of_int value ]
     | PathOp (path, _) -> data_concat [ path ]
     | Debug commands -> data_concat commands
     | Watch (path, token) | Unwatch (path, token) -> data_concat [ path; token ]
@@ -649,6 +677,7 @@ module Unmarshal = struct
   let int32 = int32_of_string_opt ++ get_data
   let unit = unit_of_string_opt ++ get_data
   let ok = ok ++ get_data
+  let raw = some ++ get_raw_data (* with trailing NUL *)
 end
 
 exception Enoent of string
