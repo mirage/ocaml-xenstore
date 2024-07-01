@@ -72,7 +72,7 @@ module Op = struct
     | Restrict          -> "restrict"
 end
 
-let split_string ?limit:(limit=max_int) c s =
+let split_string ~limit c s =
   let len = String.length s in
   let next_c from =
     try
@@ -133,7 +133,7 @@ module ACL = struct
         if String.length s < 2
         then invalid_arg (Printf.sprintf "Permission string too short: '%s'" s);
         int_of_string (String.sub s 1 (String.length s - 1)), perm_of_char_exn s.[0] in
-      let l = List.map perm_of_string (split_string '\000' s) in
+      let l = List.map perm_of_string (String.split_on_char '\000' s) in
       match l with
       | (owner, other) :: l -> Some { owner = owner; other = other; acl = l }
       | [] -> Some { owner = 0; other = NONE; acl = [] }
@@ -489,7 +489,7 @@ module Request = struct
 
   exception Parse_failure
 
-  let strings data = split_string '\000' data
+  let strings data = String.split_on_char '\000' data
 
   let one_string data =
     let args = split_string ~limit:2 '\000' data in
@@ -663,7 +663,7 @@ module Unmarshal = struct
   let ok x = if x = "OK" then Some () else None
 
   let string = some ++ get_data
-  let list = some ++ split_string '\000' ++ get_data
+  let list = some ++ String.split_on_char '\000' ++ get_data
   let acl = ACL.of_string ++ get_data
   let int = int_of_string_opt ++ get_data
   let int32 = int32_of_string_opt ++ get_data
