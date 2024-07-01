@@ -174,7 +174,7 @@ let to_bytes pkt =
   set_header_rid result pkt.rid ;
   set_header_tid result pkt.tid ;
   set_header_len result (Int32.of_int len) ;
-  Bytes.blit (Buffer.to_bytes pkt.data) 0 result sizeof_header len ;
+  Buffer.blit pkt.data 0 result sizeof_header len ;
   result
 
 let get_tid pkt = pkt.tid
