@@ -114,8 +114,8 @@ let test_directory_order () =
   let open Xs_protocol.Request in
   run store
     [
-      (dom0, none, PathOp ("/a/1", Write ""), OK)
-    ; (dom0, none, PathOp ("/a/2/foo", Write ""), OK)
+      (dom0, none, PathOp ("/a/2/foo", Write ""), OK)
+    ; (dom0, none, PathOp ("/a/1", Write ""), OK)
     ; (dom0, none, PathOp ("/a/3", Write ""), OK)
     ; ( dom0
       , none
@@ -123,7 +123,7 @@ let test_directory_order () =
       , StringList
           (fun x ->
             assert_equal ~msg:"directory /a" ~printer:(String.concat ", ")
-              [ "1"; "2"; "3" ] x) )
+              [ "2"; "1"; "3" ] x) )
     ]
 
 let example_acl =
