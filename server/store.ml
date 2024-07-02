@@ -53,7 +53,7 @@ module Node = struct
 
   let replace_child node child nchild =
     (* this is the on-steroid version of the filter one-replace one *)
-    let rec replace_one_in_list l =
+    let[@tail_mod_cons] rec replace_one_in_list l =
       match l with
       | []                               -> []
       | h :: tl when h.name = child.name -> nchild :: tl
@@ -63,7 +63,7 @@ module Node = struct
 
   let del_childname node childname =
     let sym = Symbol.of_string childname in
-    let rec delete_one_in_list l =
+    let[@tail_mod_cons] rec delete_one_in_list l =
       match l with
       | []                        -> raise Not_found
       | h :: tl when h.name = sym -> tl

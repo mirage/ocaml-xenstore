@@ -152,7 +152,7 @@ module Client = functor(IO: IO with type 'a t = 'a) -> struct
   let error fmt = Printf.ksprintf !logger fmt
   let set_logger f = logger := f
 
-  (* Represents a single acive connection to a server *)
+  (* Represents a single active connection to a server *)
   type client = {
     transport: IO.channel;
     ps: PS.stream;

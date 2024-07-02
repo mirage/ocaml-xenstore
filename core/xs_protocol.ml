@@ -72,7 +72,7 @@ module Op = struct
     | Restrict          -> "restrict"
 end
 
-let split_string ?limit:(limit=max_int) c s =
+let split_string ~limit c s =
   let len = String.length s in
   let next_c from =
     try
@@ -133,7 +133,7 @@ module ACL = struct
         if String.length s < 2
         then invalid_arg (Printf.sprintf "Permission string too short: '%s'" s);
         int_of_string (String.sub s 1 (String.length s - 1)), perm_of_char_exn s.[0] in
-      let l = List.map perm_of_string (split_string '\000' s) in
+      let l = List.map perm_of_string (String.split_on_char '\000' s) in
       match l with
       | (owner, other) :: l -> Some { owner = owner; other = other; acl = l }
       | [] -> Some { owner = 0; other = NONE; acl = [] }
@@ -174,7 +174,7 @@ let to_bytes pkt =
   set_header_rid result pkt.rid ;
   set_header_tid result pkt.tid ;
   set_header_len result (Int32.of_int len) ;
-  Bytes.blit (Buffer.to_bytes pkt.data) 0 result sizeof_header len ;
+  Buffer.blit pkt.data 0 result sizeof_header len ;
   result
 
 let get_tid pkt = pkt.tid
@@ -489,7 +489,7 @@ module Request = struct
 
   exception Parse_failure
 
-  let strings data = split_string '\000' data
+  let strings data = String.split_on_char '\000' data
 
   let one_string data =
     let args = split_string ~limit:2 '\000' data in
@@ -502,7 +502,7 @@ module Request = struct
     let args = split_string ~limit:2 '\000' data in
     match args with
     | a :: b :: [] -> a, b
-    | a :: [] -> a, "" (* terminating NULL removed by get_data *)
+    | a :: [] -> a, "" (* terminating NUL removed by get_data *)
     | _            ->
       raise Parse_failure
 
@@ -619,7 +619,7 @@ module Request = struct
 
   let data_of_payload = function
     | PathOp(path, Write value) ->
-      path ^ "\000" ^ value (* no NULL at the end *)
+      path ^ "\000" ^ value (* no NUL at the end *)
     | PathOp(path, Setperms perms) ->
       data_concat [ path; ACL.to_string perms ]
     | PathOp(path, _) -> data_concat [ path ]
@@ -663,7 +663,7 @@ module Unmarshal = struct
   let ok x = if x = "OK" then Some () else None
 
   let string = some ++ get_data
-  let list = some ++ split_string '\000' ++ get_data
+  let list = some ++ String.split_on_char '\000' ++ get_data
   let acl = ACL.of_string ++ get_data
   let int = int_of_string_opt ++ get_data
   let int32 = int32_of_string_opt ++ get_data
