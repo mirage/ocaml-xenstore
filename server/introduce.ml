@@ -12,13 +12,7 @@
  * GNU Lesser General Public License for more details.
  *)
 
-type address = {
-  domid: int;
-  mfn: nativeint;
-  remote_port: int;
-}
+type address = { domid : int; mfn : nativeint; remote_port : int }
 
-let (stream: address Lwt_stream.t), introduce_fn = Lwt_stream.create ()
-
+let (stream : address Lwt_stream.t), introduce_fn = Lwt_stream.create ()
 let introduce x = introduce_fn (Some x)
-

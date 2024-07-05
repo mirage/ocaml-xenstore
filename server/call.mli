@@ -12,6 +12,6 @@
  * GNU Lesser General Public License for more details.
  *)
 
-val reply: Store.t -> Connection.t -> Xs_protocol.t -> Xs_protocol.t
+val reply : Store.t -> Connection.t -> Xs_protocol.t -> Xs_protocol.t
 (** [reply store con request] modifies [store] according to the request in
     [request] from connection [con] and returns the response to be sent to the client. *)
