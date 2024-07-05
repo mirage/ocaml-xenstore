@@ -16,38 +16,38 @@
 
 module type IO = sig
   type 'a t = 'a
-  val return: 'a -> 'a t
-  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
+
+  val return : 'a -> 'a t
+  val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
 
   type channel
-  val create: unit -> channel t
-  val destroy: channel -> unit t
-  val read: channel -> bytes -> int -> int -> int t
-  val write: channel -> bytes -> int -> int -> unit t
+
+  val create : unit -> channel t
+  val destroy : channel -> unit t
+  val read : channel -> bytes -> int -> int -> int t
+  val write : channel -> bytes -> int -> int -> unit t
 end
 
 exception Malformed_watch_event
 exception Unexpected_rid of int32
 exception Dispatcher_failed
-
 exception Cancelled
 
 module Task : sig
   type 'a u
 
-  val make: unit -> 'a u
-  val wakeup: 'a u -> 'a -> unit
-  val on_cancel: 'a u -> (unit -> unit) -> unit
-  val cancel: 'a u -> unit
-  val wait: 'a u -> 'a
+  val make : unit -> 'a u
+  val wakeup : 'a u -> 'a -> unit
+  val on_cancel : 'a u -> (unit -> unit) -> unit
+  val cancel : 'a u -> unit
+  val wait : 'a u -> 'a
 end
-
 
 type watch_callback = string * string -> unit
 (** Clients can opt to manage watches manually via this optional
     callback. *)
 
-module Client : functor(IO: IO) -> sig
+module Client : functor (IO : IO) -> sig
   type client
   (** A multiplexing xenstore client. *)
 
@@ -131,6 +131,6 @@ module Client : functor(IO: IO) -> sig
       to signal the construction of a new domain. *)
 
   val set_target : handle -> int -> int -> unit IO.t
-(** [set_target h stubdom_domid domid] called by a toolstack to
+  (** [set_target h stubdom_domid domid] called by a toolstack to
     grant [stubdom_domid] the permissions owned by [domid]. *)
 end

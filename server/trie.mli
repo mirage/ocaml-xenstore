@@ -19,10 +19,10 @@ type ('a, 'b) t
 	Internally, a trie is represented as a labeled tree, where node contains values
 	of type ['a * 'b option]. *)
 
-val create : unit -> ('a,'b) t
+val create : unit -> ('a, 'b) t
 (** Creates an empty trie. *)
 
-val mem : ('a,'b) t -> 'a list -> bool
+val mem : ('a, 'b) t -> 'a list -> bool
 (** [mem t k] returns true if a value is associated with the key [k] in the trie [t]. 
 	Otherwise, it returns false. *)
 
@@ -47,13 +47,13 @@ val iter_path : ('a -> 'b option -> unit) -> ('a, 'b) t -> 'a list -> unit
 (** [iter_path f t p] iterates [f] over nodes associated with the path [p] in the trie [t]. 
 	If [p] is not a valid path of [t], it iterates on the longest valid prefix of [p]. *)
 
-val fold : ('a -> 'b option -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c 
+val fold : ('a -> 'b option -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c
 (** [fold f t x] fold [f] over every nodes of [t], with [x] as initial value. *)
 
-val map : ('b -> 'c option) -> ('a,'b) t -> ('a,'c) t
+val map : ('b -> 'c option) -> ('a, 'b) t -> ('a, 'c) t
 (** [map f t] maps [f] over every values stored in [t]. The return value of [f] is of type 'c option
 	as one may wants to remove value associated to a key. This function is not tail-recursive. *)
 
-val sub : ('a, 'b) t -> 'a list -> ('a,'b) t
+val sub : ('a, 'b) t -> 'a list -> ('a, 'b) t
 (** [sub t p] returns the sub-trie associated with the path [p] in the trie [t].
 	If [p] is not a valid path of [t], it returns an empty trie. *)

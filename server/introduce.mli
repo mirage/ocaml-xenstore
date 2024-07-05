@@ -12,16 +12,12 @@
  * GNU Lesser General Public License for more details.
  *)
 
-type address = {
-	domid: int;
-	mfn: nativeint;
-	remote_port: int;
-}
+type address = { domid : int; mfn : nativeint; remote_port : int }
 (** A remote domain address *)
 
-val introduce: address -> unit
+val introduce : address -> unit
 (** [introduce address] should be called whenever an introduce message
 	is received from the toolstack. *)
 
-val stream: address Lwt_stream.t
+val stream : address Lwt_stream.t
 (** A stream of introduced addresses *)

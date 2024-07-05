@@ -16,17 +16,20 @@
 
 module type IO = sig
   type 'a t = 'a Lwt.t
-  val return: 'a -> 'a t
-  val ( >>= ): 'a t -> ('a -> 'b t) -> 'b t
+
+  val return : 'a -> 'a t
+  val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
 
   type backend = [ `xen | `unix ]
+
   val backend : backend
 
   type channel
-  val create: unit -> channel t
-  val destroy: channel -> unit t
-  val read: channel -> bytes -> int -> int -> int t
-  val write: channel -> bytes -> int -> int -> unit t
+
+  val create : unit -> channel t
+  val destroy : channel -> unit t
+  val read : channel -> bytes -> int -> int -> int t
+  val write : channel -> bytes -> int -> int -> unit t
 end
 
 exception Malformed_watch_event
@@ -107,8 +110,8 @@ module type S = sig
       to signal the construction of a new domain. *)
 
   val set_target : handle -> int -> int -> unit Lwt.t
-(** [set_target h stubdom_domid domid] called by a toolstack to grant
+  (** [set_target h stubdom_domid domid] called by a toolstack to grant
     [stubdom_domid] the permissions owned by [domid]. *)
 end
 
-module Client : functor(IO: IO) -> S
+module Client : functor (IO : IO) -> S
