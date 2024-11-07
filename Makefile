@@ -1,5 +1,5 @@
 
-.PHONY: build clean test
+.PHONY: build clean test format install uninstall
 
 build:
 	dune build @install
@@ -15,3 +15,10 @@ uninstall:
 
 clean:
 	dune clean
+
+format:
+	dune build --auto-promote @fmt
+	dune format-dune-file dune-project > $$$$ && mv $$$$ dune-project
+	opam lint
+
+

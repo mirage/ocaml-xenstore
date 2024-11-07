@@ -2,8 +2,8 @@
  (names xs_test)
  (libraries lwt lwt.unix xenstore ounit2))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (deps
   (:< xs_test.exe))
  (action

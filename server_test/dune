@@ -2,8 +2,8 @@
  (names server_test)
  (libraries lwt lwt.unix xenstore xenstore.server ounit2))
 
-(alias
- (name runtest)
+(rule
+ (alias runtest)
  (deps
   (:< server_test.exe))
  (action
