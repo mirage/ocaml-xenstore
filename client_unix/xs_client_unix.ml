@@ -339,9 +339,6 @@ functor
 
     let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
 
-    let restrict h domid =
-      rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
-
     let getdomainpath h domid =
       rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
 

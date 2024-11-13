@@ -223,24 +223,6 @@ let test_rm () =
     ; (dom0, none, PathOp ("/a/b", Rm), OK)
     ]
 
-let test_restrict () =
-  (* Check that only dom0 can restrict to another domain
-     	   and that it loses access to dom0-only nodes. *)
-  let dom0 = Connection.create (Xs_protocol.Domain 0) None in
-  let dom3 = Connection.create (Xs_protocol.Domain 3) None in
-  let dom7 = Connection.create (Xs_protocol.Domain 7) None in
-  let store = empty_store () in
-  let open Xs_protocol.Request in
-  run store
-    [
-      (dom0, none, PathOp ("/foo", Write "bar"), OK)
-    ; (dom0, none, PathOp ("/foo", Setperms example_acl), OK)
-    ; (dom3, none, PathOp ("/foo", Write "bar"), OK)
-    ; (dom7, none, PathOp ("/foo", Write "bar"), Err "EACCES")
-    ; (dom0, none, Restrict 7, OK)
-    ; (dom0, none, PathOp ("/foo", Write "bar"), Err "EACCES")
-    ]
-
 let test_set_target () =
   (* Check that dom0 can grant dom1 access to dom2's nodes,
      	   without which it wouldn't have access. *)
@@ -787,7 +769,6 @@ let _ =
          ; "test_mkdir" >:: test_mkdir
          ; "test_empty" >:: test_empty
          ; "test_rm" >:: test_rm
-         ; "test_restrict" >:: test_restrict
          ; "test_set_target" >:: test_set_target
          ; "transactions_are_isolated" >:: test_transactions_are_isolated
          ; "independent_transactions_coalesce"

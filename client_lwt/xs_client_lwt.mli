@@ -89,10 +89,6 @@ module type S = sig
   val debug : handle -> string list -> string list Lwt.t
   (** [debug cmd_args] invokes a debug command. *)
 
-  val restrict : handle -> int -> unit Lwt.t
-  (** [restrict h domid] restricts the current connection to have only
-	    the priviledges associated with domain [domid]. *)
-
   val getdomainpath : handle -> int -> string Lwt.t
   (** [getdomainpath domid] returns the local directory of domain
       [domid]. *)

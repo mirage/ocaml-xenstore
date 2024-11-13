@@ -37,7 +37,7 @@ module Op = struct
     | Isintroduced
     | Resume
     | Set_target
-    | Restrict
+    | Invalid
 
   (* The index of the value in the array is the integer representation used
      by the wire protocol. Every element of t exists exactly once in the array. *)
@@ -63,7 +63,7 @@ module Op = struct
      ; Isintroduced
      ; Resume
      ; Set_target
-     ; Restrict
+     ; Invalid
     |]
 
   let of_int32 i =
@@ -104,7 +104,7 @@ module Op = struct
     | Isintroduced -> "isintroduced"
     | Resume -> "resume"
     | Set_target -> "set_target"
-    | Restrict -> "restrict"
+    | Invalid -> "invalid"
 end
 
 let split_string ~limit c s =
@@ -372,7 +372,6 @@ module Response = struct
     | Resume
     | Release
     | Set_target
-    | Restrict
     | Isintroduced of bool
     | Error of string
     | Watchevent of string * string
@@ -397,7 +396,6 @@ module Response = struct
     | Resume -> "Resume"
     | Release -> "Release"
     | Set_target -> "Set_target"
-    | Restrict -> "Restrict"
     | Isintroduced x -> sprintf "Isintroduced %b" x
     | Error x -> sprintf "Error %s" x
     | Watchevent (x, y) -> sprintf "Watchevent %s %s" x y
@@ -423,7 +421,6 @@ module Response = struct
     | Resume -> Op.Resume
     | Release -> Op.Release
     | Set_target -> Op.Set_target
-    | Restrict -> Op.Restrict
 
   let ok = "OK\000"
 
@@ -464,7 +461,6 @@ module Request = struct
     | Resume of int
     | Release of int
     | Set_target of int * int
-    | Restrict of int
     | Isintroduced of int
     | Error of string
     | Watchevent of string
@@ -492,12 +488,12 @@ module Request = struct
     | Resume x -> sprintf "Resume %d" x
     | Release x -> sprintf "Release %d" x
     | Set_target (x, y) -> sprintf "Set_target %d %d" x y
-    | Restrict x -> sprintf "Restrict %d" x
     | Isintroduced x -> sprintf "Isintroduced %d" x
     | Error x -> sprintf "Error %s" x
     | Watchevent x -> sprintf "Watchevent %s" x
 
   exception Parse_failure
+  exception Deprecated
 
   let strings data = String.split_on_char '\000' data
 
@@ -571,10 +567,10 @@ module Request = struct
         let mine, yours = two_strings data in
         let mine = domid mine and yours = domid yours in
         Set_target (mine, yours)
-    | Op.Restrict -> Restrict (data |> one_string |> domid)
     | Op.Isintroduced -> Isintroduced (data |> one_string |> domid)
     | Op.Error -> Error (data |> one_string)
     | Op.Watchevent -> Watchevent (data |> one_string)
+    | Op.Invalid -> raise Deprecated
 
   let parse request = try Some (parse_exn request) with _ -> None
 
@@ -603,7 +599,6 @@ module Request = struct
     | PathOp (_, Rm) -> Op.Rm
     | PathOp (_, Setperms _) -> Op.Setperms
     | Set_target (_, _) -> Op.Set_target
-    | Restrict _ -> Op.Restrict
     | Isintroduced _ -> Op.Isintroduced
     | Error _ -> Op.Error
     | Watchevent _ -> Op.Watchevent
@@ -628,11 +623,7 @@ module Request = struct
           ; Printf.sprintf "%nu" mfn
           ; string_of_int port
           ]
-    | Release domid
-    | Resume domid
-    | Getdomainpath domid
-    | Restrict domid
-    | Isintroduced domid ->
+    | Release domid | Resume domid | Getdomainpath domid | Isintroduced domid ->
         data_concat [ Printf.sprintf "%u" domid ]
     | Set_target (mine, yours) ->
         data_concat [ Printf.sprintf "%u" mine; Printf.sprintf "%u" yours ]

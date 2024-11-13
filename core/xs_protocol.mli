@@ -39,7 +39,7 @@ module Op : sig
     | Isintroduced
     | Resume
     | Set_target
-    | Restrict  (** The type of xenstore operation. *)
+    | Invalid
 
   val to_string : t -> string
   val of_int32 : int32 -> t option
@@ -159,7 +159,6 @@ module Response : sig
     | Resume
     | Release
     | Set_target
-    | Restrict
     | Isintroduced of bool
     | Error of string
     | Watchevent of string * string
@@ -191,7 +190,6 @@ module Request : sig
     | Resume of int
     | Release of int
     | Set_target of int * int
-    | Restrict of int
     | Isintroduced of int
     | Error of string
     | Watchevent of string

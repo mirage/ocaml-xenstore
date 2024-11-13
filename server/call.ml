@@ -52,7 +52,7 @@ let op_exn _store c t (payload : Request.payload) : Response.payload =
   | Introduce (_, _, _)
   | Resume _ | Release _
   | Set_target (_, _)
-  | Restrict _ | Isintroduced _ | Error _ | Watchevent _ ->
+  | Isintroduced _ | Error _ | Watchevent _ ->
       assert false
   | Getdomainpath domid ->
       let v = Store.Path.getdomainpath domid |> Store.Path.to_string in
@@ -203,10 +203,6 @@ let reply_exn store c (request : t) : Response.payload =
               c.Connection.perm <- Perms.set_target c.Connection.perm yours)
           Connection.by_address;
         Response.Set_target
-    | Request.Restrict domid ->
-        Perms.has c.Connection.perm Perms.RESTRICT;
-        c.Connection.perm <- Perms.restrict c.Connection.perm domid;
-        Response.Restrict
     | Request.Isintroduced _ ->
         Perms.has c.Connection.perm Perms.ISINTRODUCED;
         Response.Isintroduced false
