@@ -28,7 +28,7 @@ homepage: "https://github.com/mirage/ocaml-xenstore"
 bug-reports: "https://github.com/mirage/ocaml-xenstore/issues"
 depends: [
   "dune" {>= "2.0"}
-  "ocaml" {>= "4.08.0"}
+  "ocaml" {>= "4.13.0"}
   "ounit2" {>= "2.2.2"}
   "lwt" {>= "4.5.0"}
 ]
