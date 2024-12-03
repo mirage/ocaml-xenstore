@@ -54,7 +54,6 @@ module type S = sig
   val mkdir : handle -> string -> unit Lwt.t
   val setperms : handle -> string -> Xs_protocol.ACL.t -> unit Lwt.t
   val debug : handle -> string list -> string list Lwt.t
-  val restrict : handle -> int -> unit Lwt.t
   val getdomainpath : handle -> int -> string Lwt.t
   val watch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
   val unwatch : handle -> string -> Xs_protocol.Token.t -> unit Lwt.t
@@ -341,9 +340,6 @@ functor
         Unmarshal.ok
 
     let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
-
-    let restrict h domid =
-      rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
 
     let getdomainpath h domid =
       rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string

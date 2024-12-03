@@ -301,11 +301,40 @@ functor
         with_mutex c.m (fun () -> Hashtbl.remove c.rid_to_wakeup rid);
         response hint request res unmarshal)
 
+    let directory_part h path offset =
+      rpc "directory_part" h
+        Request.(PathOp (path, Directory_part offset))
+        Unmarshal.raw
+
+    let rpc_dir hint h path =
+      try rpc hint h Request.(PathOp (path, Directory)) Unmarshal.list
+      with Error "E2BIG" ->
+        let data = Buffer.create 16 in
+        let rec read_part generation =
+          let offset = Buffer.length data in
+          let out = directory_part h path offset in
+          let i = String.index out '\000' in
+          let new_generation = String.sub out 0 i in
+
+          (* Node's children changed, restart *)
+          if offset <> 0 && new_generation <> generation then (
+            Buffer.clear data;
+            read_part "")
+          else Buffer.add_substring data out (i + 1) (String.length out - i - 1);
+
+          let l = Buffer.length data in
+
+          if l < 2 then Buffer.clear data
+          else if String.ends_with ~suffix:"\000\000" (Buffer.contents data)
+          then (* last packet *)
+            Buffer.truncate data (l - 2)
+          else read_part new_generation
+        in
+        read_part "";
+        String.split_on_char '\000' (Buffer.contents data)
+
     let directory h path =
-      rpc "directory"
-        (Xs_handle.accessed_path h path)
-        Request.(PathOp (path, Directory))
-        Unmarshal.list
+      rpc_dir "directory" (Xs_handle.accessed_path h path) path
 
     let read h path =
       rpc "read"
@@ -338,9 +367,6 @@ functor
         Unmarshal.ok
 
     let debug h cmd_args = rpc "debug" h (Request.Debug cmd_args) Unmarshal.list
-
-    let restrict h domid =
-      rpc "restrict" h (Request.Restrict domid) Unmarshal.ok
 
     let getdomainpath h domid =
       rpc "getdomainpath" h (Request.Getdomainpath domid) Unmarshal.string
