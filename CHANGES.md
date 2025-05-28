@@ -1,3 +1,11 @@
+## v2.4.0 (2025-05-28)
+
+* minor performance fixes (#53 by freddy77)
+* use dune 2.0 (#54 by lindig)
+* require OCaml 4.13 (#56 by last-genius)
+* Add support `XS_DIRECTORY_PART` to the client (#55 by last-genius)
+* Add x-maintenance-intent to opam  metadata (#57 by hannesm)
+
 ## v2.3.0 (2024-05-06)
 
 * remove cstruct and ppx_cstruct dependency (#52 @palainp)
