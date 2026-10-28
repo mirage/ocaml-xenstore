@@ -1,3 +1,8 @@
+## v2.4.1 (2026-10-28)
+
+* Xs_client_lwt.dispatcher: do not nest a dispatcher recursion when resolving a
+  watch event, otherwise on promise is leaked (#60 @palainp)
+
 ## v2.4.0 (2025-05-28)
 
 * minor performance fixes (#53 by freddy77)
