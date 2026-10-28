@@ -186,8 +186,7 @@ functor
               (* We may get old watches: silently drop these *)
               if Hashtbl.mem t.watchevents token then
                 Watcher.put (Hashtbl.find t.watchevents token) path
-                >>= fun () -> dispatcher t
-              else dispatcher t
+              else return ()
           | _ -> handle_exn t Malformed_watch_event)
           >>= fun () -> dispatcher t
       | _ -> (
